@@ -88,7 +88,7 @@ CustomSpectrogram : Spectrogram{
 					rate.reciprocal.wait; // framerate
 				}.loop;
 			}).start;
-		}; //.defer(0.1); no need to defer to allow the creation of an fftbuf before starting
+		}.defer(0); no need to defer to allow the creation of an fftbuf before starting
 	}
 
 	stopruntask {
@@ -96,7 +96,7 @@ CustomSpectrogram : Spectrogram{
 		runtask.stop;
 	}
 
-	fftbus_ {arg fftbufarg;
+	fftbuf_ {arg fftbufarg;
 		fftbuf = fftbufarg;
 	}
 }
