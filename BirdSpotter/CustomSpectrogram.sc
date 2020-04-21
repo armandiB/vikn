@@ -70,7 +70,7 @@ CustomSpectrogram : Spectrogram{
 						// thus temporary fix below
 						*/
 
-						complexarray = (((1+(Complex(
+							complexarray = (((1+(Complex(
 								Signal.newFrom( magarray[0] ),
 								Signal.newFrom( magarray[1] )
 						).magnitude.reverse)).log10)*80).clip(0, 255);
