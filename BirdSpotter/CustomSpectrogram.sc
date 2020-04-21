@@ -6,8 +6,8 @@ CustomSpectrogram : Spectrogram{
 	sendSynthDef {
 	}
 
-	initSpectrogram { arg parent, boundsarg, bufSizearg, col, bg, lowfreqarg, highfreqarg;
-		server = Server.default;
+	initSpectrogram { arg parent, boundsarg, bufSizearg, col, bg, lowfreqarg, highfreqarg, serverarg;
+		server = serverarg ? Server.default;
 		inbus = 0;
 		rate = 25; // updates per second
 		bufSize = bufSizearg ? 1024; // fft window
