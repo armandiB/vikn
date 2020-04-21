@@ -48,6 +48,15 @@ CustomSpectrogram : Spectrogram{
 						var magarray, complexarray;
 						magarray = buf.clump(2)[(frombin .. tobin)].flop;
 
+						/*
+// OLD METHOD:
+						// magnitude spectrum
+						complexarray = (Complex(
+								Signal.newFrom( magarray[0] ),
+								Signal.newFrom( magarray[1] )
+						).magnitude.reverse*2).clip(0, 255); // times 2 in order to strenghten color
+						*/
+
 // NEW METHOD:
 						/*
 						// log intensity - thanks nick
@@ -59,22 +68,12 @@ CustomSpectrogram : Spectrogram{
 							).magnitude.reverse)+1).log10)*80).clip(0, 255);
 						// That +1 above is the cause of the crash
 						// thus temporary fix below
-*/
+						*/
 
-						complexarray = ((((Complex(
+						complexarray = (((1+(Complex(
 								Signal.newFrom( magarray[0] ),
 								Signal.newFrom( magarray[1] )
 						).magnitude.reverse)).log10)*80).clip(0, 255);
-
-
-/*
-						// OLD METHOD:
-						// magnitude spectrum
-						complexarray = (Complex(
-								Signal.newFrom( magarray[0] ),
-								Signal.newFrom( magarray[1] )
-						).magnitude.reverse*2).clip(0, 255); // times 2 in order to strenghten color
-/*
 
 						complexarray.do({|val, i|
 							val = val * intensity;
