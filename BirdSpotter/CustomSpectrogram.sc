@@ -68,9 +68,10 @@ CustomSpectrogram : Spectrogram{
 							).magnitude.reverse)+1).log10)*80).clip(0, 255);
 						// That +1 above is the cause of the crash
 						// thus temporary fix below
+						// AB: fixed back
 						*/
 
-							complexarray = (((1+(Complex(
+						complexarray = (((1+(Complex(
 								Signal.newFrom( magarray[0] ),
 								Signal.newFrom( magarray[1] )
 						).magnitude.reverse)).log10)*80).clip(0, 255);
