@@ -1,10 +1,16 @@
-CustomSpectrogram : Spectrogram{
+CustomSpectrogram {
 
-	//ToDo: dependencies of inbus and fftbuf
+	classvar <server;
+	var window; //, bounds;
+	var <fftbuf, fftDataArray, fftSynth;
+	var inbus, <>rate;
+	var <bufSize, binfreqs;	// size of FFT
+	var <frombin, <tobin;
+	var image, imgWidth, imgHeight, index, <>intensity, runtask;
+	var color, background, colints; // colints is an array of integers each representing a color
+	var userview, mouseX, mouseY, freq, drawCrossHair = false; // mYIndex, mXIndex, freq;
+	var crosshaircolor, running;
 
-	sendSynthDef {
-		//Overriden by security
-	}
 
 	*new { arg parent, bounds, buffer, bufSize, color, background, lowfreq=0, highfreq=inf, server;
 		^super.new.initCustomSpectrogram(parent, bounds, buffer, bufSize, color, background, lowfreq, highfreq, server);
@@ -39,6 +45,42 @@ CustomSpectrogram : Spectrogram{
 			image.free;
 			this.stopruntask;
 		}).front;
+	}
+
+	setUserView {arg window, bounds;
+		userview = UserView(window, bounds)
+			.focusColor_(Color.white.alpha_(0))
+			.resize_(5)
+			.drawFunc_({arg view;
+				var b = view.bounds;
+				Pen.use {
+					Pen.scale( b.width / imgWidth, b.height / imgHeight );
+					Pen.drawImage( 0@0, image );
+				};
+				if( drawCrossHair, {
+					Pen.color = crosshaircolor;
+					Pen.addRect( b.moveTo( 0, 0 ));
+					Pen.clip;
+					Pen.line( 0@mouseY, b.width@mouseY);
+					Pen.line(mouseX @ 0, mouseX @ b.height);
+					Pen.font = Font( "Helvetica", 10 );
+					Pen.stringAtPoint( "freq: "+freq.asString, mouseX + 20 @ mouseY - 15);
+					Pen.stroke;
+				});
+			})
+			.mouseDownAction_({|view, mx, my|
+				this.crosshairCalcFunc(view, mx, my);
+				drawCrossHair = true;
+				view.refresh;
+			})
+			.mouseMoveAction_({|view, mx, my|
+				this.crosshairCalcFunc(view, mx, my);
+				view.refresh;
+			})
+			.mouseUpAction_({|view, mx, my|�
+				drawCrossHair = false;
+				view.refresh;
+			});
 	}
 
 	startruntask {
@@ -96,6 +138,15 @@ CustomSpectrogram : Spectrogram{
 		}.defer; //no need to defer to allow the creation of an fftbuf before starting
 	}
 
+	stopruntask {
+		running = false;
+		runtask.stop;
+	}
+
+	fftbuf_ {arg fftbufarg;
+		fftbuf = fftbufarg;
+	}
+
 	setBufAndSize_ {arg bufferarg, bufSizearg, restart=true;
 		if(bufSizearg.isPowerOfTwo, {
 			this.stopruntask;
@@ -110,6 +161,26 @@ CustomSpectrogram : Spectrogram{
 		}, {
 			"Buffer size has to be power of two (256, 1024, 2048, etc.)".warn;
 		});
+	}
+
+	color_ {arg colorarg;
+		color = colorarg;
+		this.recalcGradient;
+	}
+
+	background_ {arg backgroundarg;
+		background = backgroundarg;
+		this.prCreateImage( userview.bounds.width );
+		this.recalcGradient;
+//		userview.backgroundImage_(image, 10);
+		userview.refresh;
+	}
+
+	prCreateImage { arg width;
+		if( image.notNil, { image.free });
+		imgWidth = width;
+		imgHeight = (tobin - frombin + 1); // bufSize.div(2);
+		image = Image.color(imgWidth.asInteger, imgHeight.asInteger, background);
 	}
 
 	setBufSize_{arg buffersize, restart=true;
@@ -128,12 +199,28 @@ CustomSpectrogram : Spectrogram{
 		});
 	}
 
-	stopruntask {
-		running = false;
-		runtask.stop;
+	recalcGradient {
+		var colors;
+		colors = (0..16).collect({|val| blend(background, color, val/16)});
+		colints = colors.collect({|col| Image.colorToPixel( col )});
 	}
 
-	fftbuf_ {arg fftbufarg;
-		fftbuf = fftbufarg;
+	crosshairColor_{arg argcolor;
+		crosshaircolor = argcolor;
 	}
+
+	crosshairCalcFunc {|view, mx, my|
+		mouseX = (mx-1.5).clip(0, view.bounds.width);
+		mouseY = (my-1.5).clip(0, view.bounds.height);
+		freq = binfreqs[((view.bounds.height)-mouseY).round(1).linlin(0, view.bounds.height, frombin*2, tobin*2).floor(1)].round(0.01);
+	}
+
+	setWindowImage { arg width;
+		this.prCreateImage( width );
+		index = 0;
+	}
+
+	start { this.startruntask }
+
+	stop { this.stopruntask }
 }
