@@ -1,16 +1,21 @@
 CustomSpectrogram : Spectrogram{
 
-	//dependencies of inbus and fftbuf
-	//server in initSpectrogram
+	//ToDo: dependencies of inbus and fftbuf
 
 	sendSynthDef {
+		//Overriden by security
 	}
 
-	initSpectrogram { arg parent, boundsarg, bufSizearg, col, bg, lowfreqarg, highfreqarg, serverarg;
+	*new { arg parent, bounds, buffer, bufSize, color, background, lowfreq=0, highfreq=inf, server;
+		^super.new.initCustomSpectrogram(parent, bounds, buffer, bufSize, color, background, lowfreq, highfreq, server);
+	}
+
+	initCustomSpectrogram { arg parent, boundsarg, bufferarg, bufSizearg, col, bg, lowfreqarg, highfreqarg, serverarg;
 		server = serverarg ? Server.default;
 		inbus = 0;
 		rate = 25; // updates per second
-		bufSize = bufSizearg ? 1024; // fft window
+		bufSize = bufSizearg ? (bufferarg !? (_.numFrames) ? 1024); // fft window
+		fftbuf = bufferarg ? Buffer.alloc(server, bufSize);
 		binfreqs = bufSize.collect({|i| ((server.sampleRate/2)/bufSize)*(i+1)});
 		index = 0;
 		intensity = 1;
@@ -21,13 +26,12 @@ CustomSpectrogram : Spectrogram{
 		frombin = max(binfreqs.indexOf((lowfreqarg/2).nearestInList(binfreqs)), 0);
 		fftDataArray = Int32Array.fill((tobin - frombin + 1), 0);
 		running = false;
-		this.sendSynthDef;
 		this.createWindow(parent, boundsarg);
 	}
 
 	createWindow {arg parent, boundsarg;
 		var bounds;
-		window = parent ? Window("Spectrogram",  Rect(200, 450, 600, 300));
+		window = parent ? Window("Spectrogram",  Rect(100, 450, 1200, 750));
 		bounds = boundsarg ? window.view.bounds;
 		this.setWindowImage( bounds.width );
 		this.setUserView(window, bounds);
@@ -90,6 +94,38 @@ CustomSpectrogram : Spectrogram{
 				}.loop;
 			}).start;
 		}.defer; //no need to defer to allow the creation of an fftbuf before starting
+	}
+
+	setBufAndSize_ {arg bufferarg, bufSizearg, restart=true;
+		if(bufSizearg.isPowerOfTwo, {
+			this.stopruntask;
+			bufSize = bufSizearg ? bufferarg.numFrames;
+			//No freeing by security
+			fftbuf = bufferarg;
+			binfreqs = bufSize.collect({|i| ((server.sampleRate/2)/bufSize)*(i+1) });
+			tobin = bufSize.div(2) - 1;
+			frombin = 0;
+			fftDataArray = Int32Array.fill((tobin - frombin + 1), 0);
+			this.setWindowImage( userview.bounds.width );
+		}, {
+			"Buffer size has to be power of two (256, 1024, 2048, etc.)".warn;
+		});
+	}
+
+	setBufSize_{arg buffersize, restart=true;
+		if(buffersize.isPowerOfTwo, {
+			this.stopruntask;
+			bufSize = buffersize;
+			//Don't free fftbuf
+			fftbuf = Buffer.alloc(server, bufSize, 1, { if(restart, {this.startruntask}) }) ;
+			binfreqs = bufSize.collect({|i| ((server.sampleRate/2)/bufSize)*(i+1) });
+			tobin = bufSize.div(2) - 1;
+			frombin = 0;
+			fftDataArray = Int32Array.fill((tobin - frombin + 1), 0);
+			this.setWindowImage( userview.bounds.width );
+		}, {
+			"Buffersize has to be power of two (256, 1024, 2048, etc.)".warn;
+		});
 	}
 
 	stopruntask {
