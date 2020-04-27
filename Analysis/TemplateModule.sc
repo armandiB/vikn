@@ -6,7 +6,7 @@ TemplateModule{
 		^super.new;
 	}
 
-	getFun {|fun|
-		^dfltParams.use({fun}.valueEnvir);
+	getFunDflt {|fun|
+		^dfltParams.use({fun});
 	}
 }

@@ -16,17 +16,17 @@ FFTModule : TemplateModule{
 
 	fillDeftParams {
 		dfltParams = (
-			hop: 0.5,
-			wintype: 1,
-			active: 1,
-			winsize: 0
+			hop_d: 0.5,
+			wintype_d: 1,
+			active_d: 1,
+			winsize_d: 0
 		)
 	}
 
 	fillFunDict {
 		funDict = (
-			simple_fft: {|in, hop=(~hop), wintype=(~wintype), active=(~active), winsize=(~winsize), fftbufnum=(this.fftbuf)|
-				FFT(fftbufnum, in, hop: hop, wintype: wintype, active: active, winsize:winsize);
+			simple_fft: {|in|
+				FFT( \fftbufnum.kr(this.fftbuf), in, \hop.kr(~hop_d), \wintype.kr(~wintype_d), \active.kr(~active_d), \winsize.kr(~winsize_d));
 			}
 		)
 	}
@@ -61,8 +61,8 @@ IFFTModule : TemplateModule{
 
 	fillDeftParams {
 		dfltParams = (
-			wintype: 1,
-			winsize: 0
+			wintype_d: 1,
+			winsize_d: 0
 		)
 	}
 

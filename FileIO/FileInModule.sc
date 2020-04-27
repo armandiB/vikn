@@ -16,17 +16,24 @@ FileInModule : TemplateModule {
 
 	fillDeftParams {
 		dfltParams = (
-			numchan: 1
+			numchan_d: 1,
+			bufidx_d: 0,
+			rate_d: 1,
+			trigger_d: 1,
+			startPos_d: 0,
+			loop_d: 1,
+			mul_d: 1.0
 		)
 	}
 
 	//ToDo: adapt to dfltParams
+	//As of now filebufs is fixed at the time SynthDef is made.
 	fillFunDict{
 		funDict = (
-			play_file_1chan: {|bufidx=0, rate=1, trigger=1, startPos=0, loop=1, mul = 1, filebufnums=(this.filebufs)|
+			play_file_1chan: {
 				var bufnum;
-				bufnum = Select.kr(bufidx, filebufnums);
-				PlayBufRate.ar(1, bufnum, rate, trigger, startPos, loop, mul);
+				bufnum = Select.kr(\bufidx.kr(~bufidx_d), filebufs);
+				PlayBufRate.ar(1, bufnum, \rate.kr(~rate_d), \trigger.kr(~trigger_d), \startPos.kr(~startPos_d), \loop.kr(~loop_d), \mul.kr(~mul_d));
 			}
 		)
 	}
@@ -46,8 +53,7 @@ FileInModule : TemplateModule {
 		if(fileList.size > 10, {"...".postln});
 	}
 
-	//ToDo: this is temporary, need for dynamic change between file buffers, and can't work with big libraries
-	//control rate bus to access bufnum with Select.kr for mapping?
+	//Preloading everything to be able to switch files during execution, so unsuitable to large libraries.
 	readFileList{
 		filebufs !? {filebufs.do({|buf| buf.free})};
 		filebufs = Array.fill(fileList.size, {|i| Buffer.read(server, fileList[i].fullPath)});
@@ -63,10 +69,10 @@ FileInModule : TemplateModule {
 //Pseudo-Ugen
 PlayBufRate {
 	*ar { |numChannels=1, bufnum, rate=1, trigger=1, startPos=0, loop=1, mul = 1.0, add = 0.0|
-				PlayBuf.ar(numChannels, bufnum, BufRateScale.kr(bufnum)*rate, trigger, BufFrames.ir(bufnum)*startPos, loop)*mul + add;
+				^PlayBuf.ar(numChannels, bufnum, BufRateScale.kr(bufnum)*rate, trigger, BufFrames.ir(bufnum)*startPos, loop)*mul + add;
 	}
 
 	*kr { |numChannels=1, bufnum, rate=1, trigger=1, startPos=0, loop=1, mul = 1.0, add = 0.0|
-				PlayBuf.kr(numChannels, bufnum, BufRateScale.kr(bufnum)*rate, trigger, BufFrames.ir(bufnum)*startPos, loop)*mul + add;
+				^PlayBuf.kr(numChannels, bufnum, BufRateScale.kr(bufnum)*rate, trigger, BufFrames.ir(bufnum)*startPos, loop)*mul + add;
 	}
 }
