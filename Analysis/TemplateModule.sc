@@ -5,4 +5,8 @@ TemplateModule{
 	*new{
 		^super.new;
 	}
+
+	getFun {|funKey|
+		^dfltParams.use({funDict.at(funKey)}.valueEnvir);
+	}
 }

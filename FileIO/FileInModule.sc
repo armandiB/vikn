@@ -8,11 +8,19 @@ FileInModule : TemplateModule {
 	}
 	initFileInModule {|serverarg, folderPathNamearg, extensionSetarg, normalizearg, readFilesarg|
 		server = serverarg ? Server.default;
+		this.fillDeftParams();
 		this.fillFunDict();
 		folderPathNamearg !? this.getFileList(folderPathNamearg, extensionSetarg);
 		if(readFilesarg, {fileList !? this.readFileList});
 	}
 
+	fillDeftParams {
+		dfltParams = (
+			numchan: 1
+		)
+	}
+
+	//ToDo: adapt to dfltParams;
 	fillFunDict{
 		funDict = (
 			play_file_1chan: {|bufnum, rate=1, trigger=1, startPos=0, loop=1, mul = 1|
@@ -46,9 +54,7 @@ FileInModule : TemplateModule {
 
 	normalizeFileBufs{|normalizearg|
 		normalize = normalizearg ? normalize;
-		filebufs.do({|fileBuf|
-			fileBuf.normalize(normalize);
-		});
+		filebufs.do({_.normalize(normalize)});
 	}
 }
 

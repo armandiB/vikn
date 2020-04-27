@@ -10,11 +10,12 @@ FFTModule : TemplateModule{
 		server = serverarg ? Server.default;
 		fftSize = fftSizearg;
 		fftbuf = Buffer.alloc(server, fftSize);
+		this.fillDeftParams();
 		this.fillFunDict();
 	}
 
 	fillDeftParams {
-		dftlParams = (
+		dfltParams = (
 			hop: 0.5,
 			wintype: 1,
 			active: 1,
@@ -24,11 +25,19 @@ FFTModule : TemplateModule{
 
 	fillFunDict {
 		funDict = (
-			simple_fft: {|in, hop=0.5, wintype=1, active=1, winsize=0|
-				FFT(fftbuf, in, hop: hop, wintype: wintype, active: active, winsize:winsize);
+			simple_fft: {|in, hop=(~hop), wintype=(~wintype), active=(~active), winsize=(~winsize), fftbufnum=(fftbuf)|
+				FFT(fftbufnum, in, hop: hop, wintype: wintype, active: active, winsize:winsize);
 			}
 		)
 	}
+
+	/* Useless unless fftbuf is made dynamic (by using fftbufnum arg for example)
+	fftSize_ {|fftSizearg=1024|
+		fftSize = fftSizearg;
+		{fftbuf.free}.try; //Security?
+		fftbuf = Buffer.alloc(server, fftSize);
+	}
+	*/
 
 }
 
@@ -46,18 +55,27 @@ IFFTModule : TemplateModule{
 		inPlace = inPlacearg;
 		if(inPlace.not,{
 			inPlacebuf = Buffer.alloc(server, fftSize)});
+		this.fillDeftParams();
 		this.fillFunDict();
 	}
 
+	fillDeftParams {
+		dfltParams = (
+			wintype: 1,
+			winsize: 0
+		)
+	}
+
+	//ToDo: adapt funDict to dfltParams if it works
 	fillFunDict{
 		funDict = (
-			simple_ifft: {if(inPlace,{
+			simple_ifft: if(inPlace,{
 				|inBuf, wintype=1, winsize=0|
 				IFFT(inBuf, wintype: wintype, winsize:winsize);
 			},{
 				|inBuf, wintype=1, winsize=0|
 				IFFT(PV_Copy(inBuf, inPlacebuf), wintype: wintype, winsize:winsize);
-			})},
+			}),
 			copy_and_ifft:{if(inPlace,{
 				|inBuf, copyBuf, wintype=1, winsize=0| var copyBuf_chain;
 				copyBuf_chain = PV_Copy(inBuf, copyBuf);
@@ -70,7 +88,7 @@ IFFTModule : TemplateModule{
 		)
 	}
 
-	inPlace_{|inPlacearg|
+	inPlace_{|inPlacearg=0|
 		inPlace = inPlacearg;
 		if(inPlace,{
 			{inPlacebuf.free}.try;
