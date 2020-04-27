@@ -25,7 +25,7 @@ FFTModule : TemplateModule{
 
 	fillFunDict {
 		funDict = (
-			simple_fft: {|in, hop=(~hop), wintype=(~wintype), active=(~active), winsize=(~winsize), fftbufnum=(fftbuf)|
+			simple_fft: {|in, hop=(~hop), wintype=(~wintype), active=(~active), winsize=(~winsize), fftbufnum=(this.fftbuf)|
 				FFT(fftbufnum, in, hop: hop, wintype: wintype, active: active, winsize:winsize);
 			}
 		)

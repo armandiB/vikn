@@ -20,10 +20,12 @@ FileInModule : TemplateModule {
 		)
 	}
 
-	//ToDo: adapt to dfltParams;
+	//ToDo: adapt to dfltParams
 	fillFunDict{
 		funDict = (
-			play_file_1chan: {|bufnum, rate=1, trigger=1, startPos=0, loop=1, mul = 1|
+			play_file_1chan: {|bufidx=0, rate=1, trigger=1, startPos=0, loop=1, mul = 1, filebufnums=(this.filebufs)|
+				var bufnum;
+				bufnum = Select.kr(bufidx, filebufnums);
 				PlayBufRate.ar(1, bufnum, rate, trigger, startPos, loop, mul);
 			}
 		)
@@ -38,9 +40,9 @@ FileInModule : TemplateModule {
 				fileList.add(file)
 		})});
 
-		//ToDo: may want to make that List.verticalPrint
+		//ToDo: may want to move that out
 		"Found ".post; fileList.size.post; " files:".postln;
-		fileList[0..10].do({|file| file.postln});
+		fileList[0..10].do({|file| file.fullPath.postln});
 		if(fileList.size > 10, {"...".postln});
 	}
 
@@ -54,7 +56,7 @@ FileInModule : TemplateModule {
 
 	normalizeFileBufs{|normalizearg|
 		normalize = normalizearg ? normalize;
-		filebufs.do({_.normalize(normalize)});
+		filebufs.do({|file| file.normalize(normalize)});
 	}
 }
 
