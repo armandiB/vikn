@@ -13,7 +13,16 @@ FFTModule : TemplateModule{
 		this.fillFunDict();
 	}
 
-	fillFunDict{
+	fillDeftParams {
+		dftlParams = (
+			hop: 0.5,
+			wintype: 1,
+			active: 1,
+			winsize: 0
+		)
+	}
+
+	fillFunDict {
 		funDict = (
 			simple_fft: {|in, hop=0.5, wintype=1, active=1, winsize=0|
 				FFT(fftbuf, in, hop: hop, wintype: wintype, active: active, winsize:winsize);
@@ -26,7 +35,7 @@ FFTModule : TemplateModule{
 IFFTModule : TemplateModule{
 
 	var <fftSize, <server;
-	var <fftbuf, <inPlace;
+	var <inPlace, <inPlacebuf;
 
 	*new{|fftSize=1024, server, inPlace=0|
 		^super.new.initFFTModule(fftSize, server, inPlace);
@@ -36,7 +45,7 @@ IFFTModule : TemplateModule{
 		fftSize = fftSizearg;
 		inPlace = inPlacearg;
 		if(inPlace.not,{
-			fftbuf = Buffer.alloc(server, fftSize)});
+			inPlacebuf = Buffer.alloc(server, fftSize)});
 		this.fillFunDict();
 	}
 
@@ -47,16 +56,16 @@ IFFTModule : TemplateModule{
 				IFFT(inBuf, wintype: wintype, winsize:winsize);
 			},{
 				|inBuf, wintype=1, winsize=0|
-				IFFT(PV_Copy(inBuf, fftbuf), wintype: wintype, winsize:winsize);
+				IFFT(PV_Copy(inBuf, inPlacebuf), wintype: wintype, winsize:winsize);
 			})},
 			copy_and_ifft:{if(inPlace,{
-				|inBuf, copyBuf, wintype=1, winsize=0|
-				PV_Copy(inBuf, copyBuf);
-				IFFT(inBuf, wintype: wintype, winsize:winsize);
+				|inBuf, copyBuf, wintype=1, winsize=0| var copyBuf_chain;
+				copyBuf_chain = PV_Copy(inBuf, copyBuf);
+				IFFT(copyBuf_chain, wintype: wintype, winsize:winsize);
 			},{
-				|inBuf, copyBuf, wintype=1, winsize=0|
-				PV_Copy(inBuf, copyBuf);
-				IFFT(PV_Copy(inBuf, fftbuf), wintype: wintype, winsize:winsize);
+				|inBuf, copyBuf, wintype=1, winsize=0| var copyBuf_chain;
+				copyBuf_chain = PV_Copy(inBuf, copyBuf);
+				IFFT(PV_Copy(copyBuf_chain, inPlacebuf), wintype: wintype, winsize:winsize);
 			})}
 		)
 	}
@@ -64,9 +73,9 @@ IFFTModule : TemplateModule{
 	inPlace_{|inPlacearg|
 		inPlace = inPlacearg;
 		if(inPlace,{
-			{fftbuf.free}.try;
+			{inPlacebuf.free}.try;
 			},{
-			fftbuf = Buffer.alloc(server, fftSize)
+			inPlacebuf = Buffer.alloc(server, fftSize);
 		});
 	}
 }

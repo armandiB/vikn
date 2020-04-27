@@ -16,7 +16,7 @@ FileInModule : TemplateModule {
 	fillFunDict{
 		funDict = (
 			play_file_1chan: {|bufnum, rate=1, trigger=1, startPos=0, loop=1, mul = 1|
-				PlayBufRate.ar(1, bufnum, rate, trigger, startPos, loop, mul); //ToDo: change with control rate bus to access bufnum
+				PlayBufRate.ar(1, bufnum, rate, trigger, startPos, loop, mul);
 			}
 		)
 	}
@@ -37,6 +37,7 @@ FileInModule : TemplateModule {
 	}
 
 	//ToDo: this is temporary, need for dynamic change between file buffers, and can't work with big libraries
+	//control rate bus to access bufnum with Select.kr for mapping?
 	readFileList{
 		filebufs !? {filebufs.do({|buf| buf.free})};
 		filebufs = Array.fill(fileList.size, {|i| Buffer.read(server, fileList[i].fullPath)});
