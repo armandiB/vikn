@@ -16,8 +16,8 @@ FileInModule : TemplateModule {
 
 	fillDeftParams {
 		dfltParams = (
-			numchan_d: 1,
-			bufidx_d: 0,
+			numChannels_d: 1,
+			bufidx_d: 1, //ToDo: change that to 0
 			rate_d: 1,
 			trigger_d: 1,
 			startPos_d: 0,
@@ -33,7 +33,7 @@ FileInModule : TemplateModule {
 			play_file_1chan: {
 				var bufnum;
 				bufnum = Select.kr(\bufidx.kr(~bufidx_d), filebufs);
-				PlayBufRate.ar(1, bufnum, \rate.kr(~rate_d), \trigger.kr(~trigger_d), \startPos.kr(~startPos_d), \loop.kr(~loop_d), \mul.kr(~mul_d));
+				PlayBufRate.ar(~numChannels_d, bufnum, \rate.kr(~rate_d), \trigger.kr(~trigger_d), \startPos.kr(~startPos_d), \loop.kr(~loop_d), \mul.kr(~mul_d));
 			}
 		)
 	}
@@ -69,10 +69,10 @@ FileInModule : TemplateModule {
 //Pseudo-Ugen
 PlayBufRate {
 	*ar { |numChannels=1, bufnum, rate=1, trigger=1, startPos=0, loop=1, mul = 1.0, add = 0.0|
-				^PlayBuf.ar(numChannels, bufnum, BufRateScale.kr(bufnum)*rate, trigger, BufFrames.ir(bufnum)*startPos, loop)*mul + add;
+		^PlayBuf.ar(numChannels, bufnum, BufRateScale.kr(bufnum)*rate, trigger, BufFrames.ir(bufnum)*startPos, loop)*mul + add;
 	}
 
 	*kr { |numChannels=1, bufnum, rate=1, trigger=1, startPos=0, loop=1, mul = 1.0, add = 0.0|
-				^PlayBuf.kr(numChannels, bufnum, BufRateScale.kr(bufnum)*rate, trigger, BufFrames.ir(bufnum)*startPos, loop)*mul + add;
+		^PlayBuf.kr(numChannels, bufnum, BufRateScale.kr(bufnum)*rate, trigger, BufFrames.ir(bufnum)*startPos, loop)*mul + add;
 	}
 }
