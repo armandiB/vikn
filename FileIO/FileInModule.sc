@@ -8,6 +8,7 @@ FileInModule : TemplateModule {
 	}
 	initFileInModule {|serverarg, folderPathNamearg, extensionSetarg, normalizearg, readFilesarg|
 		server = serverarg ? Server.default;
+		normalize = normalizearg;
 		this.fillDeftParams();
 		this.fillFunDict();
 		folderPathNamearg !? this.getFileList(folderPathNamearg, extensionSetarg);

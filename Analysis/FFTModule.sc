@@ -9,12 +9,12 @@ FFTModule : TemplateModule{
 	initFFTModule {|fftSizearg, serverarg|
 		server = serverarg ? Server.default;
 		fftSize = fftSizearg;
-		fftbuf = Buffer.alloc(server, fftSize);
+		//fftbuf = Buffer.alloc(server, fftSize);
 		this.fillDeftParams();
 		this.fillFunDict();
 	}
 
-	fillDeftParams {
+	fillDeftParams { //class method
 		dfltParams = (
 			hop_d: 0.5,
 			wintype_d: 1,
@@ -23,10 +23,10 @@ FFTModule : TemplateModule{
 		)
 	}
 
-	fillFunDict {
+	fillFunDict { //class method
 		funDict = (
 			simple_fft: {
-				FFT(fftbuf, \in.ar, \hop.kr(~hop_d), \wintype.kr(~wintype_d), \active.kr(~active_d), \winsize.kr(~winsize_d));
+				FFT(\fftbufnum.ir, In.ar(\inbus.kr), \hop.kr(~hop_d), \wintype.kr(~wintype_d), \active.kr(~active_d), \winsize.kr(~winsize_d)); //ToDo: Get In.ar out in one of the functions
 			}
 		)
 	}
@@ -39,9 +39,9 @@ FFTModule : TemplateModule{
 	}
 	*/
 
-	synthDefTemplate {|synthdefname, function| //No out.
+	synthDefTemplate {|funDef| //No out.
 		^{
-			this.makeFunDef(synthdefname, function);
+			funDef.value;
 		};
 	}
 }
@@ -50,7 +50,6 @@ IFFTModule : TemplateModule{
 
 	var <fftSize, <server;
 	var <inPlace, <inPlacebuf;
-
 	*new{|fftSize=1024, server, inPlace=false|
 		^super.new.initFFTModule(fftSize, server, inPlace);
 	}
@@ -73,21 +72,29 @@ IFFTModule : TemplateModule{
 
 	fillFunDict{
 		funDict = (
-			inplace_simple_ifft: {
-				IFFT(\inbufnum.kr, \wintype.kr(~wintype_d), \winsize.kr(~winsize_d));
+			\inplace_simple_ifft: {|pv_in|
+				IFFT(pv_in, \wintype.kr(~wintype_d), \winsize.kr(~winsize_d));
 			},
-			notinplace_simple_ifft: {
-				IFFT(PV_Copy(\inbufnum.kr, inPlacebuf),\wintype.kr(~wintype_d), \winsize.kr(~winsize_d));
+			notinplace_simple_ifft: {|pv_in|
+				IFFT(PV_Copy(pv_in, \inplacebufnum.ir),\wintype.kr(~wintype_d), \winsize.kr(~winsize_d));
 			},
-			copy_and_ifft:{ //Always in place.
+			copy_and_ifft:{ |pv_in| //Always in place.
 				var copyBuf_chain;
-				copyBuf_chain = PV_Copy(\inbufnum.kr, \copybufnum.kr);
-				IFFT(PV_Copy(copyBuf_chain, inPlacebuf), \wintype.kr(~wintype_d), \winsize.kr(~winsize_d));
+				copyBuf_chain = PV_Copy(pv_in, \copybufnum.kr);
+				IFFT(PV_Copy(copyBuf_chain, \inplacebufnum.ir), \wintype.kr(~wintype_d), \winsize.kr(~winsize_d));
 			}
 		)
 	}
 
-	//Maybe not best system
+	makeFunDef{|function, pv_in| //pv_in argument.
+		^{SynthDef.wrap(
+			function,
+			prependArgs: [pv_in]
+		)};
+	}
+
+	//ToDo: Review
+	/*
 	inPlace_{|inPlacearg=false|
 		inPlace = inPlacearg;
 		if(inPlace,{
@@ -95,5 +102,5 @@ IFFTModule : TemplateModule{
 		},{
 			inPlacebuf = Buffer.alloc(server, fftSize);
 		});
-	}
+	} */
 }
