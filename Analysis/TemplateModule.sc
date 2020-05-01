@@ -60,10 +60,12 @@ TemplateModule{
 		};
 	}
 
+	//Controls and default values of the enclosing function override the ones with same name.
 	makeComposedDef {|thisKey, inModule, inKey|
 		var synthdefname = this.getSynthDefName(thisKey) ++ "_o_" ++ inModule.getSynthDefName(inKey);
 		var thisDflt, inDflt, funDef, template, synthDef;
 
+		dfltParams.proto = inModule.dfltParams;
 		thisDflt = this.getFunDflt(funDict.at(thisKey));
 		inDflt = inModule.getFunDflt(inModule.funDict.at(inKey));
 
