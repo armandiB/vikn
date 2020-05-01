@@ -1,7 +1,7 @@
 FFTModule : TemplateModule{
 
 	var <fftSize, <server;
-	var <fftbuf;
+	var <fftbuf; //To be used at instanciation
 
 	*new{|fftSize=1024, server|
 		^super.new.initFFTModule(fftSize, server);
@@ -14,7 +14,7 @@ FFTModule : TemplateModule{
 		this.fillFunDict();
 	}
 
-	fillDeftParams { //class method
+	fillDeftParams {
 		dfltParams = (
 			hop_d: 0.5,
 			wintype_d: 1,
@@ -23,12 +23,18 @@ FFTModule : TemplateModule{
 		)
 	}
 
-	fillFunDict { //class method
+	fillFunDict {
 		funDict = (
 			simple_fft: {
 				FFT(\fftbufnum.ir, In.ar(\inbus.kr), \hop.kr(~hop_d), \wintype.kr(~wintype_d), \active.kr(~active_d), \winsize.kr(~winsize_d)); //ToDo: Get In.ar out in one of the functions
 			}
 		)
+	}
+
+	synthDefTemplate {|funDef| //No out.
+		^{
+			funDef.value;
+		};
 	}
 
 	/* Useless unless fftbuf is made dynamic (by using fftbufnum arg for example)
@@ -38,18 +44,13 @@ FFTModule : TemplateModule{
 	fftbuf = Buffer.alloc(server, fftSize);
 	}
 	*/
-
-	synthDefTemplate {|funDef| //No out.
-		^{
-			funDef.value;
-		};
-	}
 }
 
 IFFTModule : TemplateModule{
 
 	var <fftSize, <server;
 	var <inPlace, <inPlacebuf;
+
 	*new{|fftSize=1024, server, inPlace=false|
 		^super.new.initFFTModule(fftSize, server, inPlace);
 	}
@@ -57,8 +58,7 @@ IFFTModule : TemplateModule{
 		server = serverarg ? Server.default;
 		fftSize = fftSizearg;
 		inPlace = inPlacearg;
-		if(inPlace.not,{
-			inPlacebuf = Buffer.alloc(server, fftSize)});
+		//if(inPlace.not,{inPlacebuf = Buffer.alloc(server, fftSize)});
 		this.fillDeftParams();
 		this.fillFunDict();
 	}

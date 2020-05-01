@@ -18,7 +18,7 @@ FileInModule : TemplateModule {
 	fillDeftParams {
 		dfltParams = (
 			numChannels_d: 1,
-			bufidx_d: 1, //ToDo: change that to 0
+			bufidx_d: 0,
 			rate_d: 1,
 			trigger_d: 1,
 			startPos_d: 0,
@@ -27,7 +27,6 @@ FileInModule : TemplateModule {
 		)
 	}
 
-	//ToDo: adapt to dfltParams
 	//As of now filebufs is fixed at the time SynthDef is made.
 	fillFunDict{
 		funDict = (

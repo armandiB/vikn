@@ -78,7 +78,11 @@ TemplateModule{
 		"Added: ".post; synthdefname.postln;
 	}
 
-	//compose{|synthDef? using funDefs?|} FFTModule.templateCompose(|IFFTModule|)
+	postSynthDefs {
+		synthDefs.keysValuesDo{|name, synthDef|
+			name.post; ", ".post; synthDef.allControlNames.postln;
+		};
+	}
 
 	//check that all synthDefs keys are distinct
 }
