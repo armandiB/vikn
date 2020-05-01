@@ -1,7 +1,8 @@
 TemplateModule{
 	var <funDict; //To hold Event of functions in order to make a combination SynthDef.
 	var <dfltParams; //To hold Event of default parameters for the SynthDef.
-	var <synthDefs, <funDefs; //make classvar //Dictionaries of names -> SynthDefs and names -> funDefs.
+	var <synthDefs, <funDefs; //Dictionaries of names -> SynthDefs and names -> funDefs.
+	//ToDo: find a better system with synthdefs in a global per-class object
 
 	*new{
 		^super.new.resetDefDicts;
@@ -65,15 +66,17 @@ TemplateModule{
 		var synthdefname = this.getSynthDefName(thisKey) ++ "_o_" ++ inModule.getSynthDefName(inKey);
 		var thisDflt, inDflt, funDef, template, synthDef;
 
-		dfltParams.proto = inModule.dfltParams;
+		dfltParams.proto = inModule.dfltParams; //ToDo: bad, better with composed object
 		thisDflt = this.getFunDflt(funDict.at(thisKey));
 		inDflt = inModule.getFunDflt(inModule.funDict.at(inKey));
 
 		funDef = this.makeFunDef(thisDflt, inModule.makeFunDef(inDflt));
-		funDefs.put(synthdefname, funDef); //Better: composed module object
+		funDefs.put(synthdefname, funDef); //ToDo: composed module object
 
 		template = this.synthDefTemplate(funDef);
 		this.addSynthDef(synthdefname, template);
+
+		dfltParams.proto = nil; //ToDo: remove
 
 		"Added: ".post; synthdefname.postln;
 	}
