@@ -24,6 +24,8 @@ TemplateModule{
 		)};
 	}
 
+	//ToDo: wet & gate argument with XOut & Linen to be able to use .release etc.
+	//Argument out needed for ProxySpace
 	synthDefTemplate {|funDef| //Writes to one out bus.
 		^{|out=0|
 			funDef.value;
