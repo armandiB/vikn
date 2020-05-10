@@ -7,7 +7,7 @@ CustomSpectrogram {
 	var <bufSize, binfreqs;	// size of FFT
 	var <frombin, <tobin;
 	var image, imgWidth, imgHeight, index, <>intensity, runtask;
-	var color, background, colints; // colints is an array of integers each representing a color
+	var magColor, background, colgrid, colgridresolution; // colgrid is 2d // eventually 3d tensor of integers each representing a color pixel (in HSV)
 	var userview, mouseX, mouseY, freq, drawCrossHair = false; // mYIndex, mXIndex, freq;
 	var crosshaircolor, running;
 
@@ -26,7 +26,8 @@ CustomSpectrogram {
 		index = 0;
 		intensity = 1;
 		background = bg ? Color.black;
-		color = col ? Color(1, 1, 1); // white by default
+		magColor = col ? Color(1, 1, 1); // white by default
+		colgridresolution = [16, 128];
 		crosshaircolor = Color.white;
 		tobin = min(binfreqs.indexOf((highfreqarg/2).nearestInList(binfreqs)), bufSize.div(2) - 1);
 		frombin = max(binfreqs.indexOf((lowfreqarg/2).nearestInList(binfreqs)), 0);
@@ -91,8 +92,8 @@ CustomSpectrogram {
 				{
 					fftbuf.getn(0, bufSize,
 					{ arg buf;
-						var magarray, complexarray;
-						magarray = buf.clump(2)[(frombin .. tobin)].flop;
+						var inarray, polararray, rhoarray, phasearray;
+						inarray = buf.clump(2)[(frombin .. tobin)].flop;
 
 						/*
 // OLD METHOD:
@@ -117,14 +118,19 @@ CustomSpectrogram {
 						// AB: fixed back
 						*/
 
-						complexarray = (((1+(Complex(
-								Signal.newFrom( magarray[0] ),
-								Signal.newFrom( magarray[1] )
-						).magnitude.reverse)).log10)*80).clip(0, 255);
+						polararray = Complex(
+								Signal.newFrom( inarray[0] ),
+								Signal.newFrom( inarray[1] )
+						).asPolar;
 
-						complexarray.do({|val, i|
-							val = val * intensity;
-							fftDataArray[i] = colints.clipAt((val/16).round);
+						rhoarray = (((1+(polararray.magnitude.reverse)).log10)*80).clip(0, 255);
+						phasearray = polararray.phase;
+
+						rhoarray.do({|rhoval, i|
+								var magVal, phaseVal;
+								magVal = rhoval * intensity;
+								phaseVal = (phasearray[i]/2pi) + 0.5; // Between 0 and 1.
+								fftDataArray[i] = colgrid.clipAt((magVal/colgridresolution[0]).round).clipAt((phaseVal*colgridresolution[1]).trunc);
 						});
 						{
 							image.setPixels(fftDataArray, Rect(index%imgWidth, 0, 1, (tobin - frombin + 1)));
@@ -165,8 +171,8 @@ CustomSpectrogram {
 		*/
 	}
 
-	color_ {arg colorarg;
-		color = colorarg;
+	magColor {arg colorarg;
+		magColor = colorarg;
 		this.recalcGradient;
 	}
 
@@ -204,9 +210,18 @@ CustomSpectrogram {
 	}
 
 	recalcGradient {
-		var colors;
-		colors = (0..16).collect({|val| blend(background, color, val/16)});
-		colints = colors.collect({|col| Image.colorToPixel( col )});
+		var magColors;
+		var magRes = colgridresolution[0];
+		var phaseRes = colgridresolution[1];
+
+		magColors = (0..magRes).collect({|val| blend(background, magColor, val/magRes)});
+		colgrid = magColors.collect({|col|
+			var magHsv = col.asHSV;
+			(0..phaseRes).collect({
+				|val| Image.colorToPixel( Color.hsv(val/phaseRes, 1, magHsv[2], magHsv[3]))
+			});
+
+		}); //colGrid is a 2d array of size colgridresolution
 	}
 
 	crosshairColor_{arg argcolor;
