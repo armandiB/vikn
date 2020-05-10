@@ -148,7 +148,7 @@ CustomSpectrogram {
 	}
 
 	setBufAndSize_ {arg bufferarg, bufSizearg, restart=true;
-		if(bufSizearg.isPowerOfTwo, {
+		//if(bufSizearg.isPowerOfTwo, {
 			this.stopruntask;
 			bufSize = bufSizearg ? bufferarg.numFrames;
 			//No freeing by security
@@ -158,9 +158,11 @@ CustomSpectrogram {
 			frombin = 0;
 			fftDataArray = Int32Array.fill((tobin - frombin + 1), 0);
 			this.setWindowImage( userview.bounds.width );
+		/*
 		}, {
 			"Buffer size has to be power of two (256, 1024, 2048, etc.)".warn;
 		});
+		*/
 	}
 
 	color_ {arg colorarg;
@@ -184,7 +186,7 @@ CustomSpectrogram {
 	}
 
 	setBufSize_{arg buffersize, restart=true;
-		if(buffersize.isPowerOfTwo, {
+		//if(buffersize.isPowerOfTwo, {
 			this.stopruntask;
 			bufSize = buffersize;
 			//Don't free fftbuf
@@ -194,9 +196,11 @@ CustomSpectrogram {
 			frombin = 0;
 			fftDataArray = Int32Array.fill((tobin - frombin + 1), 0);
 			this.setWindowImage( userview.bounds.width );
+		/*
 		}, {
 			"Buffersize has to be power of two (256, 1024, 2048, etc.)".warn;
 		});
+		*/
 	}
 
 	recalcGradient {
