@@ -90,7 +90,7 @@ CustomSpectrogram {
 		{
 			runtask = Task({
 				{
-					fftbuf.getn(0, bufSize,
+					fftbuf.getn(0, bufSize, //ToDo: option to go beyond 1024*8 (size of packet, see help files)
 					{ arg buf;
 						var inarray, polararray, rhoarray, phasearray;
 						inarray = buf.clump(2)[(frombin .. tobin)].flop;
