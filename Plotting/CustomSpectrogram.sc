@@ -1,8 +1,11 @@
 CustomSpectrogram {
 
+	//ToDo: tilt option
+	//ToDo: some kind of dynamic zoom into lower freqs (see tobin/frombin or SpectrogramWindow)
+
 	classvar <server;
 	var window; //, bounds;
-	var <fftbuf, fftDataArray, fftSynth;
+	var <fftbuf, isLocalFftbuf, fftDataArray, fftSynth;
 	var inbus, <>rate;
 	var <bufSize, binfreqs;	// size of FFT
 	var <frombin, <tobin;
@@ -20,8 +23,9 @@ CustomSpectrogram {
 		server = serverarg ? Server.default;
 		inbus = 0;
 		rate = 25; // updates per second
-		bufSize = bufSizearg ? (bufferarg !? (_.numFrames) ? 1024); // fft window
+		bufSize = bufSizearg ? (bufferarg !? {_.numFrames} ? 1024); // fft window
 		fftbuf = bufferarg ? Buffer.alloc(server, bufSize);
+		isLocalFftbuf = if(bufferarg.isNil, {true}, {false});
 		binfreqs = bufSize.collect({|i| ((server.sampleRate/2)/bufSize)*(i+1)});
 		index = 0;
 		intensity = 1;
@@ -45,6 +49,7 @@ CustomSpectrogram {
 		window.onClose_({
 			image.free;
 			this.stopruntask;
+			if(isLocalFftbuf, try {fftbuf.free});
 		}).front;
 	}
 
@@ -141,7 +146,7 @@ CustomSpectrogram {
 					rate.reciprocal.wait; // framerate
 				}.loop;
 			}).start;
-		}.defer; //no need to defer to allow the creation of an fftbuf before starting
+		}.defer(0.1);
 	}
 
 	stopruntask {
@@ -151,14 +156,16 @@ CustomSpectrogram {
 
 	fftbuf_ {arg fftbufarg;
 		fftbuf = fftbufarg;
+		isLocalFftbuf = false;
 	}
 
 	setBufAndSize_ {arg bufferarg, bufSizearg, restart=true;
 		//if(bufSizearg.isPowerOfTwo, {
 			this.stopruntask;
 			bufSize = bufSizearg ? bufferarg.numFrames;
-			//No freeing by security
+			if(isLocalFftbuf, {try {fftbuf.free}});
 			fftbuf = bufferarg;
+		    isLocalFftbuf = false;
 			binfreqs = bufSize.collect({|i| ((server.sampleRate/2)/bufSize)*(i+1) });
 			tobin = bufSize.div(2) - 1;
 			frombin = 0;
@@ -195,8 +202,9 @@ CustomSpectrogram {
 		//if(buffersize.isPowerOfTwo, {
 			this.stopruntask;
 			bufSize = buffersize;
-			//Don't free fftbuf
+		    if(isLocalFftbuf, {try {fftbuf.free}});
 			fftbuf = Buffer.alloc(server, bufSize, 1, { if(restart, {this.startruntask}) }) ;
+		    isLocalFftbuf = true;
 			binfreqs = bufSize.collect({|i| ((server.sampleRate/2)/bufSize)*(i+1) });
 			tobin = bufSize.div(2) - 1;
 			frombin = 0;
