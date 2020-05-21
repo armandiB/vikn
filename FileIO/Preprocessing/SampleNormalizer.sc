@@ -1,27 +1,24 @@
-// Normalizer: get all files with certain extensions in folder, mkdir normalized_float, normalize in there. Return list of all new files.
+// Normalizer: get all files with certain extensions in folder, mkdir normalized_float in folder_transformed, normalize in there. Return list of all new files.
 
 SampleNormalizer {
 
-	//ToDo-low: make recursive, ignore normalize_float dirs
+	//ToDo-low: make recursive, ignore *_transformed dirs
 
 	var <>maxAmp, <folderPath, <>extensions;
 	var <>filePathNames;
 
-	*new { arg folderString, maxAmp=0.8, extensions = ["wav"], absolutePath=false;
+	*new { arg folderString, maxAmp=0.8, extensions = [\wav], absolutePath=false;
 		^super.new.initSampleNormalizer(folderString, maxAmp, extensions, absolutePath);
 	}
 
 	initSampleNormalizer{ arg folderStringarg, maxAmparg, extensionsarg, absolutePatharg;
-		folderPath = PathName(folderStringarg);
-		if(absolutePatharg.not,{
-			folderPath = Sample.dir +/+ folderPath;
-		});
+		this.folderPath_(folderStringarg, absolutePatharg);
 		extensions = extensionsarg;
 		maxAmp = maxAmparg;
 	}
 
 	folderPath_ { arg folder, absolutePath=false;
-		folderPath = FileIOUtils.makePathNameIfNot(folder);
+		folderPath = FileIOUtils.makePathNameIfNot(folder) +/+ "/";
 		if(absolutePath.not,{
 			folderPath = Sample.dir +/+ folderPath;
 		});
@@ -31,17 +28,21 @@ SampleNormalizer {
 		filePathNames = FileIOUtils.getFilesInDir(folderPath, extensions);
 	}
 
-	supr {arg fileString, absolutePath=false;
-		var filePath = fileString;
+	normalize {
+		var normalizedFolderPath, newFileList;
+		this.getFilePathNames;
+		normalizedFolderPath = this.makeNewFolder(folderPath);
 
-	var folderPath, normalizedFolderPath, newFilePath;
-
-	folderPath = filePath.pathOnly;
+		newFileList = List();
+		filePathNames.do({|file| newFileList.add(this.normalizeFile(file, normalizedFolderPath))});
+		^newFileList;
 	}
 
 	makeNewFolder {arg folderPath;
-		var normalizedFolderPath = folderPath +/+ PathName.new("normalized_" ++ maxAmp.asCompileString.replace(".", "-"));
-		if(normalizedFolderPath.isFolder.not, {File.mkdir(normalizedFolderPath.fullPath)});
+		var transformedPath, normalizedFolderPath;
+		transformedPath = folderPath.parentPath +/+ PathName(folderPath.folderName ++ "_transformed");
+		normalizedFolderPath = transformedPath +/+ PathName("normalized_" ++ maxAmp.asCompileString.replace(".", "-") ++ "_" ++ Date.getDate.format("%Y%m%d"));
+		File.mkdir(normalizedFolderPath.fullPath);
 		^normalizedFolderPath;
 	}
 
