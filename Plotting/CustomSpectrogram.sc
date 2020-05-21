@@ -5,7 +5,7 @@ CustomSpectrogram {
 	//ToDo-low: log-frequency mode
 	//ToDo-low: some kind of dynamic zoom into lower freqs (see tobin/frombin or SpectrogramWindow)
 	//ToDo-low: other sets of colors
-	//ToDo-vlow: dynamic recalcGradient to change colors for visuals
+	//ToDo-vlow: change getn to be able to go beyond 1024*8 (size of packet, see help files)
 
 	classvar <server;
 	var window; //, bounds;
@@ -17,9 +17,9 @@ CustomSpectrogram {
 	var magColor, background, colgrid, <colgridresolution; // colgrid is 2d // eventually 3d tensor of integers each representing a color pixel (in HSV)
 	var userview, mouseX, mouseY, freq, drawCrossHair = false; // mYIndex, mXIndex, freq;
 	var crosshaircolor, running;
-	var <colormode; //ToDo-high: use
+	var <colormode;
 
-	*new { arg parent, bounds, buffer, bufSize, color, colormode=0, colgridresolution=#[128, 256], background, lowfreq=0, highfreq=inf, server;
+	*new { arg parent, bounds, buffer, bufSize, color, colormode=0, colgridresolution=[128, 256], background, lowfreq=0, highfreq=inf, server;
 		^super.new.initCustomSpectrogram(parent, bounds, buffer, bufSize, color, colormode, colgridresolution, background, lowfreq, highfreq, server);
 	}
 
@@ -102,7 +102,7 @@ CustomSpectrogram {
 		{
 			runtask = Task({
 				{
-					fftbuf.getn(0, bufSize, //ToDo-low: option to go beyond 1024*8 (size of packet, see help files)
+					fftbuf.getn(0, bufSize,
 					{ arg buf;
 						var inarray, polararray, rhoarray, phasearray;
 						inarray = buf.clump(2)[(frombin .. tobin)].flop;
@@ -224,10 +224,11 @@ CustomSpectrogram {
 		*/
 	}
 
-	recalcGradient {
+	recalcGradient { arg colormodearg;
 		var magColors;
 		var magRes = colgridresolution[0];
 		var phaseRes = colgridresolution[1];
+		colormode = colormodearg ? colormode;
 
 		switch(colormode,
 			-1, {magColors = (0..magRes).collect({|val| blend(background, magColor, val/magRes)});
@@ -247,6 +248,15 @@ CustomSpectrogram {
 				}); //colGrid is a 2d array of size colgridresolution
 			}
 		)
+	}
+
+	colormode_{arg colormodearg;
+		this.recalcGradient(colormodearg);
+	}
+
+	colgridresolution_{arg colgridresolutionarg;
+		colgridresolution = colgridresolutionarg;
+		this.recalcGradient;
 	}
 
 	crosshairColor_{arg argcolor;
