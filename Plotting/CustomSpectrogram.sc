@@ -1,7 +1,11 @@
 CustomSpectrogram {
 
-	//ToDo: tilt option
-	//ToDo: some kind of dynamic zoom into lower freqs (see tobin/frombin or SpectrogramWindow)
+	//ToDo-med: tilt option
+	//ToDo-medlow: generalized salience spectrogram (collapse harmonics)
+	//ToDo-low: log-frequency mode
+	//ToDo-low: some kind of dynamic zoom into lower freqs (see tobin/frombin or SpectrogramWindow)
+	//ToDo-low: other sets of colors
+	//ToDo-vlow: dynamic recalcGradient to change colors for visuals
 
 	classvar <server;
 	var window; //, bounds;
@@ -10,16 +14,16 @@ CustomSpectrogram {
 	var <bufSize, binfreqs;	// size of FFT
 	var <frombin, <tobin;
 	var image, imgWidth, imgHeight, index, <>intensity, runtask;
-	var magColor, background, colgrid, colgridresolution; // colgrid is 2d // eventually 3d tensor of integers each representing a color pixel (in HSV)
+	var magColor, background, colgrid, <colgridresolution; // colgrid is 2d // eventually 3d tensor of integers each representing a color pixel (in HSV)
 	var userview, mouseX, mouseY, freq, drawCrossHair = false; // mYIndex, mXIndex, freq;
 	var crosshaircolor, running;
+	var <colormode; //ToDo-high: use
 
-
-	*new { arg parent, bounds, buffer, bufSize, color, background, lowfreq=0, highfreq=inf, server;
-		^super.new.initCustomSpectrogram(parent, bounds, buffer, bufSize, color, background, lowfreq, highfreq, server);
+	*new { arg parent, bounds, buffer, bufSize, color, colormode=0, colgridresolution=#[128, 256], background, lowfreq=0, highfreq=inf, server;
+		^super.new.initCustomSpectrogram(parent, bounds, buffer, bufSize, color, colormode, colgridresolution, background, lowfreq, highfreq, server);
 	}
 
-	initCustomSpectrogram { arg parent, boundsarg, bufferarg, bufSizearg, col, bg, lowfreqarg, highfreqarg, serverarg;
+	initCustomSpectrogram { arg parent, boundsarg, bufferarg, bufSizearg, col, colormodearg, colgridresolutionarg, bg, lowfreqarg, highfreqarg, serverarg;
 		server = serverarg ? Server.default;
 		inbus = 0;
 		rate = 25; // updates per second
@@ -29,10 +33,13 @@ CustomSpectrogram {
 		binfreqs = bufSize.collect({|i| ((server.sampleRate/2)/bufSize)*(i+1)});
 		index = 0;
 		intensity = 1;
+		colormode = colormodearg ? 0;
 		background = bg ? Color.black;
 		magColor = col ? Color(1, 1, 1); // white by default
-		colgridresolution = [16, 128];
+		colgridresolution = colgridresolutionarg ? [128, 256];
 		crosshaircolor = Color.white;
+		lowfreqarg = lowfreqarg ? 0;
+		highfreqarg = highfreqarg ? inf;
 		tobin = min(binfreqs.indexOf((highfreqarg/2).nearestInList(binfreqs)), bufSize.div(2) - 1);
 		frombin = max(binfreqs.indexOf((lowfreqarg/2).nearestInList(binfreqs)), 0);
 		fftDataArray = Int32Array.fill((tobin - frombin + 1), 0);
@@ -95,7 +102,7 @@ CustomSpectrogram {
 		{
 			runtask = Task({
 				{
-					fftbuf.getn(0, bufSize, //ToDo: option to go beyond 1024*8 (size of packet, see help files)
+					fftbuf.getn(0, bufSize, //ToDo-low: option to go beyond 1024*8 (size of packet, see help files)
 					{ arg buf;
 						var inarray, polararray, rhoarray, phasearray;
 						inarray = buf.clump(2)[(frombin .. tobin)].flop;
@@ -128,14 +135,14 @@ CustomSpectrogram {
 								Signal.newFrom( inarray[1] )
 						).asPolar;
 
-						rhoarray = (((1+(polararray.magnitude.reverse)).log10)*80).clip(0, 255);
+						rhoarray = (((1+(polararray.magnitude.reverse)).log10)*0.3125).clip(0, 0.999999999);
 						phasearray = polararray.phase;
 
 						rhoarray.do({|rhoval, i|
 								var magVal, phaseVal;
 								magVal = rhoval * intensity;
 								phaseVal = (phasearray[i]/2pi) + 0.5; // Between 0 and 1.
-								fftDataArray[i] = colgrid.clipAt((magVal/colgridresolution[0]).round).clipAt((phaseVal*colgridresolution[1]).trunc);
+								fftDataArray[i] = colgrid.clipAt((magVal*colgridresolution[0]).round).clipAt((phaseVal*colgridresolution[1]).trunc);
 						});
 						{
 							image.setPixels(fftDataArray, Rect(index%imgWidth, 0, 1, (tobin - frombin + 1)));
@@ -222,14 +229,24 @@ CustomSpectrogram {
 		var magRes = colgridresolution[0];
 		var phaseRes = colgridresolution[1];
 
-		magColors = (0..magRes).collect({|val| blend(background, magColor, val/magRes)});
-		colgrid = magColors.collect({|col|
-			var magHsv = col.asHSV;
-			(0..phaseRes).collect({
-				|val| Image.colorToPixel( Color.hsv(val/phaseRes, 1, magHsv[2], magHsv[3]))
-			});
-
-		}); //colGrid is a 2d array of size colgridresolution
+		switch(colormode,
+			-1, {magColors = (0..magRes).collect({|val| blend(background, magColor, val/magRes)});
+				colgrid = magColors.collect({|col|
+					var magHsv = col.asHSV;
+					(0..phaseRes).collect({
+						|val| Image.colorToPixel( col)
+					});
+				}); //colGrid is a 2d array of size colgridresolution
+			},
+			0, {magColors = (0..magRes).collect({|val| blend(background, magColor, val/magRes)});
+				colgrid = magColors.collect({|col|
+					var magHsv = col.asHSV;
+					(0..phaseRes).collect({
+						|val| Image.colorToPixel( Color.hsv(val/phaseRes, 1, magHsv[2], magHsv[3]))
+					});
+				}); //colGrid is a 2d array of size colgridresolution
+			}
+		)
 	}
 
 	crosshairColor_{arg argcolor;
