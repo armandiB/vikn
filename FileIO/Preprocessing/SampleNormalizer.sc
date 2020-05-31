@@ -29,13 +29,11 @@ SampleNormalizer {
 	}
 
 	normalize {
-		var normalizedFolderPath, newFileList;
+		var normalizedFolderPath;
 		this.getFilePathNames;
 		normalizedFolderPath = this.makeNewFolder(folderPath);
 
-		newFileList = List();
-		filePathNames.do({|file| newFileList.add(this.normalizeFile(file, normalizedFolderPath))});
-		^newFileList;
+		^filePathNames.collect({|file| this.normalizeFile(file, normalizedFolderPath)});
 	}
 
 	makeNewFolder {arg folderPath;

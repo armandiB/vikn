@@ -1,4 +1,4 @@
-FileIOUtils{
+FileIOUtils {
 	*makePathNameIfNot {arg stringOrPathName;
 		if(stringOrPathName.isKindOf(PathName), {
 			^stringOrPathName}, {
@@ -14,5 +14,4 @@ FileIOUtils{
 		});
 		^fileList;
 	}
-
 }
