@@ -12,9 +12,4 @@ ClockTree {
 		dummy = dummyarg;
 	}
 
-	dummy_ { arg dummyarg;
-		dummy = dummyarg;
-		^dummy
-	}
-
 }
