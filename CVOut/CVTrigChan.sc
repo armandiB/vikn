@@ -1,7 +1,7 @@
 AbstractSynthDefSender {
 	classvar synthDefDict;
 	var <server;
-	var <hasSentSynthDef = false;
+	var <hasSentSynthDef = false; //TODO: classvars hasSentSynthDef_ar hasSentSynthDef_kr ??
 
 	*new { arg server;
 		^super.new.initSynthDefSender(server);
@@ -34,7 +34,7 @@ CVTrigDef : AbstractSynthDefSender{
 		this.addToSynthDefDict(sd);
 
 		if(hasSentSynthDef, {^nil});
-		sd = SynthDef(synthDefName_kr, {|outbus, in = 0, dur = 0.1|
+		sd = SynthDef(synthDefName_kr, {|outbus, in = 0, dur = 0.1| //TODO: Out.kr will never work bc audio bus out
 			Out.kr(outbus, Trig1.kr(In.kr(in), dur)*0.9);
 		});
 		sd.send(server);
