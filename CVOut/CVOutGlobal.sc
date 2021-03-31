@@ -1,6 +1,14 @@
-CVOutGlobal {
+CVOutGlobal{
+	classvar <serverList; //list as a check to only one CVOutGlobal per server
+	classvar <cvOutGroupDict; //server -> group
+	classvar <cvTrigChanList; //list for easier retrieval
 	var <server;
-	var <cvOutGroup;
+
+	*initClass {
+		serverList = List.new;
+        cvOutGroupDict = IdentityDictionary.new;
+		cvTrigChanList = List.new;
+    }
 
 	*new { arg server;
 		^super.new.initCVOutGlobal(server);
@@ -8,12 +16,13 @@ CVOutGlobal {
 
 	initCVOutGlobal{ arg serverarg;
 		server = serverarg;
-		this.initServerObjects();
+		serverList.add(server);
+		this.initServerObjects(server);
 	}
 
-	//TODO: recreate Group in case of Cmd+.
+	//TODO: recreate Group in case of Cmd+. (see permanent clock). Thinks Group exists but actually not. Also see serverList. To fix, doesn't work if server killed and rebooted
 	initServerObjects{
-		cvOutGroup = Group.after(server.volume.ampSynth)
+		cvOutGroupDict.at(server) ?? {cvOutGroupDict.add(server -> Group.after(server.volume.ampSynth))};
 	}
 
 }

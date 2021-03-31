@@ -52,7 +52,6 @@ CVTrigDef : AbstractSynthDefSender{
 		if(this.hasSentDef(synthDefName_kr).not, {
 			sd = SynthDef(synthDefName_kr, {|outbus, in = 0, dur = 0.05|
 				Out.ar(outbus, K2A.ar(Trig1.kr(In.kr(in), dur)*0.9));
-				Out.kr(in, SetResetFF.kr(DC.kr(0), Trig1.kr(In.kr(in), server.options.blockSize))); //auto-reset in bus
 		});
 		sd.send(server);
 		this.addSentDef(synthDefName_kr);
