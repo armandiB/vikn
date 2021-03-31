@@ -1,8 +1,7 @@
 AbstractSynthDefSender {
-	classvar synthDefDict;
+	classvar <synthDefDict; //keys: server, name
 	var <server;
-	var <hasSentSynthDef = false; //TODO: classvars hasSentSynthDef_ar hasSentSynthDef_kr ??
-
+	classvar <hasSentSynthDefs = Set();
 	*new { arg server;
 		^super.new.initSynthDefSender(server);
 	}
@@ -21,32 +20,35 @@ AbstractSynthDefSender {
 
 CVTrigDef : AbstractSynthDefSender{
 
-	classvar synthDefName_ar = \CVTrigChan_ar;
-	classvar synthDefName_kr = \CVTrigChan_kr;
+	classvar <synthDefName_ar = \CVTrigChan_ar;
+	classvar <synthDefName_kr = \CVTrigChan_kr;
 
 	initSynthDef{
 		var sd;
-		if(hasSentSynthDef, {^nil});
+		if(hasSentSynthDefs.includes(server), {^nil});
 		sd = SynthDef(synthDefName_ar, {|outbus, in = 0, dur = 0.1|
-			Out.ar(outbus, Trig1.ar(In.ar(in), dur)*0.9);
+			Out.ar(outbus, Trig1.ar(In.ar(in), dur)*0.9); //TODO: try difference with OffsetOut
 		});
 		sd.send(server);
 		this.addToSynthDefDict(sd);
 
-		if(hasSentSynthDef, {^nil});
-		sd = SynthDef(synthDefName_kr, {|outbus, in = 0, dur = 0.1| //TODO: Out.kr will never work bc audio bus out
-			Out.kr(outbus, Trig1.kr(In.kr(in), dur)*0.9);
+		if(hasSentSynthDefs.includes(server), {^nil});
+		sd = SynthDef(synthDefName_kr, {|outbus, in = 0, dur = 0.1|
+			Out.ar(outbus, K2A.ar(Trig1.kr(In.kr(in), dur)*0.9));
 		});
 		sd.send(server);
 		this.addToSynthDefDict(sd);
-		hasSentSynthDef = true;
+		hasSentSynthDefs.add(server);
 	}
 }
 
 CVTrigChan : CVTrigDef {
 
-	var <>outbus;
+	var <rate;
+	var <>outbus; //TODO: test if setter works, probably not, make one with synth.set
 	var <synth;
+	var <controlbus;
+	var <dur; //TODO: idem setter
 
 	*new { arg server, outbus;
 		^super.new(server).initCVTrigChan(outbus);
@@ -57,14 +59,33 @@ CVTrigChan : CVTrigDef {
 		this.initSynthDef();
 	}
 
-	makeSynth_ar{ arg in, dur;
-		synth !? this.freeSynth();
-		synth = Synth(synthDefName_ar, [outbus: outbus, in: in, dur: dur], in, \addAfter);
+	controlbus_{ |bus|
+		if(bus.isNil, {
+			controlbus = controlbus ? Bus.control(server,1);
+		}, {
+			controlbus = bus;
+			if(synth.notNil && (rate == \kr), {
+				synth.set(\in, bus);
+			});
+		});
+		^controlbus;
 	}
 
-	makeSynth_kr{ arg in, dur;
+	makeSynth_ar{ arg in, argdur;
 		synth !? this.freeSynth();
-		synth = Synth(synthDefName_kr, [outbus: outbus, in: in, dur: dur], in, \addAfter);
+		dur = argdur ? dur;
+		synth = Synth(synthDefName_ar, [outbus: outbus, in: in, dur: dur], CVOutGlobal.cvOutGroup);
+		rate = \ar
+		^synth
+	}
+
+	makeSynth_kr{ arg in, argdur;
+		var inbus = in ? this.controlbus_();
+		synth !? this.freeSynth();
+		argdur !? {dur = argdur};
+		synth = Synth(synthDefName_kr, [outbus: outbus, in: inbus, dur: dur], CVOutGlobal.cvOutGroup);
+		rate = \kr
+		^synth
 	}
 
 	freeSynth{
