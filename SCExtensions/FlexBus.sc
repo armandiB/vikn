@@ -12,6 +12,6 @@ FlexBus : Bus {
 	}
 
 	addFlex { |val|
-		^this.setFlex(bus, val+this.getFlex);
+		^this.setFlex(val+this.getFlex);
 	}
 }

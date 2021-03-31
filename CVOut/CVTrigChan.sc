@@ -1,6 +1,6 @@
 AbstractSynthDefSender {
 	classvar <synthDefDict; //keys: server, name
-	classvar <hasSentSynthDefs = Set();
+	classvar <hasSentSynthDefs;
 	var <server;
 	*new { arg server;
 		^super.new.initSynthDefSender(server);
@@ -8,6 +8,7 @@ AbstractSynthDefSender {
 
 	initSynthDefSender{ arg serverarg;
 		server = serverarg;
+		hasSentSynthDefs = Set();
 		this.initSynthDef();
 	}
 
@@ -61,7 +62,7 @@ CVTrigChan : CVTrigDef {
 
 	controlbus_{ |bus|
 		if(bus.isNil, {
-			controlbus = controlbus ? Bus.control(server,1);
+			controlbus = controlbus ? FlexBus.control(server,1);
 		}, {
 			controlbus = bus;
 			if(synth.notNil && (rate == \kr), {
