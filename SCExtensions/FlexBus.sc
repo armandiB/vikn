@@ -5,13 +5,13 @@ FlexBus : Bus {
 			{^this.set(val)});
 	}
 
-	getFlex = {
+	getFlex {
 		if(server.hasShmInterface,
 			{^this.getSynchronous},
 			{^this.get});
 	}
 
-	addFlex = { |val|
+	addFlex { |val|
 		^this.setFlex(bus, val+this.getFlex);
 	}
 }

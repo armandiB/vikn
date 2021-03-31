@@ -1,7 +1,7 @@
 AbstractSynthDefSender {
 	classvar <synthDefDict; //keys: server, name
-	var <server;
 	classvar <hasSentSynthDefs = Set();
+	var <server;
 	*new { arg server;
 		^super.new.initSynthDefSender(server);
 	}
