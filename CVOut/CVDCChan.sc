@@ -35,11 +35,14 @@ CVDCChan : CVDCDef {
 	var <controlbus;
 	var <dur; //TODO: idem setter
 
+	var <>cvOutGlobal;
+
 	*new { arg server, outbus;
 		^super.new(server).initCVDCChan(outbus);
 	}
 
 	initCVDCChan{ arg outbusarg;
+		cvOutGlobal = CVOutGlobal.serverDict[server];
 		outbus = outbusarg;
 		this.initSynthDef();
 		CVOutGlobal.cvDCChanList.add(this); //maybe want to have an attribute which is the position in the list for quicker deleting?
@@ -83,15 +86,14 @@ CVVoctChan : CVDCChan {
 	var <>tuningfreq;
 	var <>tuningdc; //in V, useful because synths don't track perfectly
 	var <>midiToFreqFunc;
-	var <>cvOutGlobal;
 
-	*new { arg server, outbus, tuningfreq, tuningdc=0, midiToFreqFunc;
+
+	*new { arg server, outbus, tuningfreq, midiToFreqFunc, tuningdc=0;
 		^super.new(server, outbus).initCVVoctChan(tuningfreq, tuningdc, midiToFreqFunc);
 	}
 
 	initCVVoctChan{ arg tuningfreqarg, tuningdcarg, midiToFreqFuncarg;
-		cvOutGlobal = CVOutGlobal.serverDict[server];
-		cvOutGlobal.cvVOctChanIndexes.add(CVOutGlobal.cvDCChanList.size);
+		cvOutGlobal.cvVoctChanIndexes.add(CVOutGlobal.cvDCChanList.size);
 		tuningfreq = tuningfreqarg;
 		midiToFreqFunc = midiToFreqFuncarg;
 		tuningdc = tuningdcarg;
