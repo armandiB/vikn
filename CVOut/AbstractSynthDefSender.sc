@@ -1,6 +1,6 @@
 AbstractSynthDefSender {
 	classvar <sentDefsDict; //server -> IdentitySet(synthDefNames) //IdentityDictionary and IdentitySet for faster inclusion test
-	classvar <synthDefDict; //server, name -> SynthDef
+	classvar <synthDefDict; //server, name -> SynthDef, not functional
 	var <server;
 
 	*initClass {
@@ -24,7 +24,13 @@ AbstractSynthDefSender {
 		^sentDefsDict;
 	}
 	hasSentDef{ |synthDefName|
-		^sentDefsDict[server] !? (_.includes(synthDefName)) ?? false
+		^sentDefsDict[server] !? {_.includes(synthDefName)}.value ?? false
+	}
+
+	sendDef{|sd, name|
+			sd.send(server);
+			this.addSentDef(name);
+			this.addSynthDefDict(sd);
 	}
 
 	addSynthDefDict{ arg synthDef;

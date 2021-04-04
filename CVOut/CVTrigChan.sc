@@ -9,19 +9,15 @@ CVTrigDef : AbstractSynthDefSender{
 			sd = SynthDef(synthDefName_ar, {
 				Out.ar(\out.kr, Trig1.ar(In.ar(\in.ar), \dur.kr(0.05))*0.9); //TODO: try difference with OffsetOut
 			});
-			sd.send(server);
-			this.addSentDef(synthDefName_ar);
-			this.addSynthDefDict(sd);
+			this.sendDef(sd,synthDefName_ar);
 		});
 
 
 		if(this.hasSentDef(synthDefName_kr).not, {
 			sd = SynthDef(synthDefName_kr, {
 				Out.ar(\out.kr, K2A.ar(Trig1.kr(In.kr(\in.kr), \dur.kr(0.05))*0.9));
-		});
-		sd.send(server);
-		this.addSentDef(synthDefName_kr);
-		this.addSynthDefDict(sd);
+			});
+			this.sendDef(sd,synthDefName_kr);
 		});
 	}
 }
@@ -33,20 +29,26 @@ CVTrigChan : CVTrigDef {
 	var <synth;
 	var <controlbus;
 	var <dur; //TODO: idem setter
+	var <>playRoutine;
 
-	*new { arg server, outbus;
-		^super.new(server).initCVTrigChan(outbus);
+	var <>cvOutGlobal;
+
+	*new { arg server, outbus, dur=0.05;
+		^super.new(server).initCVTrigChan(outbus, dur);
 	}
 
-	initCVTrigChan{ arg outbusarg;
+	initCVTrigChan{ arg outbusarg, durarg;
+		cvOutGlobal = CVOutGlobal.serverDict[server];
 		outbus = outbusarg;
+		dur = durarg;
+		playRoutine = this.makePlayRoutine(durarg);
 		this.initSynthDef();
-		CVOutGlobal.cvTrigChanList.add(this); //maybe want to have an attribute which is the position in the list for quicker deleting?
+		cvOutGlobal.cvTrigChanList.add(this); //maybe want to have an attribute which is the position in the list for quicker deleting?
 	}
 
 	controlbus_{ |bus|
 		if(bus.isNil, {
-			controlbus = controlbus ? FlexBus.control(server,1);
+			controlbus = controlbus ? Bus.control(server,1);
 		}, {
 			controlbus = bus;
 			if(synth.notNil && (rate == \kr), {
@@ -57,23 +59,42 @@ CVTrigChan : CVTrigDef {
 	}
 
 	makeSynth_ar{ arg in, argdur;
-		synth !? this.freeSynth();
+		this.freeSynth();
 		dur = argdur ? dur;
-		synth = Synth(synthDefName_ar, [out: outbus, in: in, dur: dur], CVOutGlobal.cvOutGroupDict[server]);
-		rate = \ar
-		^synth
+		synth = Synth(synthDefName_ar, [out: outbus, in: in, dur: dur], cvOutGlobal.cvOutGroup);
+		rate = \ar;
+		^synth;
 	}
 
 	makeSynth_kr{ arg in, argdur;
 		var inbus = in ? this.controlbus_();
-		synth !? this.freeSynth();
+		this.freeSynth();
 		argdur !? {dur = argdur};
-		synth = Synth(synthDefName_kr, [out: outbus, in: inbus, dur: dur], CVOutGlobal.cvOutGroupDict[server]);
-		rate = \kr
-		^synth
+		synth = Synth(synthDefName_kr, [out: outbus, in: inbus, dur: dur], cvOutGlobal.cvOutGroup);
+		rate = \kr;
+		^synth;
+	}
+
+	makePlayRoutine{|waitDur|
+		^Routine({
+			controlbus.setFlex(1);
+			(waitDur/2).wait;
+			controlbus.setFlex(0);
+		});
+	}
+
+	playTrig{|minWait|
+		^SystemClock.sched(0.0, minWait !? {this.makePlayRoutine(minWait);} ?? {playRoutine;})
 	}
 
 	freeSynth{
-		synth.free;
+		synth !? synth.free;
+		^synth;
+	}
+
+	free{
+		this.freeSynth();
+		controlbus !? controlbus.free;
+		^this;
 	}
 }

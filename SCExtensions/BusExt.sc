@@ -1,4 +1,4 @@
-FlexBus : Bus {
++Bus {
 	setFlex { |val|
 		if(server.hasShmInterface,
 			{^this.setSynchronous(val)},
