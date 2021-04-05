@@ -38,11 +38,10 @@ CVTrigChan : CVTrigDef {
 	}
 
 	initCVTrigChan{ arg outbusarg, durarg;
+		this.initSynthDef();
 		cvOutGlobal = CVOutGlobal.serverDict[server];
 		outbus = outbusarg;
 		dur = durarg;
-		playRoutine = this.makePlayRoutine(durarg);
-		this.initSynthDef();
 		cvOutGlobal.cvTrigChanList.add(this); //maybe want to have an attribute which is the position in the list for quicker deleting?
 	}
 
@@ -72,18 +71,19 @@ CVTrigChan : CVTrigDef {
 		argdur !? {dur = argdur};
 		synth = Synth(synthDefName_kr, [out: outbus, in: inbus, dur: dur], cvOutGlobal.cvOutGroup);
 		rate = \kr;
+		playRoutine = this.makePlayRoutine(durarg);
 		^synth;
 	}
 
 	makePlayRoutine{|waitDur|
 		^Routine({
-			controlbus.setFlex(1);
 			(waitDur/2).wait;
 			controlbus.setFlex(0);
 		});
 	}
 
 	playTrig{|minWait|
+		controlbus.setFlex(1);
 		^SystemClock.sched(0.0, minWait !? {this.makePlayRoutine(minWait);} ?? {playRoutine;})
 	}
 
