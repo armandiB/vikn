@@ -28,7 +28,7 @@ CVTrigChan : CVTrigDef {
 	var <>outbus; //TODO: test if setter works, probably not, make one with synth.set
 	var <synth;
 	var <controlbus;
-	var <dur; //TODO: idem setter
+	var <dur; //TODO: idem setter + update playRoutine
 	var <>playRoutine;
 
 	var <>cvOutGlobal;
@@ -57,21 +57,21 @@ CVTrigChan : CVTrigDef {
 		^controlbus;
 	}
 
-	makeSynth_ar{ arg in, argdur;
+	makeSynth_ar{ arg in, durarg;
 		this.freeSynth();
-		dur = argdur ? dur;
+		dur = durarg ? dur;
 		synth = Synth(synthDefName_ar, [out: outbus, in: in, dur: dur], cvOutGlobal.cvOutGroup);
 		rate = \ar;
 		^synth;
 	}
 
-	makeSynth_kr{ arg in, argdur;
+	makeSynth_kr{ arg in, durarg;
 		var inbus = in ? this.controlbus_();
 		this.freeSynth();
-		argdur !? {dur = argdur};
+		durarg !? {dur = durarg};
 		synth = Synth(synthDefName_kr, [out: outbus, in: inbus, dur: dur], cvOutGlobal.cvOutGroup);
 		rate = \kr;
-		playRoutine = this.makePlayRoutine(durarg);
+		playRoutine = this.makePlayRoutine(dur);
 		^synth;
 	}
 
@@ -79,6 +79,7 @@ CVTrigChan : CVTrigDef {
 		^Routine({
 			(waitDur/2).wait;
 			controlbus.setFlex(0);
+			nil.yieldAndReset;
 		});
 	}
 

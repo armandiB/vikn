@@ -5,5 +5,4 @@ RealTuning : Tuning {
 	var <>noteBaseFreq; //0 is C4
 
 
-
 }
