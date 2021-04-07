@@ -9,7 +9,7 @@ CVOutGlobal{
 	var <cvVoctChanList; //indexes in cvDCChanList relative to this server, assuming cvDCChanList only adds elements
 
 	var <>interface_factor;
-	var <>basefreq;
+	var <>reffreq;
 	var <>tuningchan;
 
 	*initClass {
@@ -17,14 +17,14 @@ CVOutGlobal{
 		serverDict = IdentityDictionary.new;
     }
 
-	*new { arg server, tuningchan, basefreq=440, interface_factor=0.1;
-		^super.new.initCVOutGlobal(server, tuningchan, basefreq, interface_factor);
+	*new { arg server, tuningchan, reffreq=440, interface_factor=0.1;
+		^super.new.initCVOutGlobal(server, tuningchan, reffreq, interface_factor);
 	}
 
-	initCVOutGlobal{ arg serverarg, tuningchanarg, basefreqarg, interface_factorarg;
+	initCVOutGlobal{ arg serverarg, tuningchanarg, reffreqarg, interface_factorarg;
 		server = serverarg;
 		tuningchan = tuningchanarg;
-		basefreq = basefreqarg;
+		reffreq = reffreqarg;
 		interface_factor = interface_factorarg;
 		serverList.add(server);
 		serverDict.add(server -> this);

@@ -104,13 +104,13 @@ CVVoctChan : CVDCChan {
 
 	initCVVoctChan{ arg midiToFreqFuncarg, tuningfreqarg, tuningdcarg;
 		cvOutGlobal.cvVoctChanList.add(this);
-		tuningfreq = tuningfreqarg ? cvOutGlobal.basefreq;
+		tuningfreq = tuningfreqarg ? cvOutGlobal.reffreq;
 		midiToFreqFunc = midiToFreqFuncarg;
 		tuningdc = tuningdcarg;
 	}
 
 	tune_kr{|freq, chan, volume=0.2, fadetime=3|
-		var realFreq = freq ? cvOutGlobal.basefreq;
+		var realFreq = freq ? cvOutGlobal.reffreq;
 		tuningfreq = realFreq;
 		controlbus.setFlex(tuningdc);
 		tuneSynth = {SinOsc.ar(\freq.kr(realFreq),0,\volume.kr(volume));}.play(server, chan ? cvOutGlobal.tuningchan, fadetime);

@@ -2,6 +2,7 @@ CVTrigDef : AbstractSynthDefSender{
 
 	classvar <synthDefName_ar = \CVTrigChan_ar;
 	classvar <synthDefName_kr = \CVTrigChan_kr;
+	//TODO: another kr way with synth.set (test works in ar?), compare going into audio rate
 
 	initSynthDef{
 		var sd;
