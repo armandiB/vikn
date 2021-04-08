@@ -8,7 +8,7 @@ CVOutGlobal{
 	var <cvDCChanList;
 	var <cvVoctChanList; //indexes in cvDCChanList relative to this server, assuming cvDCChanList only adds elements
 
-	var <>interface_factor;
+	var <>interface_factor; // 1/numberOfVoltsOutputtedBy1
 	var <>reffreq;
 	var <>tuningchan;
 

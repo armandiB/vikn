@@ -91,46 +91,66 @@ CVDCChan : CVDCDef {
 }
 
 CVVoctChan : CVDCChan {
-	var <>tuningfreq;
+	var <tuningfreq;
 	var <>tuningdc; //in V, useful because synths don't track perfectly
-	var <>midiToFreqFunc;
+	var <>realTuning;
 
 	var <tuneSynth;
 
+	var <storeLogTuningfreq;
 
-	*new { arg server, outbus, midiToFreqFunc, tuningfreq, tuningdc=0;
-		^super.new(server, outbus).initCVVoctChan(midiToFreqFunc, tuningfreq, tuningdc);
+
+	*new { arg server, outbus, realTuning, tuningfreq, tuningdc=0;
+		^super.new(server, outbus).initCVVoctChan(realTuning, tuningfreq, tuningdc);
 	}
 
-	initCVVoctChan{ arg midiToFreqFuncarg, tuningfreqarg, tuningdcarg;
+	initCVVoctChan{ arg realTuningarg, tuningfreqarg, tuningdcarg;
 		cvOutGlobal.cvVoctChanList.add(this);
-		tuningfreq = tuningfreqarg ? cvOutGlobal.reffreq;
-		midiToFreqFunc = midiToFreqFuncarg;
+		tuningfreq = this.tuningfreq_(tuningfreqarg ? realTuningarg.reffreq ? cvOutGlobal.reffreq);
+		realTuning = realTuningarg;
 		tuningdc = tuningdcarg;
 	}
 
+	tuningfreq_{|freq|
+		tuningfreq = freq;
+		storeLogTuningfreq = freq.log2;
+		^tuningfreq;
+	}
+
 	tune_kr{|freq, chan, volume=0.2, fadetime=3|
-		var realFreq = freq ? cvOutGlobal.reffreq;
-		tuningfreq = realFreq;
+		var realFreq = freq !? {this.tuningfreq_(_)}.value ? tuningfreq;
 		controlbus.setFlex(tuningdc);
 		tuneSynth = {SinOsc.ar(\freq.kr(realFreq),0,\volume.kr(volume));}.play(server, chan ? cvOutGlobal.tuningchan, fadetime);
 		^tuneSynth;
 	}
 
-	setFreqBus{|freq|
-		var realFreq = freq ? tuningfreq;
-		//rate == \kr
-		controlbus.setFlex(((realFreq/tuningfreq).log2 + tuningdc) * cvOutGlobal.interface_factor);
-		^freq;
+	tune_kr_ratio{|ratio, chan, volume=0.2, fadetime=3|
+		var freq = realTuning.reffreq ? cvOutGlobal.reffreq;
+		freq = freq*ratio;
+		^this.tune_kr(freq, chan, volume, fadetime);
 	}
 
-	setNoteBus{|note| //0 -> C4 midi
+	tune_kr_note{|note, chan, volume=0.2, fadetime=3|
+		^this.tune_kr(realTuning.noteToFreq(note), chan, volume, fadetime);
+	}
+
+	setFreqBus{|freq|
 		//rate == \kr
-		^this.setFreqBus(midiToFreqFunc.value(note+60)) //TODO: not optimal, could compute the whole thing at each change of midiToFreqFuncarg, tuningdc or tuningfreq (and interface_factor? in that case, make setter used in CVOutGlobal that calls recompute) //or maybe just avoid log2 with Tuning?
-	} //returns freq
+		var realFreq = freq ? tuningfreq;
+		var busVal = ((realFreq/tuningfreq).log2 + tuningdc) * cvOutGlobal.interface_factor;
+		controlbus.setFlex(busVal);
+		^busVal;
+	}
+
+	setNoteBus{|note|
+		//rate == \kr
+		var busVal = (((realTuning.atNote(note) - realTuning.storeAtNoteReffreqNote)/12) + realTuning.storeLogReffreq - storeLogTuningfreq + tuningdc) * cvOutGlobal.interface_factor;
+		controlbus.setFlex(busVal);
+		^busVal;
+	}
 
 	stopTune{
-		^tuneSynth.free;
+		^tuneSynth.release;
 	}
 
 	free{
