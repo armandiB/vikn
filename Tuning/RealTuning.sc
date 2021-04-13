@@ -1,12 +1,12 @@
 RealTuning : Tuning {
-	var <reffreq;  //to be changed, would have to call makeStoreLogRefFreq in every CVOctChan referencing this
+	var <reffreq;
 	var <reffreqNote;
 	var <noteFirstElement;  //defines the a reference for notes in this tuning, helps keep a convention with real notes (e.g. 0 is C4)
 
 	//var <tuningFreqRatios;  //todo for speed, modify when tuning is set and conversely
 	var <storeStepsPerOctave;  //=octaveRatio.log2 * 12.0  //store for speed
-	var <storeLogReffreq;  //for use is CVVoctChan
-	var <storeAtNoteReffreqNote;  //for use is CVVoctChan
+	var <storeLogReffreq;  //for use in CVVoctChan
+	var <storeAtNoteReffreqNote;  //for use i CVVoctChan
 
 	var <>baseNote;
 
@@ -50,10 +50,6 @@ RealTuning : Tuning {
 		^this;
 	}
 
-	distanceNotes{|note1, note2|
-		^this.wrapAt(note1 - note2) + (storeStepsPerOctave*(note1 - note2).div(this.size));
-	}
-
 	atNote{|note|
 		^this.wrapAt(note - noteFirstElement) + (storeStepsPerOctave*(note - noteFirstElement).div(this.size)); //in midi semitones from the reference point of the tuning
 	}
@@ -71,4 +67,16 @@ RealTuning : Tuning {
 	// and define a structure (e.g. JI) with origin this note
 	// maybe A will be tuned 440
 	// but I want to be able to quickly tune to 12-ET (or other) at another note
+}
+
+JIRealTuning : RealTuning {
+	//basically a discrete vector space (base_primes, [index -> (coordinates_base)])
+	//fill up with base and coordinates (freq order, or smarter order based on smallest primes?)
+
+	*new { | tuning, octaveRatio = 2.0, name = "Unknown Tuning", reffreq=440, reffreqNote=9, noteFirstElement=0|  //default 9 is A4
+		^super.new(tuning, octaveRatio, name, reffreq, reffreqNote, noteFirstElement).initJIRealTuning();
+	}
+
+		initJIRealTuning{
+	}
 }

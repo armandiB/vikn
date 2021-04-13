@@ -78,6 +78,13 @@ CVDCChan : CVDCDef {
 		^synth;
 	}
 
+	setDCBus{|val|
+		//rate == \kr
+		var busVal = val * cvOutGlobal.interface_factor;
+		controlbus.setFlex(busVal);
+		^busVal;
+	}
+
 	freeSynth{
 		synth !? synth.free;
 		^synth;
