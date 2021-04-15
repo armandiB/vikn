@@ -3,7 +3,7 @@ RealTuning : Tuning {
 	var <reffreqNote;
 	var <noteFirstElement;  //defines the a reference for notes in this tuning, helps keep a convention with real notes (e.g. 0 is C4)
 
-	//var <tuningFreqRatios;  //todo for speed, modify when tuning is set and conversely
+	//var <tuningFreqRatios;  //todo for speed, modify when tuning is set and conversely, could be useful for JIRealRuning
 	var <storeStepsPerOctave;  //=octaveRatio.log2 * 12.0  //store for speed
 	var <storeLogReffreq;  //for use in CVVoctChan
 	var <storeAtNoteReffreqNote;  //for use i CVVoctChan
@@ -71,12 +71,38 @@ RealTuning : Tuning {
 
 JIRealTuning : RealTuning {
 	//basically a discrete vector space (base_primes, [index -> (coordinates_base)])
-	//fill up with base and coordinates (freq order, or smarter order based on smallest primes?)
+	//can fill up a tuning with base and coordinates (todo auto order by freq, or smarter order based on smallest primes?)
+	var <basePrimes;
+	var <tuningCoordinates;
+	var <octaveFactors;
 
-	*new { | tuning, octaveRatio = 2.0, name = "Unknown Tuning", reffreq=440, reffreqNote=9, noteFirstElement=0|  //default 9 is A4
-		^super.new(tuning, octaveRatio, name, reffreq, reffreqNote, noteFirstElement).initJIRealTuning();
+	*new { | basePrimes, tuningCoordinates, octaveRatio = 2.0, name = "Unknown Tuning", reffreq=440, reffreqNote=9, noteFirstElement=0|  //default 9 is A4
+		var octaveSemitones = octaveRatio.ratiomidi;
+		var non_adjusted_semitones = JIRealTuning.semitonesFromCoordinates(basePrimes, tuningCoordinates);
+		var tuning = non_adjusted_semitones.collect({ |semi|
+			semi % octaveSemitones;
+		});
+		var octave_factors = non_adjusted_semitones.collect({ |semi|
+			semi.div(octaveSemitones)*(-1);  //ratio_adjusted = ratio_non_adjusted * (octaveRatio**octave_factor)
+		});
+		^super.new(tuning, octaveRatio, name, reffreq, reffreqNote, noteFirstElement).initJIRealTuning(basePrimes, tuningCoordinates, octave_factors);
 	}
 
-		initJIRealTuning{
+	*semitonesFromCoordinates{|base_primes, coordinates|
+		^coordinates.collect({|coordinate_array|
+			var semitone = 1;
+			coordinate_array.do({|coordinate, prime_index|
+				semitone = semitone*(base_primes[prime_index]**coordinate)
+			});
+			semitone.ratiomidi;
+		});
 	}
+
+		initJIRealTuning{|basePrimesarg, tuningCoordinatesarg, octaveFactorsarg|
+		basePrimes = basePrimesarg;
+		tuningCoordinates = tuningCoordinatesarg;
+		octaveFactors = octaveFactorsarg;
+	}
+
+
 }
