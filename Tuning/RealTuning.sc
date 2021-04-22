@@ -76,16 +76,22 @@ JIRealTuning : RealTuning {
 	var <tuningCoordinates;
 	var <octaveFactors;
 
-	*new { | basePrimes, tuningCoordinates, octaveRatio = 2.0, name = "Unknown Tuning", reffreq=440, reffreqNote=9, noteFirstElement=0|  //default 9 is A4
+	var <octaveShiftsArray;
+
+	*new { | basePrimes, tuningCoordinates, octaveRatio = 2.0, name = "Unknown Tuning", reffreq=440, reffreqNote=9, noteFirstElement=0, octaveShifts|  //default 9 is A4
 		var octaveSemitones = octaveRatio.ratiomidi;
 		var non_adjusted_semitones = JIRealTuning.semitonesFromCoordinates(basePrimes, tuningCoordinates);
-		var tuning = non_adjusted_semitones.collect({ |semi|
-			semi % octaveSemitones;
+
+		var octaveShifts_array = non_adjusted_semitones.collect({|prime, index|
+			octaveShifts !? _.atFail(index.asSymbol) ? 0;
 		});
-		var octave_factors = non_adjusted_semitones.collect({ |semi|
-			semi.div(octaveSemitones)*(-1);  //ratio_adjusted = ratio_non_adjusted * (octaveRatio**octave_factor)
+		var tuning = non_adjusted_semitones.collect({ |semitones, index|
+			semitones % octaveSemitones + (octaveShifts_array[index]*octaveSemitones);
 		});
-		^super.new(tuning, octaveRatio, name, reffreq, reffreqNote, noteFirstElement).initJIRealTuning(basePrimes, tuningCoordinates, octave_factors);
+		var octaveFactors = non_adjusted_semitones.collect({ |semitones, index|
+			semitones.div(octaveSemitones)*(-1) + octaveShifts_array[index];  //ratio_adjusted = ratio_non_adjusted * (octaveRatio**octave_factor)
+		});
+		^super.new(tuning, octaveRatio, name, reffreq, reffreqNote, noteFirstElement).initJIRealTuning(basePrimes, tuningCoordinates, octaveFactors, octaveShifts_array);
 	}
 
 	*semitonesFromCoordinates{|base_primes, coordinates|
@@ -98,11 +104,11 @@ JIRealTuning : RealTuning {
 		});
 	}
 
-		initJIRealTuning{|basePrimesarg, tuningCoordinatesarg, octaveFactorsarg|
+	initJIRealTuning{|basePrimesarg, tuningCoordinatesarg, octaveFactorsarg, octaveShiftsarg|
 		basePrimes = basePrimesarg;
 		tuningCoordinates = tuningCoordinatesarg;
 		octaveFactors = octaveFactorsarg;
+		octaveShiftsArray = octaveShiftsarg;
 	}
-
 
 }

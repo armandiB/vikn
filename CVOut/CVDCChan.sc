@@ -1,26 +1,25 @@
 CVDCDef : AbstractSynthDefSender{
 
-	classvar <synthDefName_ar = \CVDCChan_ar;
-	classvar <synthDefName_kr = \CVDCChan_kr;
+	classvar <synthDefName = \CVDCChan;
 
 	initSynthDef{
 		var sd;
-		if(this.hasSentDef(synthDefName_ar).not, {
-			sd = SynthDef(synthDefName_ar, {
+		if(this.hasSentDef(this.synthDefName_ar).not, {
+			sd = SynthDef(this.synthDefName_ar, {
 				Out.ar(\out.kr, K2A.ar(Lag.ar(In.ar(\in.ar), \lagtime.kr(0.05)))); //TODO: try difference with OffsetOut
 			});
 			sd.send(server);
-			this.addSentDef(synthDefName_ar);
+			this.addSentDef(this.synthDefName_ar);
 			this.addSynthDefDict(sd);
 		});
 
 
-		if(this.hasSentDef(synthDefName_kr).not, {
-			sd = SynthDef(synthDefName_kr, {
+		if(this.hasSentDef(this.synthDefName_kr).not, {
+			sd = SynthDef(this.synthDefName_kr, {
 				Out.ar(\out.kr, K2A.ar(Lag.kr(In.kr(\in.kr), \lagtime.kr(0.05)))); //try OffsetOut too out of curiosioty
 		});
 		sd.send(server);
-		this.addSentDef(synthDefName_kr);
+		this.addSentDef(this.synthDefName_kr);
 		this.addSynthDefDict(sd);
 		});
 	}
@@ -64,7 +63,7 @@ CVDCChan : CVDCDef {
 	makeSynth_ar{ arg in, lagtimearg;
 		this.freeSynth();
 		lagtime = lagtimearg ? lagtime;
-		synth = Synth(synthDefName_ar, [out: outbus, in: in, lagtime: lagtime], cvOutGlobal.cvOutGroup);
+		synth = Synth(this.synthDefName_ar, [out: outbus, in: in, lagtime: lagtime], cvOutGlobal.cvOutGroup);
 		rate = \ar;
 		^synth;
 	}
@@ -73,7 +72,7 @@ CVDCChan : CVDCDef {
 		var inbus = in ? this.controlbus_();
 		this.freeSynth();
 		lagtimearg !? {lagtime = lagtimearg};
-		synth = Synth(synthDefName_kr, [out: outbus, in: inbus, lagtime: lagtime], cvOutGlobal.cvOutGroup);
+		synth = Synth(this.synthDefName_kr, [out: outbus, in: inbus, lagtime: lagtime], cvOutGlobal.cvOutGroup);
 		rate = \kr;
 		^synth;
 	}

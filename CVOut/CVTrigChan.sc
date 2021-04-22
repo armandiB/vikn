@@ -1,24 +1,23 @@
 CVTrigDef : AbstractSynthDefSender{
 
-	classvar <synthDefName_ar = \CVTrigChan_ar;
-	classvar <synthDefName_kr = \CVTrigChan_kr;
+	classvar <synthDefName = \CVTrigChan;
 	//TODO: another kr way with synth.set (test works in ar?), compare going into audio rate
 
 	initSynthDef{
 		var sd;
-		if(this.hasSentDef(synthDefName_ar).not, {
-			sd = SynthDef(synthDefName_ar, {
+		if(this.hasSentDef(this.synthDefName_ar).not, {
+			sd = SynthDef(this.synthDefName_ar, {
 				Out.ar(\out.kr, Trig1.ar(In.ar(\in.ar), \dur.kr(0.05))*0.9); //TODO: try difference with OffsetOut
 			});
-			this.sendDef(sd,synthDefName_ar);
+			this.sendDef(this.sd,this.synthDefName_ar);
 		});
 
 
-		if(this.hasSentDef(synthDefName_kr).not, {
-			sd = SynthDef(synthDefName_kr, {
+		if(this.hasSentDef(this.synthDefName_kr).not, {
+			sd = SynthDef(this.synthDefName_kr, {
 				Out.ar(\out.kr, K2A.ar(Trig1.kr(In.kr(\in.kr), \dur.kr(0.05))*0.9));
 			});
-			this.sendDef(sd,synthDefName_kr);
+			this.sendDef(this.sd,this.synthDefName_kr);
 		});
 	}
 }
@@ -61,7 +60,7 @@ CVTrigChan : CVTrigDef {
 	makeSynth_ar{ arg in, durarg;
 		this.freeSynth();
 		dur = durarg ? dur;
-		synth = Synth(synthDefName_ar, [out: outbus, in: in, dur: dur], cvOutGlobal.cvOutGroup);
+		synth = Synth(this.synthDefName_ar, [out: outbus, in: in, dur: dur], cvOutGlobal.cvOutGroup);
 		rate = \ar;
 		^synth;
 	}
@@ -70,7 +69,7 @@ CVTrigChan : CVTrigDef {
 		var inbus = in ? this.controlbus_();
 		this.freeSynth();
 		durarg !? {dur = durarg};
-		synth = Synth(synthDefName_kr, [out: outbus, in: inbus, dur: dur], cvOutGlobal.cvOutGroup);
+		synth = Synth(this.synthDefName_kr, [out: outbus, in: inbus, dur: dur], cvOutGlobal.cvOutGroup);
 		rate = \kr;
 		playRoutine = this.makePlayRoutine(dur);
 		^synth;
