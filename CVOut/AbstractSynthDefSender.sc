@@ -3,7 +3,7 @@ AbstractSynthDefSender {
 	classvar <synthDefDict; //server, name -> SynthDef, not functional
 	var <server;
 
-	classvar <synthDefName;
+	classvar <>synthDefName;
 
 	*initClass {
         sentDefsDict = IdentityDictionary.new;

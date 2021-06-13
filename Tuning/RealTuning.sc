@@ -111,4 +111,6 @@ JIRealTuning : RealTuning {
 		octaveShiftsArray = octaveShiftsarg;
 	}
 
+	//ToDo: shift along an axis
+
 }

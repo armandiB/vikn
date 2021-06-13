@@ -1,28 +1,29 @@
 CVDCDef : AbstractSynthDefSender{
 
-	classvar <synthDefName = \CVDCChan;
-
 	initSynthDef{
 		var sd;
-		if(this.hasSentDef(this.synthDefName_ar).not, {
-			sd = SynthDef(this.synthDefName_ar, {
+		CVDCDef.synthDefName = \CVDCChan;
+		if(this.hasSentDef(CVDCDef.synthDefName_ar).not, {
+			sd = SynthDef(CVDCDef.synthDefName_ar, {
 				Out.ar(\out.kr, K2A.ar(Lag.ar(In.ar(\in.ar), \lagtime.kr(0.05)))); //TODO: try difference with OffsetOut
 			});
 			sd.send(server);
-			this.addSentDef(this.synthDefName_ar);
+			this.addSentDef(CVDCDef.synthDefName_ar);
 			this.addSynthDefDict(sd);
 		});
 
 
-		if(this.hasSentDef(this.synthDefName_kr).not, {
-			sd = SynthDef(this.synthDefName_kr, {
+		if(this.hasSentDef(CVDCDef.synthDefName_kr).not, {
+			sd = SynthDef(CVDCDef.synthDefName_kr, {
 				Out.ar(\out.kr, K2A.ar(Lag.kr(In.kr(\in.kr), \lagtime.kr(0.05)))); //try OffsetOut too out of curiosioty
 		});
 		sd.send(server);
-		this.addSentDef(this.synthDefName_kr);
+			this.addSentDef(CVDCDef.synthDefName_kr);
 		this.addSynthDefDict(sd);
 		});
 	}
+
+	//ToDo: user-set lag time. Naming same way as _ar, _kr in AbstractSynthDefSender
 }
 
 //Only difference with CVTrigChan is CVOutGlobal.cvDCChanList, and name of Synth arguments- so could move that into Def and make a common instanciator object that has Def as attribute?
@@ -63,7 +64,7 @@ CVDCChan : CVDCDef {
 	makeSynth_ar{ arg in, lagtimearg;
 		this.freeSynth();
 		lagtime = lagtimearg ? lagtime;
-		synth = Synth(this.synthDefName_ar, [out: outbus, in: in, lagtime: lagtime], cvOutGlobal.cvOutGroup);
+		synth = Synth(CVDCDef.synthDefName_ar, [out: outbus, in: in, lagtime: lagtime], cvOutGlobal.cvOutGroup);
 		rate = \ar;
 		^synth;
 	}
@@ -72,7 +73,7 @@ CVDCChan : CVDCDef {
 		var inbus = in ? this.controlbus_();
 		this.freeSynth();
 		lagtimearg !? {lagtime = lagtimearg};
-		synth = Synth(this.synthDefName_kr, [out: outbus, in: inbus, lagtime: lagtime], cvOutGlobal.cvOutGroup);
+		synth = Synth(CVDCDef.synthDefName_kr, [out: outbus, in: inbus, lagtime: lagtime], cvOutGlobal.cvOutGroup);
 		rate = \kr;
 		^synth;
 	}
