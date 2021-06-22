@@ -75,6 +75,7 @@ CVDCChan : CVDCDef {
 		lagtimearg !? {lagtime = lagtimearg};
 		synth = Synth(CVDCDef.synthDefName_kr, [out: outbus, in: inbus, lagtime: lagtime], cvOutGlobal.cvOutGroup);
 		rate = \kr;
+		"Made CVDCChan kr ".post; synth.postln;
 		^synth;
 	}
 
