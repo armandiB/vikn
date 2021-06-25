@@ -62,6 +62,7 @@ CVTrigChan : CVTrigDef {
 		dur = durarg ? dur;
 		synth = Synth(CVTrigDef.synthDefName_ar, [out: outbus, in: in, dur: dur], cvOutGlobal.cvOutGroup);
 		rate = \ar;
+		"Made CVTrigChan ar ".post; outbus.post; " ".post; synth.postln;
 		^synth;
 	}
 
@@ -72,7 +73,7 @@ CVTrigChan : CVTrigDef {
 		synth = Synth(CVTrigDef.synthDefName_kr, [out: outbus, in: inbus, dur: dur], cvOutGlobal.cvOutGroup);
 		rate = \kr;
 		playRoutine = this.makePlayRoutine(dur);
-		"Made CVTrigChan kr ".post; synth.postln;
+		"Made CVTrigChan kr ".post; outbus.post; " ".post; synth.postln;
 		^synth;
 	}
 
