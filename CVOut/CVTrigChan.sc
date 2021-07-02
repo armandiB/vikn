@@ -1,6 +1,8 @@
 CVTrigDef : AbstractSynthDefSender{
 
-	//TODO: another kr way with synth.set (test works in ar?), compare going into audio rate
+	//TODO: another kr way with synth.set (test works in ar?), compare going into audio rate (in that case triggering is client-side)
+	// could be more precise with OffsetOut
+	// or just create a synth for each trig?
 
 	initSynthDef{
 		var sd;
