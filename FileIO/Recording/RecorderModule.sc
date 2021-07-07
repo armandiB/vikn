@@ -8,44 +8,84 @@ RecorderModule {
 	var <server;
 	var <recordBus;
 	var <recorder;
-	var <path;
+	var <folderPath;
+	var <fileName;
 	var <numChannels; // default 1
+	var <recHeaderFormat;
+	var <recordingSuffix;
 
-	*new { |server, path, numChannels=1|
-		^super.new.initRecorderModule(server, path, numChannels);
+	*new { |server, folderPath, fileName, numChannels=1|
+		^super.new.initRecorderModule(server, folderPath, fileName, numChannels);
 	}
 
-	initRecorderModule {|serverarg, patharg, numChannelsarg|
+	initRecorderModule {|serverarg, folderPatharg, fileNamearg, numChannelsarg|
 		server = serverarg;
 		numChannels = numChannelsarg;
 		recordBus = Bus.audio(server, numChannels);
 		recorder = Recorder(server);
+		recHeaderFormat = server.recHeaderFormat;
+		recorder.recHeaderFormat = recHeaderFormat;
 		recorder.recSampleFormat = "int24";
-		path = patharg;
-		recorder.prepareForRecord(path, numChannels);
+		recordingSuffix = -1;
+		folderPath = folderPatharg;
+		fileName = fileNamearg;
+		this.prepareForRecord();
+	}
+
+	makeRealFilePath {
+		^folderPath +/+ Date.localtime.stamp ++ "_" ++ fileName ++ "_" ++ recordingSuffix ++ "." ++ recHeaderFormat;
+	}
+
+	prepareForRecord {
+		recordingSuffix = recordingSuffix + 1;
+		recorder.prepareForRecord(this.makeRealFilePath(), numChannels);
+		^this;
+	}
+
+	recHeaderFormat_ {|recH|
+		recHeaderFormat = recH;
+		recorder.recHeaderFormat = recH;
+		^this;
 	}
 
 	record { |node, clock, quant, duration, numChan|
 		numChan = numChan ? numChannels;
 		if (clock.isNil)
-		{^recorder.record(bus: recordBus, numChannels: numChan, node: node, duration: duration);}
+		{
+			recorder.record(bus: recordBus, numChannels: numChan, node: node, duration: duration);
+			^this;
+		}
 		{
 			var routine = Routine({recorder.record(bus: recordBus, numChannels: numChan, node: node, duration: duration); nil;});
 			routine.play(clock, quant: quant);
-			^recorder;
+			^this;
 		}
 	}
 
 	pauseRecording {
-		^recorder.pauseRecording;
+		recorder.pauseRecording;
+		^this;
 	}
 
 	resumeRecording {
-		^recorder.resumeRecording;
+		recorder.resumeRecording;
+		^this;
 	}
 
 	stopRecording {
-		^recorder.stopRecording;
+		recorder.stopRecording;
+		this.prepareForRecord();
+		^this;
+	}
+
+	stopRecordingFinal {
+		recorder.stopRecording;
+		^this;
+	}
+
+	cancelPrepareForRecord {
+		recorder.stopRecording;
+		^File.delete(this.makeRealFilePath());
 	}
 
 	isRecording {

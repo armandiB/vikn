@@ -293,7 +293,7 @@ SynthDef(\kraftySnr, { |amp = 1, freq = 2000, rq = 3, decay = 0.3, pan, out|
 
 ~kik.mute
 ~kikEnvir.baseAmp = ~kikEnvir.baseAmp * 1.06
-~kikEnvir.baseAmp[1] = 0
+~kikEnvir.baseAmp[13] = 1
 ~snr.mute
 ~hh.mute
 
