@@ -12,23 +12,31 @@ RecorderModule {
 	var <fileName;
 	var <numChannels; // default 1
 	var <recHeaderFormat;
+	var <recSampleFormat;
 	var <recordingSuffix;
 
-	*new { |server, folderPath, fileName, numChannels=1|
-		^super.new.initRecorderModule(server, folderPath, fileName, numChannels);
+	var <nodeRecording;
+	var <monitoringBus;
+	var <monitoringSynth;
+
+	*new { |server, folderPath, fileName, nodeRecording, numChannels=1, monitoringBus=0, recSampleFormat="int24"|
+		^super.new.initRecorderModule(server, folderPath, fileName, nodeRecording, monitoringBus, numChannels, recSampleFormat);
 	}
 
-	initRecorderModule {|serverarg, folderPatharg, fileNamearg, numChannelsarg|
+	initRecorderModule {|serverarg, folderPatharg, fileNamearg, nodeRecordingarg, monitoringBusarg, numChannelsarg, recSampleFormatarg|
 		server = serverarg;
 		numChannels = numChannelsarg;
 		recordBus = Bus.audio(server, numChannels);
 		recorder = Recorder(server);
 		recHeaderFormat = server.recHeaderFormat;
 		recorder.recHeaderFormat = recHeaderFormat;
-		recorder.recSampleFormat = "int24";
+		recSampleFormat = recSampleFormatarg;
+		recorder.recSampleFormat = recSampleFormatarg;
 		recordingSuffix = -1;
 		folderPath = folderPatharg;
 		fileName = fileNamearg;
+		nodeRecording = nodeRecordingarg;
+		monitoringBus = monitoringBusarg;
 		this.prepareForRecord();
 	}
 
@@ -36,9 +44,30 @@ RecorderModule {
 		^folderPath +/+ Date.localtime.stamp ++ "_" ++ fileName ++ "_" ++ recordingSuffix ++ "." ++ recHeaderFormat;
 	}
 
-	prepareForRecord {
-		recordingSuffix = recordingSuffix + 1;
+	prepareForRecord { |recSuffix|
+		monitoringSynth ?? this.monitor();
+		recordingSuffix = recSuffix ? (recordingSuffix + 1);
 		recorder.prepareForRecord(this.makeRealFilePath(), numChannels);
+		^this;
+	}
+
+	monitor{|mBus|
+		monitoringSynth !? {_.free};
+		mBus !? {|m| monitoringBus = m};
+		if(monitoringBus.isNil.not) {
+			if (monitoringBus.numChannels > recordBus.numChannels) {
+				monitoringSynth = {recordBus.ar ! (monitoringBus.numChannels.div(recordBus.numChannels))}.play(nodeRecording ? server, monitoringBus, addAction: \addAfter);
+			}
+			{
+				monitoringSynth = {recordBus.ar}.play(nodeRecording ? server, monitoringBus, addAction: \addAfter);
+
+			};
+		}
+		^this;
+	}
+
+	stopMonitoring{
+		monitoringSynth !? {_.free};
 		^this;
 	}
 
@@ -48,7 +77,19 @@ RecorderModule {
 		^this;
 	}
 
-	record { |node, clock, quant, duration, numChan|
+	recSampleFormat_ {|recS|
+		recSampleFormat = recS;
+		recorder.recSampleFormat = recS;
+		^this;
+	}
+
+	record { |clock, quant, duration, numChan, node|
+		if (node.isNil.not) {
+			nodeRecording = node;
+			this.monitor();
+		}{
+			monitoringSynth ?? this.monitor();
+		};
 		numChan = numChan ? numChannels;
 		if (clock.isNil)
 		{
@@ -72,19 +113,17 @@ RecorderModule {
 		^this;
 	}
 
-	stopRecording {
+	stopRecording {|prepare=true|
 		recorder.stopRecording;
-		this.prepareForRecord();
-		^this;
-	}
-
-	stopRecordingFinal {
-		recorder.stopRecording;
+		if (prepare)
+		{Routine({0.1.wait; this.prepareForRecord()}).play(AppClock)}
+		{this.stopMonitoring()};
 		^this;
 	}
 
 	cancelPrepareForRecord {
 		recorder.stopRecording;
+		this.stopMonitoring();
 		^File.delete(this.makeRealFilePath());
 	}
 
