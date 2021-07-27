@@ -4,8 +4,8 @@ GlobalParams {
 	classvar <>hasSetSeed = false;
 	classvar <>linkClock;
 
-	*makeLinkClock{
-		^linkClock ?? {linkClock = LinkClock().latency_(Server.default.latency); linkClock.permanent = true;};
+	*makeLinkClock{ |tempo|
+		^linkClock ?? {linkClock = LinkClock(tempo).latency_(Server.default.latency); linkClock.permanent = true;};
 	}
 
 	*setSeed{|seedarg|
