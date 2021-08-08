@@ -60,7 +60,6 @@ RecorderModule {
 			}
 			{
 				monitoringSynth = {recordBus.ar}.play(nodeRecording ? server, monitoringBus, addAction: \addAfter);
-
 			};
 		}
 		^this;
