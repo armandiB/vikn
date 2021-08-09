@@ -85,7 +85,7 @@ RecorderModule {
 		^this;
 	}
 
-	record { |argClock, quant, duration, numChan, node|
+	record { |argClock, quant, duration, numChan, node, doLinked, doLinkedRecursive|  // doLinked(Recursive) not used, for compatibility with PatternExt
 		if (node.isNil.not) {
 			nodeRecording = node;
 			this.monitor();
@@ -96,13 +96,12 @@ RecorderModule {
 		if (argClock.isNil)
 		{
 			recorder.record(bus: recordBus, numChannels: numChan, node: node, duration: duration);
-			^this;
 		}
 		{
 			var routine = Routine({recorder.record(bus: recordBus, numChannels: numChan, node: node, duration: duration); nil;});
 			routine.play(argClock, quant: quant);
-			^this;
 		}
+		^this;
 	}
 
 	pauseRecording {
@@ -115,7 +114,7 @@ RecorderModule {
 		^this;
 	}
 
-	stopRecording {|prepare=true, delay|
+	stopRecording {|prepare=true, delay, doLinked, doLinkedRecursive|
 		var stopFunc = {
 		recorder.stopRecording;
 		if (prepare)
@@ -130,7 +129,7 @@ RecorderModule {
 		}
 	}
 
-	cancelPrepareForRecord {
+	cancelPrepareForRecord { |doLinked, doLinkedRecursive|
 		recorder.stopRecording;
 		this.stopMonitoring();
 		^File.delete(realFilePath);

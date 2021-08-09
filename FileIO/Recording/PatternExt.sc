@@ -1,4 +1,4 @@
-PatternHolder { //PdefExt
+PatternExt { //PdefExt
 	classvar <>hasInitMIDIClient = false;
 
 	var <server;
@@ -24,14 +24,15 @@ PatternHolder { //PdefExt
 	//send OSC
 
 	*new { |server, patternKey, patternMode=\Pdef|
-		^super.new.initPatternHolder(server);
+		^super.new.initPatternExt(server);
 	}
 
-	initPatternHolder {|serverarg, patternKeyarg, patternModearg|
+	initPatternExt {|serverarg, patternKeyarg, patternModearg|
 		server = serverarg;
 		seed = GlobalParams.seed;
 		patternKey = patternKeyarg;
 		patternMode = patternModearg;
+		linkedRecorders = OrderedIdentitySet();
 	}
 
 	initGroup {|grouparg|
@@ -50,6 +51,7 @@ PatternHolder { //PdefExt
 	}
 
 	initMIDI { |deviceName="IAC Driver", portName, chan|
+		{chan == 1 || chan == "Bus 1"}.if {Log(GlobalParams.pipingLogName).warning("Reserved bus for start/stop recording")};
 		portName.isInteger.if {portName = "Bus " ++ portName.asString;};
 		hasInitMIDIClient.not.if {MIDIClient.init;};
 		midiOut = MIDIOut.newByName(deviceName, portName);
@@ -60,7 +62,7 @@ PatternHolder { //PdefExt
 	pattern_ {|newPattern, fadeTime=1, newSeed|
 		newSeed !? {seed = newSeed};
 		newPattern !? {pattern = newPattern};
-		self.fadeTime_(fadeTime);
+		this.fadeTime_(fadeTime);
 		patternMode.switch(
 			\Pdef, {patternProxy = Pdef(patternKey, Pseed(seed, newPattern));}
 		);
@@ -83,7 +85,8 @@ PatternHolder { //PdefExt
 	appendOSC {
 	}
 
-	play {|argClock=GlobalParams.linkClock, protoEvent, quant, doReset=false, startRecording=true|
+	play {|argClock, protoEvent, quant, doReset=false, startRecording=true|
+		argClock ?? {argClock = GlobalParams.linkClock};
 		//play
 		//startRecording if recorder.isRecording.not
 	}
@@ -96,26 +99,60 @@ PatternHolder { //PdefExt
 	}
 
 	clear {|fadeTime=5|
-		self.fadeTime_(fadeTime);
+		this.fadeTime_(fadeTime);
 		patternMode.switch(
 			\Pdef, {patternProxy.clear}
 		);
 		^this;
 	}
 
-	record {|argClock=GlobalParams.linkClock, quant, duration, numChan, node|
-		recorder.record(argClock, quant, duration, numChan, node)
+	addLinkedRecorder {|recOrList|
+		recOrList.isKindOf(Collection).if {
+			recOrList.do {|rec| linkedRecorders.add(rec)};
+		} {
+			linkedRecorders.add(recOrList);
+		};
 		^this;
 	}
 
-	stopRecording {|prepare=true, delay|
+	record {|argClock, quant, duration, numChan, node, doLinked=true, doLinkedRecursive=false|  // for now not recursive by default, in case there's a cycle
+		argClock ?? {argClock = GlobalParams.linkClock};
+		recorder.record(argClock, quant, duration, numChan, node);
+		doLinked.if {
+			doLinkedRecursive.if {
+				linkedRecorders.do {|rec| rec.record(argClock, quant, duration, numChan, node, doLinked: true, doLinkedRecursive: true)};
+			}{
+				linkedRecorders.do {|rec| rec.record(argClock, quant, duration, numChan, node, doLinked: false)};
+			}
+		};
+		^this;
+	}
+
+	stopRecording {|prepare=true, delay, doLinked=true, doLinkedRecursive=false|
 		recorder.stopRecording(prepare, delay);
+		doLinked.if {
+			doLinkedRecursive.if {
+				linkedRecorders.do {|rec| rec.stopRecording(prepare, delay, doLinked: true, doLinkedRecursive: true)};
+			}{
+				linkedRecorders.do {|rec| rec.stopRecording(prepare, delay, doLinked: false)};
+			}
+		};
 		^this;
 	}
 
-	cancelPrepareForRecord {
-		^recorder.cancelPrepareForRecord;
+	cancelPrepareForRecord { |doLinked=true, doLinkedRecursive=false|
+		var successList = [recorder.cancelPrepareForRecord];
+		doLinked.if {
+			doLinkedRecursive.if {
+				linkedRecorders.do {|rec| successList.add(rec.cancelPrepareForRecord(doLinked: true, doLinkedRecursive: true))};
+			}{
+				linkedRecorders.do {|rec| successList.add(rec.cancelPrepareForRecord(doLinked: false))};
+			}
+		};
+		^successList;
 	}
+
+	//need MIDI function that sends start and stop recording note on reserved bus (Bus 1)
 
 	//blend
 
@@ -130,6 +167,7 @@ PatternHolder { //PdefExt
 	}
 }
 
+/*
 ~patternLoop_group = Group.new(s);
 
 ~stretchedPatternLoop_midiOut = MIDIOut.newByName("IAC Driver","Bus 1");

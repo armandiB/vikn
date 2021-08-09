@@ -4,6 +4,8 @@ GlobalParams {
 	classvar <>hasSetSeed = false;
 	classvar <>linkClock;
 
+	classvar <>pipingLogName = \piping;
+
 	*makeLinkClock{ |tempo|
 		^linkClock ?? {linkClock = LinkClock(tempo).latency_(Server.default.latency); linkClock.permanent = true;};
 	}
