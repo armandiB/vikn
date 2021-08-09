@@ -55,22 +55,27 @@ PatternH {
 		monitoringBus ?? {monitoringBus = Bus(rate: 'audio', index: 0, numChannels: if(numChannels==1) {2} {numChannels}, server:server)};
 		recorder = RecorderModule(server, folderPath, fileName, group, numChannels, monitoringBus, recSampleFormat);
 		sendToRecorder = true;
+		this.pattern_(pattern);
 		^this;
 	}
 
 	initMIDI { |portName, chan, additionalKeyValueArray, deviceName="IAC Driver"|
-		if(chan == 1) {Log(GlobalParams.pipingLogName).warning("Reserved bus for start/stop recording")};
+		if(chan == 0) {Log(GlobalParams.pipingLogName).warning("Reserved bus for start/stop recording")};
 		portName.isInteger.if {portName = "Bus " ++ portName.asString;};
-		hasInitMIDIClient.not.if {MIDIClient.init;};
-		midiOut = MIDIOut.newByName(deviceName, portName);
+		Routine({
+			hasInitMIDIClient.not.if {MIDIClient.init;0.2.wait;};
+			midiOut = MIDIOut.newByName(deviceName, portName);
+		nil}).play(AppClock);
 		midiChan = chan ? midiChan;
 		additionalKeyValueArrayMIDI = additionalKeyValueArray;
 		sendMIDI = true;
+		this.pattern_(pattern);
 		^this;
 	}
 
 	initOSC {
 		sendOSC = true;
+		this.pattern_(pattern);
 		^this;
 	}
 
@@ -104,9 +109,9 @@ PatternH {
 
 	appendMIDI {|pat|
 		additionalKeyValueArrayMIDI.isNil.if {
-			^Pbindf(pat, \type, \composite, \midiout, midiOut, \chan, midiChan);
+			^Pbindf(pat, \type, \composite, \types, [\note, \midi], \midiout, midiOut, \chan, midiChan);
 		}{
-			^Pbindf(pat, \type, \composite, \midiout, midiOut, \chan, midiChan, *additionalKeyValueArrayMIDI);
+			^Pbindf(pat, \type, \composite, \types, [\note, \midi], \midiout, midiOut, \chan, midiChan, *additionalKeyValueArrayMIDI);
 		}
 	}
 
@@ -119,7 +124,7 @@ PatternH {
 		patternMode.switch(
 			\Pdef, {Pdef(patternKey).play(argClock, protoEvent, quant, doReset)}
 		);
-		recorder.isRecording.not.if {this.record(argClock, quant)};
+		this.record(argClock, quant);
 		^this;
 	}
 
@@ -148,13 +153,13 @@ PatternH {
 	}
 
 	prepareForRecord { |recSuffix|
-		recorder.prepareForRecord(recSuffix);
+		recorder !? {recorder.prepareForRecord(recSuffix)};
 		^this;
 	}
 
 	record {|argClock, quant, duration, numChan, node, doLinked=true, doLinkedRecursive=false|  // for now not recursive by default, in case there's a cycle
 		argClock ?? {argClock = GlobalParams.linkClock};
-		recorder.record(argClock, quant, duration, numChan, node);
+		recorder !? {sendToRecorder.and {recorder.isRecording.not}.if{recorder.record(argClock, quant, duration, numChan, node)}};
 		doLinked.if {
 			doLinkedRecursive.if {
 				linkedRecorders.do {|rec| rec.record(argClock, quant, duration, numChan, node, doLinked: true, doLinkedRecursive: true)};
@@ -166,7 +171,7 @@ PatternH {
 	}
 
 	stopRecording {|prepare=true, delay, doLinked=true, doLinkedRecursive=false|
-		recorder.stopRecording(prepare, delay);
+		recorder !? {recorder.stopRecording(prepare, delay)};
 		doLinked.if {
 			doLinkedRecursive.if {
 				linkedRecorders.do {|rec| rec.stopRecording(prepare, delay, doLinked: true, doLinkedRecursive: true)};
@@ -178,7 +183,7 @@ PatternH {
 	}
 
 	cancelPrepareForRecord { |doLinked=true, doLinkedRecursive=false|
-		var successList = [recorder.cancelPrepareForRecord];
+		var successList = recorder.isNil.if {[]} {[recorder.cancelPrepareForRecord]};
 		doLinked.if {
 			doLinkedRecursive.if {
 				linkedRecorders.do {|rec| successList.add(rec.cancelPrepareForRecord(doLinked: true, doLinkedRecursive: true))};
