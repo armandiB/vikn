@@ -62,10 +62,8 @@ PatternH {
 	initMIDI { |portName, chan, additionalKeyValueArray, deviceName="IAC Driver"|
 		if(chan == 0) {Log(GlobalParams.pipingLogName).warning("Reserved bus for start/stop recording")};
 		portName.isInteger.if {portName = "Bus " ++ portName.asString;};
-		Routine({
-			hasInitMIDIClient.not.if {MIDIClient.init;0.2.wait;};
-			midiOut = MIDIOut.newByName(deviceName, portName);
-		nil}).play(AppClock);
+		hasInitMIDIClient.not.if {MIDIClient.init};
+		midiOut = MIDIOut.newByName(deviceName, portName);
 		midiChan = chan ? midiChan;
 		additionalKeyValueArrayMIDI = additionalKeyValueArray;
 		sendMIDI = true;
@@ -124,15 +122,15 @@ PatternH {
 		patternMode.switch(
 			\Pdef, {Pdef(patternKey).play(argClock, protoEvent, quant, doReset)}
 		);
-		this.record(argClock, quant);
+		startRecording.if {this.record(argClock, quant)};
 		^this;
 	}
 
-	stop {|prepare=true, delayRecording=5|  // could clock it like RecorderModule.record()
+	stop {|prepare=true, delayRecording=5, stopRecording=true|  // could clock it like RecorderModule.record()
 		patternMode.switch(
 			\Pdef, {Pdef(patternKey).stop}
 		);
-		this.stopRecording(prepare, delayRecording);
+		stopRecording.if {this.stopRecording(prepare, delayRecording)};
 	}
 
 	clear {|fadeTime=5|
