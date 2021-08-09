@@ -149,6 +149,3 @@ RecorderModule {
 		recordBus.free;
 	}
 }
-
-//Extend pattern with function(recorderModule) that returns this with out overrided by [out, recordBus]
-// or add outBus attribute to pattern and out overrided by [outBus, recordBus] and scaleBus added to out (volume control)

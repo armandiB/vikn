@@ -10,7 +10,7 @@ PatternH {
 	var <patternKey;
 	var <patternMode;
 	var <patternProxy;  // unused?
-	var <patternEnvir;  // see PLbindef
+	var <patternEnvir;  // TODO see PLbindef
 
 	var <paramEnvir;  // for PL use (maybe same as patternEnvir?)
 
