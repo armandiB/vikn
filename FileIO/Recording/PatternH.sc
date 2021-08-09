@@ -1,4 +1,4 @@
-PatternExt { //PdefExt
+PatternH {
 	classvar <>hasInitMIDIClient = false;
 
 	var <server;
@@ -16,7 +16,7 @@ PatternExt { //PdefExt
 	var <fadeTime;
 
 	var <recorder;
-	var <>linkedRecorders;
+	var <>linkedRecorders;  // collection of RecorderModule or PatternH
 
 	var <midiOut;
 	var <midiChan;  // static for now (PL could be used)
@@ -24,10 +24,10 @@ PatternExt { //PdefExt
 	//send OSC
 
 	*new { |server, patternKey, patternMode=\Pdef|
-		^super.new.initPatternExt(server);
+		^super.new.initPatternH(server, patternKey, patternMode);
 	}
 
-	initPatternExt {|serverarg, patternKeyarg, patternModearg|
+	initPatternH {|serverarg, patternKeyarg, patternModearg|
 		server = serverarg;
 		seed = GlobalParams.seed;
 		patternKey = patternKeyarg;
@@ -159,11 +159,19 @@ PatternExt { //PdefExt
 	//more custom blend ?
 	// eg presets for certain keys
 
-	free {
+	free { |doLinked=false, doLinkedRecursive=false|
 		this.stop(false, nil);
 		recorder.free;
+		doLinked.if {
+			doLinkedRecursive.if {
+				linkedRecorders.do {|rec| rec.free(doLinked: true, doLinkedRecursive: true)};
+			}{
+				linkedRecorders.do {|rec| rec.free(doLinked: false)};
+			}
+		};
 		group.freeAll;
 		midiOut.disconnect;
+		^this;
 	}
 }
 

@@ -85,7 +85,7 @@ RecorderModule {
 		^this;
 	}
 
-	record { |argClock, quant, duration, numChan, node, doLinked, doLinkedRecursive|  // doLinked(Recursive) not used, for compatibility with PatternExt
+	record { |argClock, quant, duration, numChan, node, doLinked, doLinkedRecursive|  // doLinked(Recursive) not used, for compatibility with PatternH
 		if (node.isNil.not) {
 			nodeRecording = node;
 			this.monitor();
@@ -129,7 +129,7 @@ RecorderModule {
 		}
 	}
 
-	cancelPrepareForRecord { |doLinked, doLinkedRecursive|
+	cancelPrepareForRecord {|doLinked, doLinkedRecursive|
 		recorder.stopRecording;
 		this.stopMonitoring();
 		^File.delete(realFilePath);
@@ -143,7 +143,7 @@ RecorderModule {
 		^recordBus;
 	}
 
-	free {
+	free {|doLinked, doLinkedRecursive|
 		this.stopMonitoring();
 		recordBus.free;
 	}
