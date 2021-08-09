@@ -1,6 +1,6 @@
 GlobalParams {
 	classvar <refSampleRate = 48000;
-	classvar <>seed = 1924;
+	classvar <>seed = 1994;
 	classvar <>hasSetSeed = false;
 	classvar <>linkClock;
 

@@ -15,6 +15,8 @@ RecorderModule {
 	var <recSampleFormat;
 	var <recordingSuffix;
 
+	var <realFilePath;
+
 	var <nodeRecording;
 	var <monitoringBus;
 	var <monitoringSynth;
@@ -41,7 +43,8 @@ RecorderModule {
 	}
 
 	makeRealFilePath {
-		^folderPath +/+ Date.localtime.stamp ++ "_" ++ fileName ++ "_" ++ recordingSuffix ++ "." ++ recHeaderFormat;
+		realFilePath = folderPath +/+ Date.localtime.stamp ++ "_" ++ fileName ++ "_" ++ recordingSuffix ++ "." ++ recHeaderFormat;
+		^realFilePath;
 	}
 
 	prepareForRecord { |recSuffix|
@@ -65,7 +68,7 @@ RecorderModule {
 		^this;
 	}
 
-	stopMonitoring{
+	stopMonitoring {
 		monitoringSynth !? {_.free};
 		^this;
 	}
@@ -82,7 +85,7 @@ RecorderModule {
 		^this;
 	}
 
-	record { |clock, quant, duration, numChan, node|
+	record { |argClock, quant, duration, numChan, node|
 		if (node.isNil.not) {
 			nodeRecording = node;
 			this.monitor();
@@ -90,14 +93,14 @@ RecorderModule {
 			monitoringSynth ?? this.monitor();
 		};
 		numChan = numChan ? numChannels;
-		if (clock.isNil)
+		if (argClock.isNil)
 		{
 			recorder.record(bus: recordBus, numChannels: numChan, node: node, duration: duration);
 			^this;
 		}
 		{
 			var routine = Routine({recorder.record(bus: recordBus, numChannels: numChan, node: node, duration: duration); nil;});
-			routine.play(clock, quant: quant);
+			routine.play(argClock, quant: quant);
 			^this;
 		}
 	}
@@ -112,18 +115,25 @@ RecorderModule {
 		^this;
 	}
 
-	stopRecording {|prepare=true|
+	stopRecording {|prepare=true, delay|
+		var stopFunc = {
 		recorder.stopRecording;
 		if (prepare)
 		{Routine({0.1.wait; this.prepareForRecord()}).play(AppClock)}
 		{this.stopMonitoring()};
 		^this;
+		};
+		delay.isNil.if {
+			stopFunc.value;
+		} {
+			Routine({delay.wait; stopFunc.value;}).play(AppClock);
+		}
 	}
 
 	cancelPrepareForRecord {
 		recorder.stopRecording;
 		this.stopMonitoring();
-		^File.delete(this.makeRealFilePath());
+		^File.delete(realFilePath);
 	}
 
 	isRecording {
@@ -132,6 +142,11 @@ RecorderModule {
 
 	bus {
 		^recordBus;
+	}
+
+	free {
+		this.stopMonitoring();
+		recordBus.free;
 	}
 }
 

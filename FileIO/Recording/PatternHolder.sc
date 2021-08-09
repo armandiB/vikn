@@ -1,29 +1,37 @@
 PatternHolder { //PdefExt
 	classvar <>hasInitMIDIClient = false;
 
-	var <pattern;
-
 	var <server;
 	var <group;
 
-	var <patternEnvir;  // see PLbindef // if symbol, Pdef
-	var <paramEnvir;  // for PL use (maybe same as above?)
+	var <pattern;
+	var <patternKey;
+	var <patternMode;
+	var <patternProxy;
+	var <patternEnvir;  // see PLbindef
+
+	var <paramEnvir;  // for PL use (maybe same as patternEnvir?)
 
 	var <seed;
+	var <fadeTime;
 
 	var <recorder;
+	var <>linkedRecorders;
 
 	var <midiOut;
 	var <midiChan;  // static for now (PL could be used)
 
 	//send OSC
 
-	*new { |server|
+	*new { |server, patternKey, patternMode=\Pdef|
 		^super.new.initPatternHolder(server);
 	}
 
-	initPatternHolder {|serverarg|
+	initPatternHolder {|serverarg, patternKeyarg, patternModearg|
 		server = serverarg;
+		seed = GlobalParams.seed;
+		patternKey = patternKeyarg;
+		patternMode = patternModearg;
 	}
 
 	initGroup {|grouparg|
@@ -41,14 +49,72 @@ PatternHolder { //PdefExt
 		^this;
 	}
 
-	initMIDI { |deviceName="IAC Driver", portName|
+	initMIDI { |deviceName="IAC Driver", portName, chan|
 		portName.isInteger.if {portName = "Bus " ++ portName.asString;};
 		hasInitMIDIClient.not.if {MIDIClient.init;};
 		midiOut = MIDIOut.newByName(deviceName, portName);
+		midiChan = chan ? midiChan;
+		^this;
 	}
 
+	pattern_ {|newPattern, fadeTime=1, newSeed|
+		newSeed !? {seed = newSeed};
+		newPattern !? {pattern = newPattern};
+		self.fadeTime_(fadeTime);
+		patternMode.switch(
+			\Pdef, {patternProxy = Pdef(patternKey, Pseed(seed, newPattern));}
+		);
+		^this;
+	}
+
+	fadeTime_ {|time|
+		fadeTime = time;
+		patternMode.switch(
+			\Pdef, {patternProxy.fadeTime = time;}
+		);
+	}
+
+	appendRecord {
+	}
 
 	appendMIDI{
+	}
+
+	appendOSC {
+	}
+
+	play {|argClock=GlobalParams.linkClock, protoEvent, quant, doReset=false, startRecording=true|
+		//play
+		//startRecording if recorder.isRecording.not
+	}
+
+	stop {|prepare=true, delayRecording=10|  // could clock it like RecorderModule.record()
+		patternMode.switch(
+			\Pdef, {patternProxy.stop}
+		);
+		this.stopRecording(prepare, delayRecording);
+	}
+
+	clear {|fadeTime=5|
+		self.fadeTime_(fadeTime);
+		patternMode.switch(
+			\Pdef, {patternProxy.clear}
+		);
+		^this;
+	}
+
+	record {|argClock=GlobalParams.linkClock, quant, duration, numChan, node|
+		recorder.record(argClock, quant, duration, numChan, node)
+		^this;
+	}
+
+	stopRecording {|prepare=true, delay|
+		recorder.stopRecording(prepare, delay);
+		^this;
+	}
+
+	cancelPrepareForRecord {
+		^recorder.cancelPrepareForRecord;
 	}
 
 	//blend
@@ -56,8 +122,13 @@ PatternHolder { //PdefExt
 	//more custom blend ?
 	// eg presets for certain keys
 
+	free {
+		this.stop(false, nil);
+		recorder.free;
+		group.freeAll;
+		midiOut.disconnect;
+	}
 }
-
 
 ~patternLoop_group = Group.new(s);
 
@@ -67,7 +138,6 @@ PatternHolder { //PdefExt
 ~cutting_fade = 1.0;  // fully linear fading
 (
 var rand_stream = (Pbrown(0, b.numFrames, b.numFrames * 0.04 * 1) + Pseries(0, b.numFrames*(pi/3-1)/8)).wrap(0, b.numFrames).asInteger.asStream;
-rand_stream.next.postln;
 ~next_pos_cutting = 0;
 Pdef(\stretchedPatternCutting, Pseed(1994, Pbind(
     \instrument, \stretchedFragments_stereo_loop,
@@ -92,3 +162,23 @@ Pdef(\stretchedPatternCutting, Pseed(1994, Pbind(
 	\id, 'cut_violin',
 	\sendOSC, ~oscTransmitter.([\id, \bufrate, \time]),
 ))).play(GlobalParams.linkClock, quant: [4, 0.5]);
+
+~stretchedPatternCutting_recorder.record(GlobalParams.linkClock, [4, 0.5]);
+
+(
+~fade_val_var = {|key, endVal, dur=10|
+Routine({
+	var curVal;
+	var numSteps = 1000;
+		curVal = currentEnvironment.at(key).copy;
+	0.5.wait;
+	for(1, numSteps, {|i|
+			currentEnvironment.put(key, curVal + (i/numSteps*(endVal - curVal)));
+		(dur/numSteps).wait;
+});}).play;
+}
+)
+~fade_val_var.value(\cutting_fade, 11/5, 10)
+Pdef(\stretchedPatternCutting).stop
+
+~stretchedPatternCutting_recorder.stopRecording
