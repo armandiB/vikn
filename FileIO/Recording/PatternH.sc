@@ -1,13 +1,15 @@
 PatternH {
 	classvar <>hasInitMIDIClient = false;
 
+	// static dictionary of references to each PatternH by pattern key? With added suffix if exists. classvar here or in GlobalParams/Global...
+
 	var <server;
 	var <group;
 
 	var <pattern;
 	var <patternKey;
 	var <patternMode;
-	var <patternProxy;
+	var <patternProxy;  // unused?
 	var <patternEnvir;  // see PLbindef
 
 	var <paramEnvir;  // for PL use (maybe same as patternEnvir?)
@@ -15,28 +17,33 @@ PatternH {
 	var <seed;
 	var <fadeTime;
 
+	var <>sendToRecorder=false;
 	var <recorder;
 	var <>linkedRecorders;  // collection of RecorderModule or PatternH
 
+	var <>sendMIDI=false;
 	var <midiOut;
 	var <midiChan;  // static for now (PL could be used)
+	var <>additionalKeyValueArrayMIDI;
 
-	//send OSC
+	var <>sendOSC=false;
 
-	*new { |server, patternKey, patternMode=\Pdef|
-		^super.new.initPatternH(server, patternKey, patternMode);
+	*new { |server, patternKey, patternMode=\Pdef, group|
+		^super.new.initPatternH(server, patternKey, patternMode, group);
 	}
 
-	initPatternH {|serverarg, patternKeyarg, patternModearg|
+	initPatternH {|serverarg, patternKeyarg, patternModearg, grouparg|
 		server = serverarg;
 		seed = GlobalParams.seed;
 		patternKey = patternKeyarg;
 		patternMode = patternModearg;
 		linkedRecorders = OrderedIdentitySet();
+		this.initGroup(grouparg);
+		this.fadeTime_(1);
 	}
 
 	initGroup {|grouparg|
-		{grouparg.isNil}.if {
+		grouparg.isNil.if {
 			group = Group.new(server);  // could have other addAction than 'addToHead'
 		} {
 			group = grouparg;
@@ -45,26 +52,34 @@ PatternH {
 	}
 
 	initRecorder { |folderPath, fileName, numChannels=1, monitoringBus, recSampleFormat="int24"|
-		monitoringBus ?? {monitoringBus = Bus(rate: 'audio', index: 0, numChannels: {numChannels==1}.if {2} {numChannels}, server:server)};
+		monitoringBus ?? {monitoringBus = Bus(rate: 'audio', index: 0, numChannels: if(numChannels==1) {2} {numChannels}, server:server)};
 		recorder = RecorderModule(server, folderPath, fileName, group, numChannels, monitoringBus, recSampleFormat);
+		sendToRecorder = true;
 		^this;
 	}
 
-	initMIDI { |deviceName="IAC Driver", portName, chan|
-		{chan == 1 || chan == "Bus 1"}.if {Log(GlobalParams.pipingLogName).warning("Reserved bus for start/stop recording")};
+	initMIDI { |portName, chan, additionalKeyValueArray, deviceName="IAC Driver"|
+		if(chan == 1) {Log(GlobalParams.pipingLogName).warning("Reserved bus for start/stop recording")};
 		portName.isInteger.if {portName = "Bus " ++ portName.asString;};
 		hasInitMIDIClient.not.if {MIDIClient.init;};
 		midiOut = MIDIOut.newByName(deviceName, portName);
 		midiChan = chan ? midiChan;
+		additionalKeyValueArrayMIDI = additionalKeyValueArray;
+		sendMIDI = true;
 		^this;
 	}
 
-	pattern_ {|newPattern, fadeTime=1, newSeed|
+	initOSC {
+		sendOSC = true;
+		^this;
+	}
+
+	pattern_ {|newPattern, fadeTimearg, newSeed|
 		newSeed !? {seed = newSeed};
-		newPattern !? {pattern = newPattern};
-		this.fadeTime_(fadeTime);
+		newPattern !? {pattern = this.appendAll(newPattern)};
+		fadeTimearg !? {this.fadeTime_(fadeTimearg)};
 		patternMode.switch(
-			\Pdef, {patternProxy = Pdef(patternKey, Pseed(seed, newPattern));}
+			\Pdef, {patternProxy = Pdef(patternKey, Pseed(seed, pattern));}
 		);
 		^this;
 	}
@@ -72,28 +87,45 @@ PatternH {
 	fadeTime_ {|time|
 		fadeTime = time;
 		patternMode.switch(
-			\Pdef, {patternProxy.fadeTime = time;}
+			\Pdef, {Pdef(patternKey).fadeTime = time;}
 		);
 	}
 
-	appendRecord {
+	appendAll {|pat|
+		sendToRecorder.if {pat = this.appendRecord(pat)};
+		sendMIDI.if {pat = this.appendMIDI(pat)};
+		sendOSC.if {pat = this.appendOSC(pat)};
+		^pat;
 	}
 
-	appendMIDI{
+	appendRecord {|pat|
+		^Pbindf(pat, \out, recorder.bus);
 	}
 
-	appendOSC {
+	appendMIDI {|pat|
+		additionalKeyValueArrayMIDI.isNil.if {
+			^Pbindf(pat, \type, \composite, \midiout, midiOut, \chan, midiChan);
+		}{
+			^Pbindf(pat, \type, \composite, \midiout, midiOut, \chan, midiChan, *additionalKeyValueArrayMIDI);
+		}
+	}
+
+	appendOSC {|pat|  // TODO
+		^pat;
 	}
 
 	play {|argClock, protoEvent, quant, doReset=false, startRecording=true|
 		argClock ?? {argClock = GlobalParams.linkClock};
-		//play
-		//startRecording if recorder.isRecording.not
+		patternMode.switch(
+			\Pdef, {Pdef(patternKey).play(argClock, protoEvent, quant, doReset)}
+		);
+		recorder.isRecording.not.if {this.record(argClock, quant)};
+		^this;
 	}
 
-	stop {|prepare=true, delayRecording=10|  // could clock it like RecorderModule.record()
+	stop {|prepare=true, delayRecording=5|  // could clock it like RecorderModule.record()
 		patternMode.switch(
-			\Pdef, {patternProxy.stop}
+			\Pdef, {Pdef(patternKey).stop}
 		);
 		this.stopRecording(prepare, delayRecording);
 	}
@@ -101,7 +133,7 @@ PatternH {
 	clear {|fadeTime=5|
 		this.fadeTime_(fadeTime);
 		patternMode.switch(
-			\Pdef, {patternProxy.clear}
+			\Pdef, {Pdef(patternKey).clear}
 		);
 		^this;
 	}
@@ -112,6 +144,11 @@ PatternH {
 		} {
 			linkedRecorders.add(recOrList);
 		};
+		^this;
+	}
+
+	prepareForRecord { |recSuffix|
+		recorder.prepareForRecord(recSuffix);
 		^this;
 	}
 

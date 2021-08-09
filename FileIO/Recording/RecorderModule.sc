@@ -21,6 +21,7 @@ RecorderModule {
 	var <monitoringBus;
 	var <monitoringSynth;
 
+
 	*new { |server, folderPath, fileName, nodeRecording, numChannels=1, monitoringBus=0, recSampleFormat="int24"|
 		^super.new.initRecorderModule(server, folderPath, fileName, nodeRecording, monitoringBus, numChannels, recSampleFormat);
 	}
@@ -98,7 +99,7 @@ RecorderModule {
 			recorder.record(bus: recordBus, numChannels: numChan, node: node, duration: duration);
 		}
 		{
-			var routine = Routine({recorder.record(bus: recordBus, numChannels: numChan, node: node, duration: duration); nil;});
+			var routine = Routine({recorder.record(bus: recordBus, numChannels: numChan, node: node, duration: duration); nil});
 			routine.play(argClock, quant: quant);
 		}
 		^this;
@@ -118,15 +119,15 @@ RecorderModule {
 		var stopFunc = {
 		recorder.stopRecording;
 		if (prepare)
-		{Routine({0.1.wait; this.prepareForRecord()}).play(AppClock)}
+		{Routine({0.2.wait; this.prepareForRecord(); nil}).play(AppClock)}
 		{this.stopMonitoring()};
-		^this;
 		};
 		delay.isNil.if {
 			stopFunc.value;
 		} {
-			Routine({delay.wait; stopFunc.value;}).play(AppClock);
+			Routine({delay.wait; stopFunc.value; nil}).play(AppClock);
 		}
+		^this;
 	}
 
 	cancelPrepareForRecord {|doLinked, doLinkedRecursive|
