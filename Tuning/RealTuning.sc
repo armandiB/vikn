@@ -62,6 +62,7 @@ RealTuning : Tuning {
 		^(this.atNote(note) - storeAtNoteReffreqNote).midiratio*reffreq;
 	}
 
+	// freqToNote with interpolation
 
 	// I want to be able to work with any base note (F for Revelation)
 	// and define a structure (e.g. JI) with origin this note

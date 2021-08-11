@@ -6,6 +6,8 @@ GlobalParams {
 
 	classvar <>pipingLogName = \piping;
 
+	classvar <>oscBaseMessage = "/fromSuperCollider/";
+
 	*linkClock{
 		^linkClock ?? this.makeLinkClock();
 	}
