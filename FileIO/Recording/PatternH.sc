@@ -27,6 +27,9 @@ PatternH {
 	var <>additionalKeyValueArrayMIDI;
 
 	var <>sendOSC=false;
+	var <>oscDestination;
+	var <>oscId;
+	var <>oscKeysArray;
 
 	*new { |server, patternKey, patternMode=\Pdef, group|
 		^super.new.initPatternH(server, patternKey, patternMode, group);
@@ -53,7 +56,7 @@ PatternH {
 
 	initRecorder { |folderPath, fileName, numChannels=1, monitoringBus, recSampleFormat="int24"|
 		monitoringBus ?? {monitoringBus = Bus(rate: 'audio', index: 0, numChannels: if(numChannels==1) {2} {numChannels}, server:server)};
-		recorder = RecorderModule(server, folderPath, fileName, group, numChannels, monitoringBus, recSampleFormat);
+		recorder = RecorderModule(server, folderPath, fileName ?? patternKey, group, numChannels, monitoringBus, recSampleFormat);
 		sendToRecorder = true;
 		this.pattern_(pattern);
 		^this;
@@ -71,8 +74,11 @@ PatternH {
 		^this;
 	}
 
-	initOSC {
+	initOSC { |destination, keysToTransmit, id|
 		sendOSC = true;
+		destination !? {oscDestination = destination};
+		id !? {oscId = id};
+		keysToTransmit !? {oscKeysArray = keysToTransmit};
 		this.pattern_(pattern);
 		^this;
 	}
@@ -113,8 +119,8 @@ PatternH {
 		}
 	}
 
-	appendOSC {|pat|  // TODO
-		^pat;
+	appendOSC {|pat|
+		^Pbindf(pat, \destination, oscDestination, \id, (oscId ?? patternKey), \sendOSC, this.makeOSCTransmitter(oscKeysArray));
 	}
 
 	play {|argClock, protoEvent, quant, doReset=false, startRecording=true|
@@ -190,6 +196,24 @@ PatternH {
 			}
 		};
 		^successList;
+	}
+
+	makeOSCTransmitter {|keys_to_transmit, latency, baseMessage|
+		Pfunc({|ev|
+			var oscArray = [(baseMessage ?? GlobalParams.oscBaseMessage) ++ (ev.id ?? '') ];
+
+			// Construct the osc array from the Pbind's keys
+			ev.keysValuesDo{|k,v|
+				// Filter out the 'destination' and 'id' keys
+				(k != 'destination' and: {k != 'id'} and: {keys_to_transmit.includes(k)}).if{
+					oscArray = oscArray ++ k ++ [v];
+				}
+			};
+
+			// And send
+			//ev.destination.sendMsg(oscArray)
+			ev.destination.sendBundle(latency, oscArray)
+		});
 	}
 
 	//need MIDI function that sends start and stop recording note on reserved bus (Bus 1)
@@ -268,3 +292,36 @@ Routine({
 Pdef(\stretchedPatternCutting).stop
 
 ~stretchedPatternCutting_recorder.stopRecording
+
+~targetAddress = NetAddr("192.168.1.184", 57121);  // Change port 1234 to the one of the target application
+~baseMessage = "/fromSuperCollider/";
+
+~fade_val = {|synth, param, endVal, dur=10, clock|
+Routine({
+	var curVal;
+	var numSteps = 1000;
+	synth.get(param.asSymbol, {|val| curVal = val});
+	0.5.wait;
+	for(1, numSteps, {|i|
+		synth.set(param.asSymbol, curVal + (i/numSteps*(endVal - curVal)));
+		(dur/numSteps).wait;
+	});}).play(clock);
+};
+
+~oscTransmitter = {|keys_to_transmit|
+	Pfunc({|ev|
+		var oscArray = [~baseMessage ++ (ev.id ?? '') ];
+
+		// Construct the osc array from the Pbind's keys
+		ev.keysValuesDo{|k,v|
+			// Filter out the 'destination' and 'id' keys
+			(k != 'destination' and: {k != 'id'} and: {keys_to_transmit.includes(k)}).if{
+				oscArray = oscArray ++ k ++ [v];
+			}
+		};
+
+		// And send
+	//ev.destination.sendMsg(oscArray)
+	ev.destination.sendBundle(~latency, oscArray)
+	});
+}
