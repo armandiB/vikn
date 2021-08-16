@@ -12,7 +12,7 @@ PatternH {
 	var <patternProxy;  // unused?
 	var <patternEnvir;  // TODO see PLbindef
 
-	var <paramEnvir;  // for PL use (maybe same as patternEnvir?)
+	var <>paramEnvir;  // for PL use (maybe same as patternEnvir?)
 
 	var <seed;
 	var <fadeTime;
@@ -123,10 +123,16 @@ PatternH {
 		^Pbindf(pat, \destination, oscDestination, \id, (oscId ?? patternKey), \sendOSC, this.makeOSCTransmitter(oscKeysArray));
 	}
 
+	appendParams {|pat|
+		//var paramEvent = ();
+		//paramEvent.add(key.asSymbol -> value);
+		^(pat <> paramEnvir);
+	}
+
 	play {|argClock, protoEvent, quant, doReset=false, startRecording=true|
 		argClock ?? {argClock = GlobalParams.linkClock};
 		patternMode.switch(
-			\Pdef, {Pdef(patternKey).play(argClock, protoEvent, quant, doReset)}
+			\Pdef, {Pdef(patternKey).play(argClock, protoEvent, quant, doReset)} //Penvir
 		);
 		startRecording.if {this.record(argClock, quant)};
 		^this;
