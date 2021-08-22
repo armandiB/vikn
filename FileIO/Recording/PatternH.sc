@@ -10,14 +10,19 @@ PatternH {
 	var <patternKey;
 	var <patternMode;
 	var <patternPlayer;
-	var <patternProxy;  // unused?
+	var <patternProxy;
 	var <patternEnvir;  // TODO see PLbindef
 
-	var <>independentEnvir;  // for PL use (maybe same as patternEnvir?)
+	// Reserved key: 'patternH'
+	var <>useEnvirs = false;
 	var <>sharedEnvir;
+	var <>independentEnvir;
+	var <>keyArray;
+	var <independentEventsList;
 
 	var <seed;
 	var <fadeTime;
+	var <>maxNull;
 
 	var <>sendToRecorder=false;
 	var <recorder;
@@ -56,6 +61,20 @@ PatternH {
 		^this;
 	}
 
+	initEnvir { |sharedEnvirarg, independentEnvirarg, keyArray|
+		(sharedEnvirarg.isNil && independentEnvirarg.isNil).if {useEnvirs = false} {useEnvirs = true};
+		useEnvirs.if {
+			sharedEnvir = sharedEnvirarg ? ();
+			independentEnvir = independentEnvirarg ? ();
+			keyArray.isNil.if {
+				this.keyArray = sharedEnvir.keys.asArray ++ independentEnvir.keys.asArray;
+			}{
+				this.keyArray = keyArray;
+			};
+			independentEnvir.put('patternH', this);
+		}
+	}
+
 	initRecorder { |folderPath, fileName, numChannels=1, monitoringBus, recSampleFormat="int24"|
 		monitoringBus ?? {monitoringBus = Bus(rate: 'audio', index: 0, numChannels: if(numChannels==1) {2} {numChannels}, server:server)};
 		recorder = RecorderModule(server, folderPath, fileName ?? patternKey, group, numChannels, monitoringBus, recSampleFormat);
@@ -85,12 +104,13 @@ PatternH {
 		^this;
 	}
 
-	pattern_ {|newPattern, fadeTimearg, newSeed|
-		newSeed !? {seed = newSeed};
+	pattern_ {|newPattern, fadeTimearg, newSeed, maxNull=128|
+		newSeed !? {if (newSeed=="noSeed") {seed = nil} {seed = newSeed}};
+		this.maxNull_(maxNull);
 		newPattern !? {pattern = this.appendAll(newPattern)};
 		fadeTimearg !? {this.fadeTime_(fadeTimearg)};
 		patternMode.switch(
-			\Pdef, {patternProxy = Pdef(patternKey, Pseed(seed, pattern));}
+			\Pdef, {patternProxy = Pdef(patternKey, pattern);}
 		);
 		^this;
 	}
@@ -106,6 +126,12 @@ PatternH {
 		sendToRecorder.if {pat = this.appendRecord(pat)};
 		sendMIDI.if {pat = this.appendMIDI(pat)};
 		sendOSC.if {pat = this.appendOSC(pat)};
+		useEnvirs.if {
+			pat = this.appendParams(pat);
+			pat = this.appendEnvir(pat);
+		};
+		pat = this.appendNilSafe(pat);
+		pat = this.appendSeed(pat);
 		^pat;
 	}
 
@@ -125,17 +151,34 @@ PatternH {
 		^Pbindf(pat, \destination, oscDestination, \id, (oscId ?? patternKey), \sendOSC, this.makeOSCTransmitter(oscKeysArray));
 	}
 
-	//TODO
 	appendParams {|pat|
-		//var paramEvent = ();
-		//paramEvent.add(key.asSymbol -> value);
-		//^(pat <> paramEnvir);
+		if (keyArray.size == 0) {^pat} {
+			^pat <> Pbind(*keyArray.collect {|key| [key.asSymbol, PL(key.asSymbol)]}.flatten)
+		}
+	}
+
+	appendEnvir {|pat|
+		var res = PenvirExt(independentEnvir, pat, true, sharedEnvir);
+		independentEventsList = res.independentEventsList;
+		^res;
+	}
+
+	appendNilSafe {|pat|
+		maxNull.isNil.if {^pat} {
+			^PnNilSafe(pattern:pat, repeats:1, maxNull: maxNull);
+		}
+	}
+
+	appendSeed {|pat|
+		seed.isNil.if {^pat} {
+			^Pseed(Pn(seed, 1), pat)
+		}
 	}
 
 	play {|argClock, protoEvent, quant, doReset=false, startRecording=true|
 		argClock ?? {argClock = GlobalParams.linkClock};
 		patternMode.switch(
-			\Pdef, {patternPlayer = Pdef(patternKey).play(argClock, protoEvent, quant, doReset)} //2 Penvirs
+			\Pdef, {patternPlayer = Pdef(patternKey).play(argClock, protoEvent, quant, doReset)}
 		);
 		startRecording.if {this.record(argClock, quant)};
 		^this;
