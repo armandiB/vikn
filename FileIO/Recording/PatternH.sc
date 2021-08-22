@@ -22,7 +22,7 @@ PatternH {
 
 	var <seed;
 	var <fadeTime;
-	var <>maxNull;
+	var <>maxNull=128;
 
 	var <>sendToRecorder=false;
 	var <recorder;
@@ -71,8 +71,10 @@ PatternH {
 			}{
 				this.keyArray = keyArray;
 			};
-			independentEnvir.put('patternH', this);
-		}
+			sharedEnvir.put('patternH', this);
+		};
+		this.pattern_(pattern);
+		^this;
 	}
 
 	initRecorder { |folderPath, fileName, numChannels=1, monitoringBus, recSampleFormat="int24"|
@@ -104,9 +106,9 @@ PatternH {
 		^this;
 	}
 
-	pattern_ {|newPattern, fadeTimearg, newSeed, maxNull=128|
-		newSeed !? {if (newSeed=="noSeed") {seed = nil} {seed = newSeed}};
-		this.maxNull_(maxNull);
+	pattern_ {|newPattern, fadeTimearg, newSeed, newMaxNull|
+		newSeed !? {if (newSeed=="nil") {seed = nil} {seed = newSeed}};
+		newMaxNull !? {if (newMaxNull=="nil") {maxNull = nil} {maxNull = newMaxNull}};
 		newPattern !? {pattern = this.appendAll(newPattern)};
 		fadeTimearg !? {this.fadeTime_(fadeTimearg)};
 		patternMode.switch(
