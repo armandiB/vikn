@@ -3,6 +3,7 @@
  
 ### Dependencies
 Quarks:
+- miscellanous_Lib: PL and PLnaryop in PatternH.sc
 - ddwPatterns: PnNilSafe in PatternH.sc
  
 ### Main classes
