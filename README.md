@@ -1,6 +1,10 @@
 # vikn
  My SuperCollider quark with a live and modular philosophy and objects that make life faster
  
+### Dependencies
+Quarks:
+- miscellanous_Lib: Pattern.symplay() in PatternH.sc
+ 
 ### Main classes
 - RecorderModule: creates a Recorder and a recording Bus, with monitoring to another bus, organizes multiple takes
 - PatternH: holds a Pdef and creates a RecorderModule, can send corresponding MIDI and OSC info, handles parallel recording with other PatternH
