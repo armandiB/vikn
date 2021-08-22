@@ -306,23 +306,6 @@ PatternH {
 }
 
 /*
-(
-~fade_val_var = {|key, endVal, dur=10|
-Routine({
-	var curVal;
-	var numSteps = 1000;
-		curVal = currentEnvironment.at(key).copy;
-	0.5.wait;
-	for(1, numSteps, {|i|
-			currentEnvironment.put(key, curVal + (i/numSteps*(endVal - curVal)));
-		(dur/numSteps).wait;
-});}).play;
-}
-)
-~fade_val_var.value(\cutting_fade, 11/5, 10)
-Pdef(\stretchedPatternCutting).stop
-
-
 ~fade_val = {|synth, param, endVal, dur=10, clock|
 Routine({
 	var curVal;
