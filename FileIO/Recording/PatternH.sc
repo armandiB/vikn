@@ -107,8 +107,8 @@ PatternH {
 	}
 
 	pattern_ {|newPattern, fadeTimearg, newSeed, newMaxNull|
-		newSeed !? {if (newSeed=="nil") {seed = nil} {seed = newSeed}};
-		newMaxNull !? {if (newMaxNull=="nil") {maxNull = nil} {maxNull = newMaxNull}};
+		newSeed !? {if (newSeed=='nil') {seed = nil} {seed = newSeed}};
+		newMaxNull !? {if (newMaxNull=='nil') {maxNull = nil} {maxNull = newMaxNull}};
 		newPattern !? {pattern = this.appendAll(newPattern)};
 		fadeTimearg !? {this.fadeTime_(fadeTimearg)};
 		patternMode.switch(
@@ -270,6 +270,18 @@ PatternH {
 		});
 	}
 
+	fadeValShared {|key, endVal, dur=10, numSteps=1000|
+		Routine({
+			var curVal;
+			curVal = sharedEnvir.at(key).copy;
+			for(1, numSteps, {|i|
+				sharedEnvir.put(key, curVal + (i/numSteps*(endVal - curVal)));
+				(dur/numSteps).wait;
+			});
+			("Fadding " + key.asString + " to " + endVal.asString + " done").postln;
+		}).play(AppClock);
+	}
+
 	//need MIDI function that sends start and stop recording note on reserved bus (Bus 1)
 
 	//blend
@@ -294,41 +306,6 @@ PatternH {
 }
 
 /*
-~patternLoop_group = Group.new(s);
-
-~stretchedPatternLoop_midiOut = MIDIOut.newByName("IAC Driver","Bus 1");
-
-~stretchedPatternCutting_recorder = RecorderModule(s, "/Volumes/GLYPHAB/Musical_Code/SuperCollider/CurrentSC/Recording/TestPatternsRecord/20210719", "test_stretchedPatternCutting", ~patternLoop_group, 2, Bus(server:s));
-~cutting_fade = 1.0;  // fully linear fading
-(
-var rand_stream = (Pbrown(0, b.numFrames, b.numFrames * 0.04 * 1) + Pseries(0, b.numFrames*(pi/3-1)/8)).wrap(0, b.numFrames).asInteger.asStream;
-~next_pos_cutting = 0;
-Pdef(\stretchedPatternCutting, Pseed(1994, Pbind(
-    \instrument, \stretchedFragments_stereo_loop,
-    \bufnum, b,
-	\cutting_fade, Pn(Plazy {~cutting_fade}),
-	\bufrate, (1-Pkey(\cutting_fade)) + (Pkey(\cutting_fade)*Prand([1, 1.5, 2], inf)), // for example this could be different
-	\delta, Pseq([0.5, 1/3, 0.5, 2/3]*8, inf),
-	\time, (Pkey(\delta)*(1-Pkey(\cutting_fade))) + (Pkey(\cutting_fade)*0.5/Pexprand(1, 4)*Pn(Plazy { GlobalParams.linkClock.beatDur })*2.2),
-    \stretch, (1-Pkey(\cutting_fade)) + (Pkey(\cutting_fade)*Pexprand(0.9, 4.0, inf)),
-	\amp, (0.35*(1-Pkey(\cutting_fade))) + (Pkey(\cutting_fade)*Pseq([0.35, 0.22, 0.35], inf)),
-	\attack, (0.07*(1-Pkey(\cutting_fade))) + (Pkey(\cutting_fade)*Pkey(\time)/Pexprand(1, 3)*8),
-	\decay, (0.07*(1-Pkey(\cutting_fade))) + (Pkey(\cutting_fade)* (Pkey(\delta) - Pkey(\time))*Pexprand(0.9, Pkey(\stretch))/4.0/2),
-	\start, Pfunc({|ev| var pos_temp = ~next_pos_cutting; pos_temp.postln; ~next_pos_cutting = (((~next_pos_cutting + (ev.delta * GlobalParams.linkClock.beatDur * b.sampleRate * ev.stretch.reciprocal * ev.bufrate))*(1-~cutting_fade)) + (~cutting_fade*rand_stream.next)).round.asInteger; pos_temp}),
-	\group, ~patternLoop_group,
-	//\out, ~stretchedPatternCutting_recorder.bus,
-	//\type, \composite,
-	//\types, [\note, \midi],
-	//\midiout, ~stretchedPatternLoop_midiOut,
-	//\chan, 3,
-	//\midinote, 40 + (12*Pkey(\bufrate).log2), //E2=40
-	\destination, ~targetAddress,
-	\id, 'cut_violin',
-	\sendOSC, ~oscTransmitter.([\id, \bufrate, \time]),
-))).play(GlobalParams.linkClock, quant: [4, 0.5]);
-
-~stretchedPatternCutting_recorder.record(GlobalParams.linkClock, [4, 0.5]);
-
 (
 ~fade_val_var = {|key, endVal, dur=10|
 Routine({
@@ -345,10 +322,6 @@ Routine({
 ~fade_val_var.value(\cutting_fade, 11/5, 10)
 Pdef(\stretchedPatternCutting).stop
 
-~stretchedPatternCutting_recorder.stopRecording
-
-~targetAddress = NetAddr("192.168.1.184", 57121);  // Change port 1234 to the one of the target application
-~baseMessage = "/fromSuperCollider/";
 
 ~fade_val = {|synth, param, endVal, dur=10, clock|
 Routine({
@@ -362,20 +335,4 @@ Routine({
 	});}).play(clock);
 };
 
-~oscTransmitter = {|keys_to_transmit|
-	Pfunc({|ev|
-		var oscArray = [~baseMessage ++ (ev.id ?? '') ];
 
-		// Construct the osc array from the Pbind's keys
-		ev.keysValuesDo{|k,v|
-			// Filter out the 'destination' and 'id' keys
-			(k != 'destination' and: {k != 'id'} and: {keys_to_transmit.includes(k)}).if{
-				oscArray = oscArray ++ k ++ [v];
-			}
-		};
-
-		// And send
-	//ev.destination.sendMsg(oscArray)
-	ev.destination.sendBundle(~latency, oscArray)
-	});
-}
