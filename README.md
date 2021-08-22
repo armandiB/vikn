@@ -3,7 +3,7 @@
  
 ### Dependencies
 Quarks:
-- miscellanous_Lib: Pattern.symplay() in PatternH.sc
+- ddwPatterns: PnNilSafe in PatternH.sc
  
 ### Main classes
 - RecorderModule: creates a Recorder and a recording Bus, with monitoring to another bus, organizes multiple takes
