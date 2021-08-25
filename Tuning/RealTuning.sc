@@ -90,19 +90,23 @@ JIRealTuning : RealTuning {
 			semitones % octaveSemitones + (octaveShifts_array[index]*octaveSemitones);
 		});
 		var octaveFactors = non_adjusted_semitones.collect({ |semitones, index|
-			semitones.div(octaveSemitones)*(-1) + octaveShifts_array[index];  //ratio_adjusted = ratio_non_adjusted * (octaveRatio**octave_factor)
+			semitones.div(octaveSemitones)*(-1) + octaveShifts_array[index];  // ratio_adjusted = ratio_non_adjusted * (octaveRatio**octave_factor)
 		});
 		^super.new(tuning, octaveRatio, name, reffreq, reffreqNote, noteFirstElement).initJIRealTuning(basePrimes, tuningCoordinates, octaveFactors, octaveShifts_array);
 	}
 
 	*semitonesFromCoordinates{|base_primes, coordinates|
-		^coordinates.collect({|coordinate_array|
-			var semitone = 1;
-			coordinate_array.do({|coordinate, prime_index|
-				semitone = semitone*(base_primes[prime_index]**coordinate)
+		if (base_primes == [] && coordinates == [[]]) {
+			^[0];
+		}{
+			^coordinates.collect({|coordinate_array|
+				var semitone = 1;
+				coordinate_array.do({|coordinate, prime_index|
+					semitone = semitone*(base_primes[prime_index]**coordinate)
+				});
+				semitone.ratiomidi;
 			});
-			semitone.ratiomidi;
-		});
+		}
 	}
 
 	initJIRealTuning{|basePrimesarg, tuningCoordinatesarg, octaveFactorsarg, octaveShiftsarg|
