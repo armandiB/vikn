@@ -11,7 +11,7 @@ Quarks:
 
 - FileIO/Recording/PatternH: holds a Pdef and creates a RecorderModule, can send corresponding MIDI and OSC info, handles parallel recording with other PatternH, sets seed
 
-- Tuning/RealTuning, JIRealTuning: an extension of Tuning that gives an actual note (Z) -> frequency (R+) mapping thanks to a reference note+freq. This is like tuning a piano. The reference note+freq can be changed live. JIRealTuning has a just intonation structure as coordinates in a space of (prime) numbers and finds automatically the good octave for each note
+- Tuning/RealTuning, JIRealTuning: an extension of Tuning that gives an actual note (Z) -> frequency (R+) mapping thanks to a reference note+freq (e.g. 9 = A4 -> 440Hz). This is like tuning a piano. The reference note+freq can be changed live. JIRealTuning has a just intonation structure as coordinates in a space of (prime) numbers and finds automatically the good octave for each note
 
 - CVOut/CVTrigChan, CVDCChan, CVVoctChan: for outputting values continuously from an interface (e.g. to control modular synths). CVVoctChan handles value conversion, tuning of oscillators, and works with RealTuning for a note mapping
 
