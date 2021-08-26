@@ -9,7 +9,7 @@ Quarks:
 ### Main classes
 - FileIO/Recording/RecorderModule: creates a Recorder and a recording Bus, with monitoring to another bus, organizes multiple takes
 
-- FileIO/Recording/PatternH: holds a Pdef and creates a RecorderModule, can send corresponding MIDI and OSC info, handles parallel recording with other PatternH
+- FileIO/Recording/PatternH: holds a Pdef and creates a RecorderModule, can send corresponding MIDI and OSC info, handles parallel recording with other PatternH, sets seed
 
 - Tuning/RealTuning, JIRealTuning: an extension of Tuning that gives an actual note -> frequency mapping thanks to a reference note/freq. The reference note/freq can be changed live. JIRealTuning has a just intonation structure as coordinates in the space of prime numbers and finds automatically the good octave for each note
 
