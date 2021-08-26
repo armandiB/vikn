@@ -1,5 +1,5 @@
 # vikn
- My SuperCollider quark with a live and modular philosophy and objects that make life faster
+ My SuperCollider quark with a live and modular philosophy, and objects that make life faster
  
 ### Dependencies
 Quarks:
