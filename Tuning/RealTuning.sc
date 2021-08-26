@@ -95,18 +95,24 @@ JIRealTuning : RealTuning {
 		^super.new(tuning, octaveRatio, name, reffreq, reffreqNote, noteFirstElement).initJIRealTuning(basePrimes, tuningCoordinates, octaveFactors, octaveShifts_array);
 	}
 
-	*semitonesFromCoordinates{|base_primes, coordinates|
+	*ratioFromCoordinates{|base_primes, coordinates|
 		if (base_primes == [] && coordinates == [[]]) {
-			^[0];
+			^[1.0];
 		}{
 			^coordinates.collect({|coordinate_array|
-				var semitone = 1;
+				var ratio = 1.0;
 				coordinate_array.do({|coordinate, prime_index|
-					semitone = semitone*(base_primes[prime_index]**coordinate)
+					ratio = ratio*(base_primes[prime_index]**coordinate)
 				});
-				semitone.ratiomidi;
+				ratio;
 			});
 		}
+	}
+
+	*semitonesFromCoordinates{|base_primes, coordinates|
+		^this.ratioFromCoordinates(base_primes, coordinates).collect({|ratio|
+			ratio.ratiomidi;
+		});
 	}
 
 	initJIRealTuning{|basePrimesarg, tuningCoordinatesarg, octaveFactorsarg, octaveShiftsarg|
