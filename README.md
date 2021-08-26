@@ -14,4 +14,4 @@ Quarks:
 
 - CVTrigChan, CVDCChan, CVVoctChan: for outputting values continuously from an interface (e.g. to control modular synths). CVVoctChan handles value conversion, tuning of oscillators, and works with RealTuning for a note mapping
 
-- CustomSpectrogram: extension of Spectrogram with many nice options for displaying phase with color, increased resolution, etc. And it can receive FFT bins from an arbitrary synth instead of computing the FFT internally, which is very useful for signal processing research
+- CustomSpectrogram: extension of Spectrogram with many nice options for displaying phase with color, increased resolution, etc. It can receive FFT bins from an arbitrary synth instead of computing the FFT internally, which is very useful for signal processing research
