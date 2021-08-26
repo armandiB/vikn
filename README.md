@@ -7,7 +7,7 @@ Quarks:
 - ddwPatterns: PnNilSafe in PatternH.sc
  
 ### Main classes
-- FileIO/Recording/RecorderModule: creates a Recorder and a recording Bus, with monitoring to another bus, organizes multiple takes
+- FileIO/Recording/RecorderModule: creates a Recorder and a recording bus, with monitoring to another bus, organizes multiple takes
 
 - FileIO/Recording/PatternH: holds a Pdef and creates a RecorderModule, can send corresponding MIDI and OSC info, handles parallel recording with other PatternH, sets seed
 
