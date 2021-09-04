@@ -124,4 +124,11 @@ JIRealTuning : RealTuning {
 
 	//ToDo: shift along an axis
 
+	ratiosRational{
+		^this.ratios.asRational
+	}
+
+	printInfos{
+		basePrimes.postln; tuningCoordinates.postln; this.ratiosRational.postln; this.cents.postln;
+	}
 }
