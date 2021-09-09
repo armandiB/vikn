@@ -71,7 +71,6 @@ PatternH {
 			}{
 				this.keyArray = keyArray;
 			};
-			sharedEnvir.put('patternH', this);
 		};
 		this.pattern_(pattern);
 		^this;
@@ -160,7 +159,7 @@ PatternH {
 	}
 
 	appendEnvir {|pat|
-		var res = PenvirExt(independentEnvir, pat, true, sharedEnvir);
+		var res = PenvirExt(independentEnvir, pat, true, sharedEnvir, insertParent: (patternH: this));
 		independentEventsList = res.independentEventsList;
 		^res;
 	}
