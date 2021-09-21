@@ -78,7 +78,7 @@ PatternH {
 
 	initRecorder { |folderPath, fileName, numChannels=1, monitoringBus, recSampleFormat="int24"|
 		monitoringBus ?? {monitoringBus = Bus(rate: 'audio', index: 0, numChannels: if(numChannels==1) {2} {numChannels}, server:server)};
-		recorder = RecorderModule(server, folderPath, fileName ?? patternKey, group, numChannels, monitoringBus, recSampleFormat);
+		recorder = RecorderModule(server: server, folderPath: folderPath, fileName: fileName ?? patternKey, nodeRecording: group, numChannels: numChannels, monitoringBus: monitoringBus, recSampleFormat: recSampleFormat);
 		sendToRecorder = true;
 		this.pattern_(pattern);
 		^this;

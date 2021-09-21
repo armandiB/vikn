@@ -22,14 +22,14 @@ RecorderModule {
 	var <monitoringSynth;
 
 
-	*new { |server, folderPath, fileName, nodeRecording, numChannels=1, monitoringBus=0, recSampleFormat="int24"|
-		^super.new.initRecorderModule(server, folderPath, fileName, nodeRecording, monitoringBus, numChannels, recSampleFormat);
+	*new { |server, folderPath, fileName, nodeRecording, numChannels=1, recordBus, monitoringBus=0, recSampleFormat="int24"|
+		^super.new.initRecorderModule(server, folderPath, fileName, nodeRecording, numChannels, recordBus, monitoringBus, recSampleFormat);
 	}
 
-	initRecorderModule {|serverarg, folderPatharg, fileNamearg, nodeRecordingarg, monitoringBusarg, numChannelsarg, recSampleFormatarg|
+	initRecorderModule {|serverarg, folderPatharg, fileNamearg, nodeRecordingarg, numChannelsarg, recordBusarg, monitoringBusarg, recSampleFormatarg|
 		server = serverarg;
 		numChannels = numChannelsarg;
-		recordBus = Bus.audio(server, numChannels);
+		recordBus = recordBusarg ? Bus.audio(server, numChannels);
 		recorder = Recorder(server);
 		recHeaderFormat = server.recHeaderFormat;
 		recorder.recHeaderFormat = recHeaderFormat;
@@ -60,13 +60,17 @@ RecorderModule {
 		mBus !? {|m| monitoringBus = m};
 		if(monitoringBus.isNil.not) {
 			if (monitoringBus.numChannels > recordBus.numChannels) {
-				monitoringSynth = {recordBus.ar ! (monitoringBus.numChannels.div(recordBus.numChannels))}.play(nodeRecording ? server, monitoringBus, addAction: \addAfter);
+				monitoringSynth = {|amp=0.0| amp*(recordBus.ar ! (monitoringBus.numChannels.div(recordBus.numChannels)))}.play(nodeRecording ? server, monitoringBus, addAction: \addAfter);
 			}
 			{
-				monitoringSynth = {recordBus.ar}.play(nodeRecording ? server, monitoringBus, addAction: \addAfter);
+				monitoringSynth = {|amp=0.0| amp*recordBus.ar}.play(nodeRecording ? server, monitoringBus, addAction: \addAfter);
 			};
 		}
 		^this;
+	}
+
+	setAmpMonitoring {|amp|
+		^monitoringSynth.set(\amp, amp);
 	}
 
 	stopMonitoring {
