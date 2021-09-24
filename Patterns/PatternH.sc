@@ -1,5 +1,5 @@
 PatternH {
-	classvar <>hasInitMIDIClient = false;
+	classvar <>hasInitMIDIClient = false;  //ToDo: move to GrobalParams
 
 	// static dictionary of references to each PatternH by pattern key? With added suffix if exists. classvar here or in GlobalParams/Global...
 
@@ -29,14 +29,17 @@ PatternH {
 	var <>linkedRecorders;  // collection of RecorderModule or PatternH
 
 	var <>sendMIDI=false;
-	var <midiOut;
+	var <>midiOut;
 	var <midiChan;  // static for now (PL could be used)
 	var <>additionalKeyValueArrayMIDI;
+	var <>patternTypesArray;
 
 	var <>sendOSC=false;
 	var <>oscDestination;
 	var <>oscId;
 	var <>oscKeysArray;
+
+	var <fadeValSharedRoutine;
 
 	*new { |server, patternKey, patternMode=\Pdef, group|
 		^super.new.initPatternH(server, patternKey, patternMode, group);
@@ -84,13 +87,13 @@ PatternH {
 		^this;
 	}
 
-	initMIDI { |portName, chan, additionalKeyValueArray, deviceName="IAC Driver"|
+	initMIDI { |midiOut, chan, additionalKeyValueArray, patternTypesArray, deviceName, portName|
 		if(chan == 0) {Log(GlobalParams.pipingLogName).warning("Reserved bus for start/stop recording")};
-		portName.isInteger.if {portName = "Bus " ++ portName.asString;};
-		hasInitMIDIClient.not.if {MIDIClient.init};
-		midiOut = MIDIOut.newByName(deviceName, portName);
+		hasInitMIDIClient.not.if {MIDIClient.init; hasInitMIDIClient=true;};
+		this.midiOut = midiOut ?? {MIDIOut.newByName(deviceName, portName)};
 		midiChan = chan ? midiChan;
-		additionalKeyValueArrayMIDI = additionalKeyValueArray;
+		this.additionalKeyValueArrayMIDI = additionalKeyValueArray;
+		this.patternTypesArray = patternTypesArray;
 		sendMIDI = true;
 		this.pattern_(pattern);
 		^this;
@@ -141,10 +144,16 @@ PatternH {
 	}
 
 	appendMIDI {|pat|
-		additionalKeyValueArrayMIDI.isNil.if {
-			^Pbindf(pat, \type, \composite, \types, [\note, \midi], \midiout, midiOut, \chan, midiChan);
+		var compositeTypesArray;
+		patternTypesArray.isNil.if {
+			compositeTypesArray = [\note, \midi];
 		}{
-			^Pbindf(pat, \type, \composite, \types, [\note, \midi], \midiout, midiOut, \chan, midiChan, *additionalKeyValueArrayMIDI);
+			compositeTypesArray = (patternTypesArray ++ [\midi]).asSet.asArray;
+		};
+		additionalKeyValueArrayMIDI.isNil.if {
+			^Pbindf(pat, \type, \composite, \types, compositeTypesArray, \midiout, midiOut, \chan, midiChan);
+		}{
+			^Pbindf(pat, \type, \composite, \types, compositeTypesArray, \midiout, midiOut, \chan, midiChan, *additionalKeyValueArrayMIDI);
 		}
 	}
 
@@ -269,16 +278,12 @@ PatternH {
 		});
 	}
 
-	fadeValShared {|key, endVal, dur=10, numSteps=1000|
-		Routine({
-			var curVal;
-			curVal = sharedEnvir.at(key).copy;
-			for(1, numSteps, {|i|
-				sharedEnvir.put(key, curVal + (i/numSteps*(endVal - curVal)));
-				(dur/numSteps).wait;
-			});
-			("Fadding " + key.asString + " to " + endVal.asString + " done").postln;
-		}).play(AppClock);
+	linFadeValShared {|key, endVal, dur=10, numSteps=1000|
+		(fadeValSharedRoutine.notNil && fadeValSharedRoutine.isPlaying).if{
+			fadeValSharedRoutine.stop;
+		};
+		fadeValSharedRoutine = FadeTools.linFadeValEnvir(sharedEnvir, key, endVal, dur, numSteps);
+		^fadeValSharedRoutine;
 	}
 
 	//need MIDI function that sends start and stop recording note on reserved bus (Bus 1)
@@ -303,18 +308,3 @@ PatternH {
 		^this;
 	}
 }
-
-/*
-~fade_val = {|synth, param, endVal, dur=10, clock|
-Routine({
-	var curVal;
-	var numSteps = 1000;
-	synth.get(param.asSymbol, {|val| curVal = val});
-	0.5.wait;
-	for(1, numSteps, {|i|
-		synth.set(param.asSymbol, curVal + (i/numSteps*(endVal - curVal)));
-		(dur/numSteps).wait;
-	});}).play(clock);
-};
-
-

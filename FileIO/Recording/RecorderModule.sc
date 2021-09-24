@@ -21,6 +21,7 @@ RecorderModule {
 	var <monitoringBus;
 	var <monitoringSynth;
 
+	var <fadeAmpRoutine;
 
 	*new { |server, folderPath, fileName, nodeRecording, numChannels=1, recordBus, monitoringBus=0, recSampleFormat="int24"|
 		^super.new.initRecorderModule(server, folderPath, fileName, nodeRecording, numChannels, recordBus, monitoringBus, recSampleFormat);
@@ -71,6 +72,14 @@ RecorderModule {
 
 	setAmpMonitoring {|amp|
 		^monitoringSynth.set(\amp, amp);
+	}
+
+	linFadeAmpMonitoring {|amp, dur=10, numSteps=1000|
+		(fadeAmpRoutine.notNil && fadeAmpRoutine.isPlaying).if{
+			fadeAmpRoutine.stop;
+		};
+		fadeAmpRoutine = FadeTools.linFadeValSynth(monitoringSynth, \amp, amp, dur, numSteps);
+		^fadeAmpRoutine;
 	}
 
 	stopMonitoring {
