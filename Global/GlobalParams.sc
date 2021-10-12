@@ -4,9 +4,14 @@ GlobalParams {
 	classvar <>hasSetSeed = false;
 	classvar >linkClock;
 
+	classvar <>mainServer = s;
+	classvar <safeAudioBusNumber = mainServer.options.numOutputBusChannels + numInputBusChannels + 12;
+
 	classvar <>pipingLogName = \piping;
 
 	classvar <>oscBaseMessage = "/fromSuperCollider/";
+
+	classvar <>midiNote0 = 60;
 
 	*linkClock{
 		^linkClock ?? this.makeLinkClock();

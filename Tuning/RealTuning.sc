@@ -62,6 +62,10 @@ RealTuning : Tuning {
 		^(this.atNote(note) - storeAtNoteReffreqNote).midiratio*reffreq;
 	}
 
+	midiToFreq{|midi|
+		^this.noteToFreq(midi - GlobalParams.midiNote0);
+	}
+
 	// freqToNote with interpolation
 
 	// I want to be able to work with any base note (F for Revelation)
