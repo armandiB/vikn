@@ -12,10 +12,12 @@ GlobalParams {
 	classvar <>oscBaseMessage = "/fromSuperCollider/";
 
 	classvar <>midiNote0 = 60;
+	classvar <>defaultRefFreq = 440;
 
 	*new{
 		mainServer = Server.default;
 		safeAudioBusNumber = mainServer.options.numOutputBusChannels + mainServer.options.numInputBusChannels + 12;
+		this.setSeedSafe();
 	}
 
 	*linkClock{
