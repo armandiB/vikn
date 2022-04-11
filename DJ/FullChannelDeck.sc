@@ -40,7 +40,7 @@ FullChannelDeck {
 					total_dur = deck.getTotalDuration();
 					("Deck "++ deckNumber.asString ++": ").post;
 					played_perc = msg[3]/deck.getNumFrames();
-				(played_perc*total_dur).asTimeString(1).post; "  ".post; (played_perc*100).round(0.1).post;"%  Remain: ".post; ((played_perc-1)*total_dur).asTimeString(1).postln;
+				(played_perc*total_dur).asTimeString(1).post; "  ".post; (played_perc*100).round(0.1).post;"%  Remain ".post; ((played_perc-1)*total_dur).asTimeString(1).postln;
 				};
 			};
 		}, '/posCDJ', server.addr);
@@ -88,14 +88,18 @@ FullChannelDeck {
 
 	pitchCoarse{|factor|
 		deck.pitchMainCoarse = factor;
-		deck.computePitchMainFactor();
-		deck.setBufrate();
+		this.changeMainPitch();
 	}
 
 	pitchFine{|factor|
 		deck.pitchMainFine = factor;
+		this.changeMainPitch();
+	}
+
+	changeMainPitch{
 		deck.computePitchMainFactor();
 		deck.setBufrate();
+		("Pitch Deck "++ deckNumber.asString ++": ").post; ((deck.pitchMainFactor - 1)*100).round(0.001).post; "%".postln;
 	}
 
 	mixerAmp{|amp|
