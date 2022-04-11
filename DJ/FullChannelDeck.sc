@@ -98,11 +98,12 @@ FullChannelDeck {
 
 	changeMainPitch{
 		deck.computePitchMainFactor();
-		deck.setBufrate();
 		("Pitch Deck "++ deckNumber.asString ++": ").post; ((deck.pitchMainFactor - 1)*100).round(0.001).post; "%".postln;
+		deck.setBufrate();
 	}
 
-	mixerAmp{|amp|
+	amp{|amp|
+		("Amp Deck "++ deckNumber.asString ++": ").post; amp.round(0.01).postln;
 		mixerChannelDeck.synth.set(\amp, amp);
 	}
 
