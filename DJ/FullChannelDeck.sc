@@ -102,9 +102,36 @@ FullChannelDeck {
 		deck.setBufrate();
 	}
 
+	makeMIDIFuncName{|prefix|
+		^(prefix++"Deck"++deckNumber.asString).asSymbol
+	}
+
+	registerMIDIPitchCoarse{|ccnum, chan=0|
+		MIDIdef.cc(this.makeMIDIFuncName("pitchCoarse"), {arg ...args;
+			this.pitchCoarse((args[0]-64)/512);
+		}, ccnum, chan);
+	}
+
+	registerMIDIPitchFine{|ccnum, chan=0|
+		MIDIdef.cc(this.makeMIDIFuncName("pitchFine"), {arg ...args;
+			this.pitchFine((args[0]-64)/1024/8);
+		}, ccnum, chan);
+	}
+
+	preamp{|preamp|
+		("Preamp Deck "++ deckNumber.asString ++": ").post; preamp.round(0.01).postln;
+		deck.synth.set(\amp, preamp);
+	}
+
 	amp{|amp|
 		("Amp Deck "++ deckNumber.asString ++": ").post; amp.round(0.01).postln;
 		mixerChannelDeck.synth.set(\amp, amp);
+	}
+
+	registerMIDIAmp{|ccnum, chan=0|
+		MIDIdef.cc(this.makeMIDIFuncName("amp"), {arg ...args;
+			this.amp(args[0]/100);
+		}, ccnum, chan);
 	}
 
 	free{
