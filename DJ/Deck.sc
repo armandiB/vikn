@@ -50,6 +50,7 @@ Deck {
 	changeBuffer{|bufferarg|
 		buffer = bufferarg;
 		//set synth or new synth?
+		//called before createSynth for changeNumChannelsIn so ok
 	}
 
 	computePitchMainFactor{
