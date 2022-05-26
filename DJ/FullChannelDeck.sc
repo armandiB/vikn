@@ -113,6 +113,7 @@ FullChannelDeck {
 		("PitchTouch Deck "++ deckNumber.asString ++": ").post; ((deck.pitchTouchFactor - 1)*100).round(0.001).post; "%".postln;
 		deck.setBufrate();
 	}
+	//
 
 	makeMIDIFuncName{|prefix|
 		^(prefix++"Deck "++deckNumber.asString).asSymbol
@@ -129,6 +130,7 @@ FullChannelDeck {
 		}, ccnum, chan);
 	}
 
+	// Could have 2 bufrate controls in the deck SynthDef, one not lagged, one lagged for touch
 	registerMIDIPitchTouchUp{|ccnum, chan=0|
 		MIDIdef.polytouch(this.makeMIDIFuncName("pitchTouchUp"), {arg ...args;
 			this.pitchTouchUp(1 + (1.1**(args[0]-127)));
