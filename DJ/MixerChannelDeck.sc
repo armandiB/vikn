@@ -5,6 +5,7 @@ MixerChannelDeck {
 	var <cuebus;
 
 	var <synth;
+	var <cued = false;
 
 	var <deckNumber;
 	var <numChannels;
@@ -32,6 +33,18 @@ MixerChannelDeck {
 			\cueout, cuebus,
 			\cueamp, 0,
 		], target);
+	}
+
+	toggleCue{|amp=1|
+		if(cued){
+			synth.set(\cueamp, 0);
+			"Deck "++ deckNumber.asString ++" uncued".postln;
+			cued = false;
+	}{
+			synth.set(\cueamp, amp);
+			"Deck "++ deckNumber.asString ++" cued ".post; amp.round(0.001).postln;
+			cued = true;
+	};
 	}
 
 	free{

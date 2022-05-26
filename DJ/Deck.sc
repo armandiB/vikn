@@ -5,7 +5,6 @@ Deck {
 	var <synth;
 
 	var <isPlaying = false;
-	var <cued = false;
 	var <>pitchMainCoarse = 0;
 	var <>pitchMainFine = 0;
 	var <>pitchTouchDown = 1;
@@ -76,11 +75,13 @@ Deck {
 		isPlaying = true;
 		this.setBufrate();
 	}
-
 	stop{|print=true|
 		if(print){("Stopped Deck "++ deckNumber.asString).postln;};
 		isPlaying = false;
 		this.setBufrate();
+	}
+	togglePlayStop{
+		^if(isPlaying, {this.stop()}, {this.play()});
 	}
 
 	resetStart{
