@@ -81,6 +81,7 @@ Deck {
 		this.setBufrate();
 	}
 	togglePlayStop{
+		("Reset Deck "++ deckNumber.asString).postln;
 		^if(isPlaying, {this.stop()}, {this.play()});
 	}
 
