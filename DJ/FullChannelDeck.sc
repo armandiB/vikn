@@ -9,7 +9,7 @@ FullChannelDeck {
 	var <server;
 	var <deckNumber;
 	var <numChannelsIn = 2;
-	classvar numChannelsOut = 2;
+	classvar <>numChannelsOut = 2;
 
 	*new{|targetDeck, targetMixerChannel, mainbus, cuebus, deckNumber, server, buffer|
 		^super.new().initFullChannelDeck(targetDeck, targetMixerChannel, mainbus, cuebus, deckNumber, server, buffer);
