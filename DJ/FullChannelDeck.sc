@@ -200,16 +200,16 @@ FullChannelDeck {
 
 	registerMIDIEQ{|ccnums, chan=0|
 		MIDIdef.cc(this.makeMIDIFuncName("dbEQLow"), {arg ...args;
-			var db = (args[0]-100)*40/101; "Low Deck "++ deckNumber.asString ++": ".post; (db).round(0.1).postln; mixerChannelDeck.deck.set(\lowDb, db)},
+			var db = (args[0]-100)*40/101; "Low Deck "++ deckNumber.asString ++": ".post; (db).round(0.1).postln; mixerChannelDeck.synth.set(\lowDb, db)},
 		ccnums[0], chan:chan);
 		MIDIdef.cc(this.makeMIDIFuncName("dbEQMid1"), {arg ...args;
-			var db = args[0]-100; "Mid1 Deck "++ deckNumber.asString ++": ".post; (db).round(0.1).postln; mixerChannelDeck.deck.set(\mid1Db, db)},
+			var db = args[0]-100; "Mid1 Deck "++ deckNumber.asString ++": ".post; (db).round(0.1).postln; mixerChannelDeck.synth.set(\mid1Db, db)},
 		ccnums[1], chan:chan);
 		MIDIdef.cc(this.makeMIDIFuncName("dbEQMid2"), {arg ...args;
-			var db = args[0]-100; "Mid2 Deck "++ deckNumber.asString ++": ".post; (db).round(0.1).postln; mixerChannelDeck.deck.set(\mid2Db, db)},
+			var db = args[0]-100; "Mid2 Deck "++ deckNumber.asString ++": ".post; (db).round(0.1).postln; mixerChannelDeck.synth.set(\mid2Db, db)},
 		ccnums[2], chan:chan);
 		MIDIdef.cc(this.makeMIDIFuncName("dbEQHigh"), {arg ...args;
-			var db = args[0]/100; "High Deck "++ deckNumber.asString ++": ".post; (db).round(0.1).postln; mixerChannelDeck.deck.set(\highDb, db)},
+			var db = args[0]/100; "High Deck "++ deckNumber.asString ++": ".post; (db).round(0.1).postln; mixerChannelDeck.synth.set(\highDb, db)},
 		ccnums[3], chan:chan);
 	}
 
