@@ -1,0 +1,9 @@
+GlobalDeckHandler {
+
+	classvar <currentCrossfaderStatus;
+
+	*new {
+
+	}
+
+}

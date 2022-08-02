@@ -11,6 +11,9 @@ FullChannelDeck {
 	var <numChannelsIn = 2;
 	classvar <>numChannelsOut = 2;
 
+	var <>scrubDownLatchStatus;
+	var <>scrubUpLatchStatus;
+
 	*new{|targetDeck, targetMixerChannel, mainbus, cuebus, deckNumber, server, buffer|
 		^super.new().initFullChannelDeck(targetDeck, targetMixerChannel, mainbus, cuebus, deckNumber, server, buffer);
 	}
@@ -119,14 +122,14 @@ FullChannelDeck {
 		^(prefix++"Deck "++deckNumber.asString).asSymbol
 	}
 
-	registerMIDIPitchCoarse{|ccnum, chan=0|
+	registerMIDIPitchCoarse{|ccnum, chan=0, precision=12.5|
 		MIDIdef.cc(this.makeMIDIFuncName("pitchCoarse"), {arg ...args;
-			this.pitchCoarse((args[0]-64)/512);
+			this.pitchCoarse((args[0]-64)/64*precision/100);
 		}, ccnum, chan);
 	}
-	registerMIDIPitchFine{|ccnum, chan=0|
+	registerMIDIPitchFine{|ccnum, chan=0, precision=1|
 		MIDIdef.cc(this.makeMIDIFuncName("pitchFine"), {arg ...args;
-			this.pitchFine((args[0]-64)/1024/8);
+			this.pitchFine((args[0]-64)/64*precision/100);
 		}, ccnum, chan);
 	}
 
@@ -164,6 +167,54 @@ FullChannelDeck {
 			this.pitchTouchDown(1);
 		}, ccnum, chan);
 	}
+		registerMIDIScrubUp{|ccnum, chan=0|
+		MIDIdef.polytouch(this.makeMIDIFuncName("scrubUp"), {arg ...args;
+			this.pitchTouchUp(1.03**args[0]);
+		}, ccnum, chan);
+		MIDIdef.noteOff(this.makeMIDIFuncName("scrubUpOff"), {arg ...args;
+			this.pitchTouchUp(1);
+		}, ccnum, chan);
+	}
+	registerMIDIScrubUpDownLatch{|ccnumUp, chanUp, ccnumDown, chanDown, ccnumValue, chanValue=0, midiOut=nil|
+		scrubDownLatchStatus = false;
+		scrubUpLatchStatus = false;
+
+		MIDIdef.noteOn(this.makeMIDIFuncName("scrubDownOn"), {arg ...args;
+			scrubDownLatchStatus = true;
+			scrubUpLatchStatus = false;
+			this.pitchTouchUp(1);
+			if(midiOut.isNotNil){
+				midiOut.noteOff(chanUp, ccnumUp);
+			};
+		}, ccnumUp, chanUp);
+		MIDIdef.noteOff(this.makeMIDIFuncName("scrubDownOff"), {arg ...args;
+			scrubDownLatchStatus = false;
+			this.pitchTouchDown(1);
+		}, ccnumUp, chanUp);
+		MIDIdef.cc(this.makeMIDIFuncName("scrubDownValue"), {arg ...args;
+			if(scrubDownLatchStatus){
+				this.pitchTouchDown(-1*(1.03**args[0]));
+			};
+		}, ccnumValue, chanValue);
+
+		MIDIdef.noteOn(this.makeMIDIFuncName("scrubUpOn"), {arg ...args;
+			scrubUpLatchStatus = true;
+			scrubDownLatchStatus = false;
+			this.pitchTouchDown(1);
+			if(midiOut.isNotNil){
+				midiOut.noteOff(chanDown, ccnumDown);
+			};
+		}, ccnumDown, chanDown);
+		MIDIdef.noteOff(this.makeMIDIFuncName("scrubUpOff"), {arg ...args;
+			scrubUpLatchStatus = false;
+			this.pitchTouchUp(1);
+		}, ccnumDown, chanDown);
+		MIDIdef.cc(this.makeMIDIFuncName("scrubUpValue"), {arg ...args;
+			if(vscrubUpLatchStatus){
+				this.pitchTouchUp(-1*(1.03**args[0]));
+			};
+		}, ccnumValue, chanValue);
+	}
 
 	preamp{|preamp|
 		("Preamp Deck "++ deckNumber.asString ++": ").post; preamp.round(0.01).postln;
@@ -181,6 +232,14 @@ FullChannelDeck {
 		}, ccnum, chan);
 	}
 
+	registerMIDIPlayStopLatch{|ccnum, chan=0|
+		MIDIdef.noteOn(this.makeMIDIFuncName("play"), {arg ...args;
+			this.play;
+		}, ccnum, chan);
+		MIDIdef.noteOff(this.makeMIDIFuncName("stop"), {arg ...args;
+			this.stop;
+		}, ccnum, chan);
+	}
 	registerMIDIPlayStop{|ccnum, chan=0|
 		MIDIdef.noteOn(this.makeMIDIFuncName("playStop"), {arg ...args;
 			deck.togglePlayStop;
@@ -196,6 +255,17 @@ FullChannelDeck {
 		MIDIdef.noteOn(this.makeMIDIFuncName("cue"), {arg ...args;
 			mixerChannelDeck.toggleCue(args[0]/100);
 		}, ccnum, chan);
+	}
+	registerMIDICueLatch{|ccnum, chan, ccnumAmp, chanAmp=0|
+		MIDIdef.noteOn(this.makeMIDIFuncName("cueOn"), {arg ...args;
+			mixerChannelDeck.cueOn();
+		}, ccnum, chan);
+		MIDIdef.noteOff(this.makeMIDIFuncName("cueOn"), {arg ...args;
+			mixerChannelDeck.cueOff();
+		}, ccnum, chan);
+		MIDIdef.cc(this.makeMIDIFuncName("cueAmp"), {arg ...args;
+			mixerChannelDeck.cueAmp(args[0]/100);
+		}, ccnumAmp, chanAmp);
 	}
 
 	registerMIDIEQ{|ccnums, chan=0|

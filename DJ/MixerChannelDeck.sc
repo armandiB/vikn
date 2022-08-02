@@ -6,6 +6,7 @@ MixerChannelDeck {
 
 	var <synth;
 	var <cued = false;
+	var <cueAmp=0;
 
 	var <deckNumber;
 	var <numChannels;
@@ -35,16 +36,29 @@ MixerChannelDeck {
 		], target);
 	}
 
-	toggleCue{|amp=1|
+	cueAmp_{|amp|
+		this.cueAmp = amp;
+		synth.set(\cueamp, amp);
+	}
+	cueOn{|amp=nil|
+		if(amp.isNotNil){
+			this.cueAmp = amp;
+		};
+		synth.set(\cueamp, this.cueAmp);
+		"Deck "++ deckNumber.asString ++" cued ".post; this.cueAmp.round(0.001).postln;
+		cued = true;
+	}
+	cueOff{
+		synth.set(\cueamp, 0);
+		"Deck "++ deckNumber.asString ++" uncued".postln;
+		cued = false;
+	}
+	toggleCue{|amp=nil|
 		if(cued){
-			synth.set(\cueamp, 0);
-			"Deck "++ deckNumber.asString ++" uncued".postln;
-			cued = false;
-	}{
-			synth.set(\cueamp, amp);
-			"Deck "++ deckNumber.asString ++" cued ".post; amp.round(0.001).postln;
-			cued = true;
-	};
+			this.cueOff();
+		}{
+			this.cueOn(amp);
+		};
 	}
 
 	free{
