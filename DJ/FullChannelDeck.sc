@@ -116,7 +116,6 @@ FullChannelDeck {
 		("PitchTouch Deck "++ deckNumber.asString ++": ").post; ((deck.pitchTouchFactor - 1)*100).round(0.001).post; "%".postln;
 		deck.setBufrate();
 	}
-	//
 
 	makeMIDIFuncName{|prefix|
 		^(prefix++"Deck "++deckNumber.asString).asSymbol
@@ -167,14 +166,6 @@ FullChannelDeck {
 			this.pitchTouchDown(1);
 		}, ccnum, chan);
 	}
-		registerMIDIScrubUp{|ccnum, chan=0|
-		MIDIdef.polytouch(this.makeMIDIFuncName("scrubUp"), {arg ...args;
-			this.pitchTouchUp(1.03**args[0]);
-		}, ccnum, chan);
-		MIDIdef.noteOff(this.makeMIDIFuncName("scrubUpOff"), {arg ...args;
-			this.pitchTouchUp(1);
-		}, ccnum, chan);
-	}
 	registerMIDIScrubUpDownLatch{|ccnumUp, chanUp, ccnumDown, chanDown, ccnumValue, chanValue=0, midiOut=nil|
 		scrubDownLatchStatus = false;
 		scrubUpLatchStatus = false;
@@ -183,7 +174,7 @@ FullChannelDeck {
 			scrubDownLatchStatus = true;
 			scrubUpLatchStatus = false;
 			this.pitchTouchUp(1);
-			if(midiOut.isNotNil){
+			if(midiOut.isNil.not){
 				midiOut.noteOff(chanUp, ccnumUp);
 			};
 		}, ccnumUp, chanUp);
@@ -201,7 +192,7 @@ FullChannelDeck {
 			scrubUpLatchStatus = true;
 			scrubDownLatchStatus = false;
 			this.pitchTouchDown(1);
-			if(midiOut.isNotNil){
+			if(midiOut.isNil.not){
 				midiOut.noteOff(chanDown, ccnumDown);
 			};
 		}, ccnumDown, chanDown);
@@ -210,8 +201,8 @@ FullChannelDeck {
 			this.pitchTouchUp(1);
 		}, ccnumDown, chanDown);
 		MIDIdef.cc(this.makeMIDIFuncName("scrubUpValue"), {arg ...args;
-			if(vscrubUpLatchStatus){
-				this.pitchTouchUp(-1*(1.03**args[0]));
+			if(scrubUpLatchStatus){
+				this.pitchTouchUp(1.03**args[0]);
 			};
 		}, ccnumValue, chanValue);
 	}
@@ -260,11 +251,11 @@ FullChannelDeck {
 		MIDIdef.noteOn(this.makeMIDIFuncName("cueOn"), {arg ...args;
 			mixerChannelDeck.cueOn();
 		}, ccnum, chan);
-		MIDIdef.noteOff(this.makeMIDIFuncName("cueOn"), {arg ...args;
+		MIDIdef.noteOff(this.makeMIDIFuncName("cueOff"), {arg ...args;
 			mixerChannelDeck.cueOff();
 		}, ccnum, chan);
 		MIDIdef.cc(this.makeMIDIFuncName("cueAmp"), {arg ...args;
-			mixerChannelDeck.cueAmp(args[0]/100);
+			mixerChannelDeck.cueAmp = args[0]/100;
 		}, ccnumAmp, chanAmp);
 	}
 

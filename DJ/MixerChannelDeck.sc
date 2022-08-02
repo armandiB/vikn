@@ -37,20 +37,21 @@ MixerChannelDeck {
 	}
 
 	cueAmp_{|amp|
-		this.cueAmp = amp;
+		cueAmp = amp;
 		synth.set(\cueamp, amp);
+		" bla".postln;
 	}
 	cueOn{|amp=nil|
-		if(amp.isNotNil){
-			this.cueAmp = amp;
+		if(amp.isNil.not){
+			cueAmp = amp;
 		};
-		synth.set(\cueamp, this.cueAmp);
-		"Deck "++ deckNumber.asString ++" cued ".post; this.cueAmp.round(0.001).postln;
+		synth.set(\cueamp, cueAmp);
+		("Deck "++ deckNumber.asString ++" cued ").post; cueAmp.round(0.001).postln;
 		cued = true;
 	}
 	cueOff{
 		synth.set(\cueamp, 0);
-		"Deck "++ deckNumber.asString ++" uncued".postln;
+		("Deck "++ deckNumber.asString ++" uncued").postln;
 		cued = false;
 	}
 	toggleCue{|amp=nil|
