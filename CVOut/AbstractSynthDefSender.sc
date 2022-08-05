@@ -29,18 +29,21 @@ AbstractSynthDefSender {
 
 	initSynthDef{}
 
-	addSentDef{ |synthDefName|
-		sentDefsDict.at(server).add(synthDefName)
+	addSentDef{ |synthDefNamearg|
+		sentDefsDict.at(server).add(synthDefNamearg)
 		^sentDefsDict;
 	}
-	hasSentDef{ |synthDefName|
-		^sentDefsDict[server] !? {_.includes(synthDefName)}.value ?? false
+	hasSentDef{ |synthDefNamearg|
+		^sentDefsDict[server] !? {_.includes(synthDefNamearg)}.value ?? false
 	}
 
 	sendDef{|sd, name|
+		if(name.isNil){name = sd.name};
+		if(this.hasSentDef.not, {
 			sd.send(server);
 			this.addSentDef(name);
 			this.addSynthDefDict(sd);
+		});
 	}
 
 	addSynthDefDict{ arg synthDef;

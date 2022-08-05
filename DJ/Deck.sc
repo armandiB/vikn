@@ -4,7 +4,7 @@ Deck {
 	var <outbus;
 	var <synth;
 
-	var <isPlaying = false;
+	var <>isPlaying = false;
 	var <>pitchMainCoarse = 0;
 	var <>pitchMainFine = 0;
 	var <>pitchTouchDown = 1;

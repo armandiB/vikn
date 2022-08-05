@@ -5,7 +5,7 @@ MixerChannelDeck {
 	var <cuebus;
 
 	var <synth;
-	var <cued = false;
+	var <>cued = false;
 	var <cueAmp=0;
 
 	var <deckNumber;
@@ -39,7 +39,6 @@ MixerChannelDeck {
 	cueAmp_{|amp|
 		cueAmp = amp;
 		synth.set(\cueamp, amp);
-		" bla".postln;
 	}
 	cueOn{|amp=nil|
 		if(amp.isNil.not){
