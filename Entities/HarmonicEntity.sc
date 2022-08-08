@@ -59,7 +59,7 @@ HarmonicEntity : AbstractEntity{
 							snd = DynKlang.ar(`[inFreqs, inWeights, nil], freqscale, freqoffset);
 						}
 						{2} {
-							Mix.ar(Pan2.ar(SinOsc.ar((inFreqs*freqscale) + freqoffset, 0, inWeights), In.ar(panbus, size)));
+							snd = Mix.ar(Pan2.ar(SinOsc.ar((inFreqs*freqscale) + freqoffset, 0, inWeights), In.ar(panbus, size)));
 						};
 					};
 
