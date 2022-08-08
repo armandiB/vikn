@@ -18,13 +18,16 @@ AbstractSynthDefSender {
 	}
 
 	*new { arg server;
-		^super.new.initSynthDefSender(server);
+		^super.new.initSynthDefSender(server, true);
+	}
+	*newNoInitSynthDef { arg server;
+		^super.new.initSynthDefSender(server, false);
 	}
 
-	initSynthDefSender{ arg serverarg;
+	initSynthDefSender{ arg serverarg, initSynthDef=true;
 		server = serverarg;
-		sentDefsDict.add(server -> IdentitySet.new);
-		this.initSynthDef();
+		if(sentDefsDict.includesKey(server).not) {sentDefsDict.add(server -> IdentitySet.new)};
+		if(initSynthDef) {this.initSynthDef()};
 	}
 
 	initSynthDef{}
