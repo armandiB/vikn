@@ -69,10 +69,11 @@ HarmonicEntity : AbstractEntity{
 		);
 	}
 
-	createSynth {
+	createSynth {|amp=1|
 		var argArray = [\out, outbus];
-		if(frequencyBus.isNil.not) {argArray = argArray ++  [\freqbus, frequencyBus]};
-		if(weightBus.isNil.not) {argArray = argArray ++  [\weightbus, weightBus]};
+		amp !? {argArray = argArray ++  [\amp, amp]};
+		frequencyBus !? {argArray = argArray ++  [\freqbus, frequencyBus]};
+		weightBus !? {argArray = argArray ++  [\weightbus, weightBus]};
 		if((numChannels>1) && panBus.isNil.not) {argArray = argArray ++  [\panbus, panBus]};
 		synth !? synth.free;
 		synth = Synth(this.makeSynthDefName(), argArray, synthGroup);
@@ -97,7 +98,7 @@ HarmonicEntity : AbstractEntity{
 			var panToAddAdj = (1 + In.ar(harmonicEntity.panBus, harmonicEntity.size))*pi/4;
 			var currentPanAdj = (1 + In.ar(panBus, harmonicEntity.size))*pi/4;
 			var newWeights = ( (currentWeights + weightsToAdd).squared + (2*currentWeights*weightsToAdd* ((currentPanAdj-panToAddAdj).cos - 1) ) ).sqrt;
-			var newPan = ( ((currentPanAdj.sin*currentWeights)+(panToAddAdj.sin*weightsToAdd)) / ((currentPanAdj.cos*currentWeights)+(panToAddAdj.cos*weightsToAdd)) ).atan;
+			var newPan = (4/pi*( ((currentPanAdj.sin*currentWeights)+(panToAddAdj.sin*weightsToAdd)) / ((currentPanAdj.cos*currentWeights)+(panToAddAdj.cos*weightsToAdd)) ).atan) - 1;
 			ReplaceOut.ar(weightBus, newWeights);
 			ReplaceOut.ar(panBus, newPan);
 		}.play(mergeGroup, nil, fadeTime);
