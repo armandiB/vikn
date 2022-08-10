@@ -90,6 +90,7 @@ HarmonicEntity : AbstractEntity{
 		if(numChannels>1) {panBus !? panBus.set(\panbus, panBus)};
 	}
 
+	//TODO: make these SynthDefs to avoid lag
 	addWeights {|harmonicEntity, fadeTime=0.02, startAmp=1|
 		var mergeSynth = {
 			var dt = NamedControl.kr(\fadeTime, fadeTime);
