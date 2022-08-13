@@ -56,7 +56,7 @@ BlobHarmonicEntity : HarmonicEntity{
 			argArray = argArray ++  [\freqbus, frequencyBus];
 			argArray = argArray ++  [\weightbus, weightBus];
 			if(numChannelsarg>1) {argArray = argArray ++  [\panbus, panBus]};
-		}
+		};
 		computeSynth !? computeSynth.free;
 		computeSynth = Synth(this.makeComputeSynthDef(), argArray, computeGroup);
 	}
