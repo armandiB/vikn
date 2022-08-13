@@ -141,10 +141,13 @@ HarmonicEntity : AbstractEntity{
 	freeMerge {|index|
 		mergeSynthList[index].free;
 	}
+	freeAllMerge{
+		mergeSynthList.do(_.free);
+	}
 
 	free{
 		synth !? synth.free;
-		mergeSynthList.do(_.free);
+		this.freeAllMerge();
 		frequencyBus !? frequencyBus.free;
 		weightBus !? weightBus.free;
 		panBus !? panBus.free;
