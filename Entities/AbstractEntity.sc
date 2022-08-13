@@ -8,12 +8,14 @@ AbstractEntity {
 		server = serverarg;
 	}
 
-	makeSynthDefName{}
-	makeSynthDef{}
+	makeMainSynthDefName{}
+	makeMainSynthDef{}
+	makeSynthDefs{}
+	createMainSynth{}
 
-	mergeAdd {}
+	mergeAdd{}
 
-	spawn {}
+	spawn{}
 
 }
 
@@ -29,6 +31,6 @@ AbstractEntitySynthDefSender : AbstractSynthDefSender {
 	}
 
 	initSynthDef{
-		^this.sendDef(entity.makeSynthDef());
+		^this.sendDefList(entity.makeSynthDefs());
 	}
 }

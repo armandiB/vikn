@@ -49,6 +49,10 @@ AbstractSynthDefSender {
 		});
 	}
 
+	sendDefList{|defList|
+		^defList.do(this.sendDef(_));
+	}
+
 	addSynthDefDict{ arg synthDef;
 		//store in Library instead
 	}
