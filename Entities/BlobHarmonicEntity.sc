@@ -19,8 +19,8 @@ BlobHarmonicEntity : HarmonicEntity{
 		frequencyFunction = frequencyFunctionarg;
 		panFunction = panFunctionarg;
 		computeGroup = computeGrouparg;
-		instanceIndex = nextIndexNew;
-		nextIndexNew = nextIndexNew + 1;
+		instanceIndex = nextInstanceIndex;
+		nextInstanceIndex = nextInstanceIndex + 1;
 	}
 
 	makeSynthDefs{
@@ -37,12 +37,12 @@ BlobHarmonicEntity : HarmonicEntity{
 			{\FullControl} {
 				freqs = SynthDef.wrap(frequencyFunction);
 				weights = SynthDef.wrap(weightFunction);
-				if(numChannelsarg>1) {pan = SynthDef.wrap(panFunction)};
+				if(numChannels>1) {pan = SynthDef.wrap(panFunction)};
 				switch(rateControls)
 				{\ar} {
 					Out.ar(\freq.kr, freqs);
 					Out.ar(\weightbus.kr, weights);
-					if(numChannelsarg>1) {Out.ar(\panbus.kr, pan)};
+					if(numChannels>1) {Out.ar(\panbus.kr, pan)};
 				};
 			}
 		}
@@ -55,7 +55,7 @@ BlobHarmonicEntity : HarmonicEntity{
 		{\FullControl} {
 			argArray = argArray ++  [\freqbus, frequencyBus];
 			argArray = argArray ++  [\weightbus, weightBus];
-			if(numChannelsarg>1) {argArray = argArray ++  [\panbus, panBus]};
+			if(numChannels>1) {argArray = argArray ++  [\panbus, panBus]};
 		};
 		computeSynth !? computeSynth.free;
 		computeSynth = Synth(this.makeComputeSynthDef(), argArray, computeGroup);
