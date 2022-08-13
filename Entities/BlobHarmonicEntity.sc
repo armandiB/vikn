@@ -12,7 +12,7 @@ BlobHarmonicEntity : HarmonicEntity{
 	classvar nextInstanceIndex = 0; // to have a unique SynthDef per instance
 
 	*new{|server, size=8, numChannels=1, outbus=0, controlGroup, computeGroup, mergeGroup, synthGroup, frequencyFunction, weightFunction, panFunction, frequencyBus, weightBus, panBus, controlMode=\FullControl, baseUgenName=\SinOsc, rateControls=\ar|
-		^super.new(server, size, numChannels, controlMode, baseUgenName, controlGroup, mergeGroup, synthGroup, outbus=0, frequencyBus, weightBus, panBus, rateControls).initBlobHarmonicEntity(computeGroup, frequencyFunction, weightFunction, panFunction);
+		^super.new(server, size, numChannels, outbus, controlGroup, mergeGroup, synthGroup, frequencyBus, weightBus, panBus, controlMode, baseUgenName, rateControls).initBlobHarmonicEntity(computeGroup, frequencyFunction, weightFunction, panFunction);
 	}
 	initBlobHarmonicEntity{|computeGrouparg, frequencyFunctionarg, weightFunctionarg, panFunctionarg|
 		weightFunction = weightFunctionarg;
@@ -21,6 +21,11 @@ BlobHarmonicEntity : HarmonicEntity{
 		computeGroup = computeGrouparg;
 		instanceIndex = nextInstanceIndex;
 		nextInstanceIndex = nextInstanceIndex + 1;
+		this.initSynthDefBlobHarmonicEntity;
+	}
+	initSynthDefHarmonicEntity{} // To ensure SynthDefs are made and sent after all attributes have been initialized
+	initSynthDefBlobHarmonicEntity{
+		^super.initSynthDefHarmonicEntity;
 	}
 
 	makeSynthDefs{
@@ -40,13 +45,12 @@ BlobHarmonicEntity : HarmonicEntity{
 				if(numChannels>1) {pan = SynthDef.wrap(panFunction)};
 				switch(rateControls)
 				{\ar} {
-					Out.ar(\freq.kr, freqs);
+					Out.ar(\freqbus.kr, freqs);
 					Out.ar(\weightbus.kr, weights);
 					if(numChannels>1) {Out.ar(\panbus.kr, pan)};
 				};
 			}
-		}
-		);
+		});
 	}
 
 	startCompute{
@@ -58,7 +62,7 @@ BlobHarmonicEntity : HarmonicEntity{
 			if(numChannels>1) {argArray = argArray ++  [\panbus, panBus]};
 		};
 		computeSynth !? computeSynth.free;
-		computeSynth = Synth(this.makeComputeSynthDef(), argArray, computeGroup);
+		computeSynth = Synth(this.makeComputeSynthDefName, argArray, computeGroup);
 	}
 
 	free{

@@ -31,19 +31,22 @@ HarmonicEntity : AbstractEntity{
 		mergeGroup = mergeGrouparg;
 		synthGroup = synthGrouparg;
 		outbus = outbusarg;
-		frequencyBus = frequencyBusarg ? switch(rateControls) {\ar} {Bus.audio(server, size)};
-		weightBus = weightBusarg? switch(rateControls) {\ar} {Bus.audio(server, size)};
-		panBus = panBusarg ? if(numChannelsarg>1) {switch(rateControls) {\ar} {Bus.audio(server, size)}};
+		frequencyBus = frequencyBusarg ? switch(rateControlsarg) {\ar} {Bus.audio(server, sizearg)};
+		weightBus = weightBusarg ? switch(rateControlsarg) {\ar} {Bus.audio(server, sizearg)};
+		panBus = panBusarg ? if(numChannelsarg>1) {switch(rateControlsarg) {\ar} {Bus.audio(server, sizearg)}};
 		rateControls = rateControlsarg;
 		mergeSynthList = List();
-		AbstractEntitySynthDefSender(server, this);
+		this.initSynthDefHarmonicEntity;
+	}
+	initSynthDefHarmonicEntity{
+		^AbstractEntitySynthDefSender(server, this);
 	}
 
 	makeMainSynthDefName{
 		^("harmonicEntity_" ++ controlMode.asString ++ "_base_" ++ baseUgenName.asString ++ "_size_" ++ size.asString ++ "_" ++ numChannels.asString ++ "chan_"  ++ rateControls.asString).asSymbol
 	}
 	makeMainSynthDef{
-		^SynthDef(this.makeMainSynthDefName(),
+		^SynthDef(this.makeMainSynthDefName,
 			switch(rateControls)
 			{\ar} {
 			switch(controlMode)
@@ -72,7 +75,7 @@ HarmonicEntity : AbstractEntity{
 	}
 
 	makeSynthDefs{
-		^[this.makeMainSynthDef(), this.makeMergeAddSynthDef()];
+		^[this.makeMainSynthDef, this.makeMergeAddSynthDef];
 	}
 
 	makeSound{|amp=1|
@@ -82,7 +85,7 @@ HarmonicEntity : AbstractEntity{
 		weightBus !? {argArray = argArray ++  [\weightbus, weightBus]};
 		if((numChannels>1) && panBus.isNil.not) {argArray = argArray ++  [\panbus, panBus]};
 		synth !? synth.free;
-		synth = Synth(this.makeMainSynthDefName(), argArray, synthGroup);
+		synth = Synth(this.makeMainSynthDefName, argArray, synthGroup);
 	}
 
 	setBuses {
@@ -95,7 +98,7 @@ HarmonicEntity : AbstractEntity{
 		^("harmonicEntity_" ++ controlMode.asString ++ "_mergeAdd_size_" ++ size.asString ++ "_" ++ numChannels.asString ++ "chan_"  ++ rateControls.asString).asSymbol;
 	}
 	makeMergeAddSynthDef{|fadeTime=0.02, startAmp=1|
-		^SynthDef(this.makeMergeAddSynthDefName(),
+		^SynthDef(this.makeMergeAddSynthDefName,
 			switch(numChannels)
 			{1} {this.addWeightsFunction(fadeTime, startAmp)}
 			{2} {this.addWeightsAndPan2Function(fadeTime, startAmp)}
@@ -132,8 +135,8 @@ HarmonicEntity : AbstractEntity{
 	mergeAdd {|harmonicEntity, fadeTime=0.02, startAmp=1| // Still, phases will generally be different so it's not a perfect sound merge
 		var mergeSynth;
 		switch(numChannels)
-		{1} {mergeSynth = Synth(this.makeMergeAddSynthDefName(), [\weightbus, weightBus, \extWeightBus, harmonicEntity.weightBus, \fadeTime, fadeTime, \amp, startAmp], mergeGroup)}
-		{2} {mergeSynth = Synth(this.makeMergeAddSynthDefName(), [\weightbus, weightBus, \panbus, panBus, \extWeightBus, harmonicEntity.weightBus, \extPanBus, harmonicEntity.panBus, \fadeTime, fadeTime, \amp, startAmp], mergeGroup)};
+		{1} {mergeSynth = Synth(this.makeMergeAddSynthDefName, [\weightbus, weightBus, \extWeightBus, harmonicEntity.weightBus, \fadeTime, fadeTime, \amp, startAmp], mergeGroup)}
+		{2} {mergeSynth = Synth(this.makeMergeAddSynthDefName, [\weightbus, weightBus, \panbus, panBus, \extWeightBus, harmonicEntity.weightBus, \extPanBus, harmonicEntity.panBus, \fadeTime, fadeTime, \amp, startAmp], mergeGroup)};
 		mergeSynthList.add(mergeSynth);
 		^(mergeSynthList.size-1);
 	}
@@ -147,7 +150,7 @@ HarmonicEntity : AbstractEntity{
 
 	free{
 		synth !? synth.free;
-		this.freeAllMerge();
+		this.freeAllMerge;
 		frequencyBus !? frequencyBus.free;
 		weightBus !? weightBus.free;
 		panBus !? panBus.free;
