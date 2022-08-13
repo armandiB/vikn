@@ -7,11 +7,9 @@ HarmonicEntity : AbstractEntity{
 	var <rateControls;
 
 	var <outbus;
-	///<startWeightFrequencies;
-	var <frequencyBus;
-	///<startWeights;
-	var <weightBus;
-	var <panBus;
+	var <>frequencyBus;
+	var <>weightBus;
+	var <>panBus;
 
 	var <controlGroup;
 	var <mergeGroup;
@@ -21,7 +19,7 @@ HarmonicEntity : AbstractEntity{
 
 	///<addWeightsFunction;
 
-	*new{|server, size=8, numChannels=1, outbus=0, frequencyBus, weightBus, panBus, controlGroup, mergeGroup, synthGroup, controlMode=\FullControl, baseUgenName=\SinOsc, rateControls=\ar|
+	*new{|server, size=8, numChannels=1, outbus=0, controlGroup, mergeGroup, synthGroup, frequencyBus, weightBus, panBus, controlMode=\FullControl, baseUgenName=\SinOsc, rateControls=\ar|
 		^super.new(server).initHarmonicEntity(size, numChannels, controlMode, baseUgenName, controlGroup, mergeGroup, synthGroup, outbus=0, frequencyBus, weightBus, panBus, rateControls);
 	}
 	initHarmonicEntity{|sizearg, numChannelsarg, controlModearg, baseUgenNamearg, controlGrouparg, mergeGrouparg, synthGrouparg, outbusarg, frequencyBusarg, weightBusarg, panBusarg, rateControlsarg|
@@ -33,9 +31,9 @@ HarmonicEntity : AbstractEntity{
 		mergeGroup = mergeGrouparg;
 		synthGroup = synthGrouparg;
 		outbus = outbusarg;
-		frequencyBus = frequencyBusarg;
-		weightBus = weightBusarg;
-		panBus = panBusarg;
+		frequencyBus = frequencyBusarg ? switch(rateControls) {\ar} {Bus.audio(server, size)};
+		weightBus = weightBusarg? switch(rateControls) {\ar} {Bus.audio(server, size)};
+		panBus = panBusarg ? if(numChannelsarg>1) {switch(rateControls) {\ar} {Bus.audio(server, size)}};
 		rateControls = rateControlsarg;
 		mergeSynthList = List();
 		AbstractEntitySynthDefSender(server, this);
@@ -77,7 +75,7 @@ HarmonicEntity : AbstractEntity{
 		^[this.makeMainSynthDef(), this.makeMergeAddSynthDef()];
 	}
 
-	createMainSynth {|amp=1|
+	makeSound{|amp=1|
 		var argArray = [\out, outbus];
 		amp !? {argArray = argArray ++  [\amp, amp]};
 		frequencyBus !? {argArray = argArray ++  [\freqbus, frequencyBus]};
@@ -94,7 +92,7 @@ HarmonicEntity : AbstractEntity{
 	}
 
 	makeMergeAddSynthDefName{
-		^("harmonicEntity_" ++ controlMode.asString ++ "_mergeAdd_size_" ++ size.asString ++ "_" ++ numChannels.asString ++ "chan_"  ++ rateControls.asString).asSymbol
+		^("harmonicEntity_" ++ controlMode.asString ++ "_mergeAdd_size_" ++ size.asString ++ "_" ++ numChannels.asString ++ "chan_"  ++ rateControls.asString).asSymbol;
 	}
 	makeMergeAddSynthDef{|fadeTime=0.02, startAmp=1|
 		^SynthDef(this.makeMergeAddSynthDefName(),
