@@ -305,6 +305,9 @@ PatternH {
 		};
 		group.freeAll;
 		midiOut.disconnect;
+		patternMode.switch(
+			\Pdef, {Pdef(patternKey).clear}
+		);
 		^this;
 	}
 }
