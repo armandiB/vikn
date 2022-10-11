@@ -53,13 +53,14 @@ BlobHarmonicEntity : HarmonicEntity{
 		});
 	}
 
-	startCompute{
+	startCompute{ |appendArgArray=#[]|
 		var argArray = [];
 		switch(controlMode)
 		{\FullControl} {
 			argArray = argArray ++  [\freqbus, frequencyBus];
 			argArray = argArray ++  [\weightbus, weightBus];
 			if(numChannels>1) {argArray = argArray ++  [\panbus, panBus]};
+			argArray = argArray ++ appendArgArray;
 		};
 		computeSynth !? computeSynth.free;
 		computeSynth = Synth(this.makeComputeSynthDefName, argArray, computeGroup);

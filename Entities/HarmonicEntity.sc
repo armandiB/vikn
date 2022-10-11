@@ -20,7 +20,7 @@ HarmonicEntity : AbstractEntity{
 	///<addWeightsFunction;
 
 	*new{|server, size=8, numChannels=1, outbus=0, controlGroup, mergeGroup, synthGroup, frequencyBus, weightBus, panBus, controlMode=\FullControl, baseUgenName=\SinOsc, rateControls=\ar|
-		^super.new(server).initHarmonicEntity(size, numChannels, controlMode, baseUgenName, controlGroup, mergeGroup, synthGroup, outbus=0, frequencyBus, weightBus, panBus, rateControls);
+		^super.new(server).initHarmonicEntity(size, numChannels, controlMode, baseUgenName, controlGroup, mergeGroup, synthGroup, outbus, frequencyBus, weightBus, panBus, rateControls);
 	}
 	initHarmonicEntity{|sizearg, numChannelsarg, controlModearg, baseUgenNamearg, controlGrouparg, mergeGrouparg, synthGrouparg, outbusarg, frequencyBusarg, weightBusarg, panBusarg, rateControlsarg|
 		size = sizearg;
