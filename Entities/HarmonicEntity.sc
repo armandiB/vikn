@@ -31,7 +31,7 @@ HarmonicEntity : AbstractEntity{
 		mergeGroup = mergeGrouparg;
 		synthGroup = synthGrouparg;
 		outbus = outbusarg;
-		frequencyBus = frequencyBusarg ? switch(rateControlsarg) {\ar} {Bus.audio(server, sizearg)};
+		frequencyBus = frequencyBusarg ? switch(rateControlsarg) {\ar} {switch(controlMode) {\FullControl} {Bus.audio(server, sizearg)}};
 		weightBus = weightBusarg ? switch(rateControlsarg) {\ar} {Bus.audio(server, sizearg)};
 		panBus = panBusarg ? if(numChannelsarg>1) {switch(rateControlsarg) {\ar} {Bus.audio(server, sizearg)}};
 		rateControls = rateControlsarg;
@@ -49,7 +49,7 @@ HarmonicEntity : AbstractEntity{
 		^SynthDef(this.makeMainSynthDefName,
 			switch(rateControls)
 			{\ar} {
-			switch(controlMode)
+				switch(controlMode)
 				{\FullControl} {
 					{ |out, freqbus, weightbus, freqscale=1, freqoffset=0, amp=1, panbus|
 						var inFreqs = In.ar(freqbus, size);
@@ -66,10 +66,15 @@ HarmonicEntity : AbstractEntity{
 								snd = Mix.ar(Pan2.ar(SinOsc.ar((inFreqs*freqscale) + freqoffset, 0, inWeights), In.ar(panbus, size)));
 							};
 						};
-
 						Out.ar(out, snd*amp);
 					}
 				}
+				{\Params} {
+					{|out, weightbus, amp=1|
+						var inWeights = In.ar(weightbus, size);
+						Out.ar(out, inWeights*amp);
+					}
+				};
 			}
 		);
 	}

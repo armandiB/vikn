@@ -50,6 +50,13 @@ BlobHarmonicEntity : HarmonicEntity{
 					if(numChannels>1) {Out.ar(\panbus.kr, pan)};
 				};
 			}
+			{\Params} {
+				weights = SynthDef.wrap(weightFunction);
+				switch(rateControls)
+				{\ar} {
+					Out.ar(\weightbus.kr, weights);
+				};
+			}
 		});
 	}
 
