@@ -48,28 +48,3 @@ PgbrownStart : PbrownStart {
 		^cur * (1 + step.xrand2)
 	}
 }
-
-PMergeTuples : Pattern {
-    var <>patterns;
-
-    *new { |patterns| ^super.newCopyArgs(patterns) }
-
-    embedInStream { |event|
-        var streams = patterns.collect(_.asStream);
-        var clocks = Array.fill(patterns.size, 0.0);
-        var nextVals = streams.collect(_.next);
-
-        loop {
-            var active = nextVals.collect(_.notNil);
-			var i_min, val;
-            if (active.includes(true).not) { ^nil };
-
-            // Find the stream with the earliest clock
-			i_min = clocks.select({|item, i| active[i]}).minIndex;
-            val = nextVals[i_min];
-            val.yield;
-            clocks[i_min] = clocks[i_min] + val[0];
-            nextVals[i_min] = streams[i_min].next;
-        }
-    }
-}
