@@ -48,3 +48,25 @@ PgbrownStart : PbrownStart {
 		^cur * (1 + step.xrand2)
 	}
 }
+
+PconstRestSafe : Pconst {
+	embedInStream { arg inval;
+		var delta, elapsed = 0.0, nextElapsed, str=pattern.asStream,
+		localSum = sum.value(inval);
+		loop ({
+			delta = str.next(inval);
+			if(delta.isNil) {
+				inval = (localSum - elapsed).yield;
+				^inval
+			};
+			nextElapsed = elapsed + if(delta.isRest) {delta.value} {delta};
+			if (nextElapsed.round(tolerance) >= localSum) {
+				inval = (localSum - elapsed).yield;
+				^inval
+			}{
+				elapsed = nextElapsed;
+				inval = delta.yield;
+			};
+		});
+	}
+}
