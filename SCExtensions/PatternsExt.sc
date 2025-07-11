@@ -56,12 +56,12 @@ PconstRestSafe : Pconst {
 		loop ({
 			delta = str.next(inval);
 			if(delta.isNil) {
-				inval = (localSum - elapsed).yield;
+				inval = Rest(localSum - elapsed).yield;
 				^inval
 			};
 			nextElapsed = elapsed + if(delta.isRest) {delta.value} {delta};
 			if (nextElapsed.round(tolerance) >= localSum) {
-				inval = (localSum - elapsed).yield;
+				inval = if(delta.isRest) {Rest(localSum - elapsed)} {localSum - elapsed}.yield;
 				^inval
 			}{
 				elapsed = nextElapsed;
