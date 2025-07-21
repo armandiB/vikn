@@ -70,3 +70,67 @@ PconstRestSafe : Pconst {
 		});
 	}
 }
+
+PparNoDefault : Ppar {
+	embedInStream { arg inval;
+		var assn;
+		var priorityQ = PriorityQueue.new;
+
+		repeats.value(inval).do({ arg j;
+			var outval, stream, nexttime, now = 0.0;
+
+			this.initStreams(priorityQ);
+
+			// if first event not at time zero
+			if (priorityQ.notEmpty and: { (nexttime = priorityQ.topPriority) > 0.0 }) {
+				outval = Event.silentNoDefault(nexttime, inval);
+				inval = outval.yield;
+				now = nexttime;
+			};
+
+			while { priorityQ.notEmpty } {
+				stream = priorityQ.pop;
+				outval = stream.next(inval).asEvent;
+				if (outval.isNil) {
+					nexttime = priorityQ.topPriority;
+					if (nexttime.notNil, {
+						// that child stream ended, so rest until next one
+						outval = Event.silentNoDefault(nexttime - now, inval);
+						inval = outval.yield;
+						now = nexttime;
+					},{
+						priorityQ.clear;
+					});
+				} {
+					// requeue stream
+					priorityQ.put(now + outval.delta, stream);
+					nexttime = priorityQ.topPriority;
+					outval.put(\delta, nexttime - now);
+
+					inval = outval.yield;
+					// inval ?? { this.purgeQueue(priorityQ); ^nil.yield };
+					now = nexttime;
+				};
+			};
+		});
+		^inval;
+	}
+}
+
++ Event {
+	*silentNoDefault { |dur(1.0), inEvent|
+		var delta;
+		if(inEvent.isNil) { inEvent = Event.new }
+		{ inEvent = inEvent.copy };
+		delta = dur * (inEvent[\stretch] ? 1);
+		if(dur.isRest.not) { dur = Rest(dur) };
+		// Not changing parent event to default event
+		inEvent.put(\dur, dur).put(\delta, delta);
+		^inEvent
+	}
+}
+
+// Fix for Bag while waiting pull request approval
++ Bag {
+	copy { ^this.class.newCopyArgs(contents.copy) }
+}
