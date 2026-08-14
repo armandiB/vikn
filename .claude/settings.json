@@ -2,12 +2,25 @@
   "permissions": {
     "defaultMode": "plan",
     "allow": [
-      "Read", "Grep", "Glob",
-      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)",
-      "Bash(git blame:*)", "Bash(git show:*)",
-      "Bash(git commit:*)", "Bash(git branch:*)",
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git blame:*)",
+      "Bash(git show:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
       "Bash(~/Music/Supercollider/HomewareSC/scripts/recompile-check.sh)",
-      "Bash(~/Music/Supercollider/HomewareSC/scripts/callers.sh:*)"
+      "Bash(~/Music/Supercollider/HomewareSC/scripts/callers.sh:*)",
+      "Bash(git show:*)",
+      "Bash(git blame:*)",
+      "Bash(git shortlog:*)",
+      "Bash(git describe:*)",
+      "Bash(git tag:*)",
+      "Bash(git rev-list:*)",
+      "Bash(git diff-tree:*)"
     ],
     "deny": [
       "Bash(rm -rf:*)",
