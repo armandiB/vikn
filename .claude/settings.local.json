@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "/Users/armand/Music/Supercollider/HomewareSC",
+      "/Applications/SuperCollider.app/Contents/Resources/HelpSource",
+      "/Applications/SuperCollider.app/Contents/Resources/SCClassLibrary"
+    ],
+    "allow": ["Edit", "Write"]
+  }
+}

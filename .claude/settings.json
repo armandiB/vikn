@@ -2,20 +2,12 @@
   "permissions": {
     "defaultMode": "plan",
     "allow": [
-      "Read",
-      "Grep",
-      "Glob",
-      "Bash(git status:*)",
-      "Bash(git diff:*)",
-      "Bash(git log:*)",
-      "Bash(git blame:*)",
-      "Bash(git show:*)",
-      "Bash(git commit:*)",
-      "Bash(git branch:*)",
+      "Read", "Grep", "Glob",
+      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)",
+      "Bash(git blame:*)", "Bash(git show:*)",
+      "Bash(git commit:*)", "Bash(git branch:*)",
       "Bash(~/Music/Supercollider/HomewareSC/scripts/recompile-check.sh)",
-      "Bash(~/Music/Supercollider/HomewareSC/scripts/callers.sh:*)",
-      "Edit",
-      "Write"
+      "Bash(~/Music/Supercollider/HomewareSC/scripts/callers.sh:*)"
     ],
     "deny": [
       "Bash(rm -rf:*)",
@@ -27,11 +19,6 @@
       "Bash(git stash:*)",
       "Bash(git rebase:*)",
       "Bash(git commit --amend:*)"
-    ],
-    "additionalDirectories": [
-      "/Users/armand/Library/Application Support/SuperCollider/Extensions/vikn",
-      "/Applications/SuperCollider.app/Contents/Resources/HelpSource",
-      "/Applications/SuperCollider.app/Contents/Resources/SCClassLibrary"
     ]
   },
   "hooks": {

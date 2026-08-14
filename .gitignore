@@ -1,7 +1,7 @@
 # --- Claude ---
+# .claude/settings.local.json. # For now, commit this for backup
 *.scsyndef
 build/
-.claude/settings.local.json
 .claude/worktrees/
 CLAUDE.local.md
 
