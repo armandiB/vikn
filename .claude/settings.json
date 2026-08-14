@@ -1,0 +1,53 @@
+{
+  "permissions": {
+    "defaultMode": "plan",
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git blame:*)",
+      "Bash(git show:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(~/Music/Supercollider/HomewareSC/scripts/recompile-check.sh)",
+      "Bash(~/Music/Supercollider/HomewareSC/scripts/callers.sh:*)",
+      "Edit",
+      "Write"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git push:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git checkout --:*)",
+      "Bash(git restore:*)",
+      "Bash(git stash:*)",
+      "Bash(git rebase:*)",
+      "Bash(git commit --amend:*)"
+    ],
+    "additionalDirectories": [
+      "/Users/armand/Library/Application Support/SuperCollider/Extensions/vikn",
+      "/Applications/SuperCollider.app/Contents/Resources/HelpSource",
+      "/Applications/SuperCollider.app/Contents/Resources/SCClassLibrary"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/Music/Supercollider/HomewareSC/scripts/recompile-check.sh",
+            "args": [],
+            "timeout": 180,
+            "statusMessage": "Recompiling class library…"
+          }
+        ]
+      }
+    ]
+  }
+}
