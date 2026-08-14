@@ -1,1 +1,0 @@
-Stage files individually by path. Never `git add -A` or `git add .`.
