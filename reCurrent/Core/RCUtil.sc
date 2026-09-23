@@ -207,6 +207,12 @@ RCUtil {
 		^res
 	}
 
+	// "set_width" → \setWidth
+	*camelCase { |name|
+		var parts = name.asString.split($_);
+		^(parts[0] ++ parts[1..].collect { |p| if(p.size > 0) { p[0].toUpper ++ p[1..] } { "" } }.join).asSymbol
+	}
+
 	//////// function-valued attributes
 
 	// A function stored in an Event is auto-called by dict.key (with the Event
