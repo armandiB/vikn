@@ -34,6 +34,20 @@ RCLayer {
 
 	beat { |name| ^beats[name.asSymbol] }
 
+	// Create, register and play a beat (BlockBeats' make_beat_from_dict).
+	// seeds / addFirstSeeds: nil → the song seed for every streamed key,
+	// \none → unseeded, a number, an Array (by position) or a Dictionary (by key).
+	addBeat { |name, attrDict, chan, midiOut, seeds, addFirst, addFirstSeeds, terminationKey, quant, post = true|
+		var b;
+		if(seeds == \none) { seeds = () };
+		if(addFirstSeeds == \none) { addFirstSeeds = [] };
+		b = RCBeat(this, name, attrDict, chan, midiOut, seeds, addFirst, addFirstSeeds, terminationKey);
+		this.registerBeat(b);
+		b.play(quant);
+		if(post) { RCLog.post(\layer, "started beat %/%/%".format(this.songName, key, name)) };
+		^b
+	}
+
 	// A beat with the same name replaces (frees) the previous one.
 	registerBeat { |beat|
 		var name = beat.name;
