@@ -12,6 +12,7 @@ RCSong {
 	var <name, <seed, <session, <layers, <groups;
 	var <groupArray, <outArray, <inChanArray, <fobjectGroupArray, <fobjectOutArray;
 	var <loopBuffers, <>sampleLibrary, <history;
+	var <osc, <midi, <keyboard;
 	var server, clock;
 
 	*new { |name, seed, session, layerKeys = #[\core, \details, \meta]|
@@ -34,8 +35,19 @@ RCSong {
 		inChanArray = [0];
 		fobjectGroupArray = [];
 		fobjectOutArray = [0];
+		osc = RCOsc(this);
+		midi = RCMidi(this);
 		layerKeysarg.do { |k| this.addLayer(k) };
 		session.registerSong(this);
+	}
+
+	//////// control surfaces
+
+	// MPE keyboard state for a device (see RCKeyboardState).
+	makeKeyboard { |deviceName, staleTimeout|
+		keyboard !? (_.free);
+		keyboard = RCKeyboardState(this, deviceName, staleTimeout);
+		^keyboard
 	}
 
 	server { ^server ?? { session.server } }
@@ -155,6 +167,9 @@ RCSong {
 	free {
 		this.clearAll(true);
 		layers.do(_.free);
+		osc.freeAll;
+		midi.freeAll;
+		keyboard !? (_.free);
 		session.unregisterSong(this);
 	}
 
