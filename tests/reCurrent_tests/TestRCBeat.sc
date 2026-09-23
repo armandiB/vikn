@@ -165,6 +165,13 @@ TestRCBeat : UnitTest {
 		this.assert(this.logHas("added key"), "restart reported");
 	}
 
+	test_nil_attribute_is_skipped {
+		var b = RCBeat(layer, \nl, [type: \rest, dur_flex: 1, sustain: nil, x: 3]);
+		var evs = this.pull(b, 2);
+		this.assertEquals(evs.collect(_.x), [3, 3], "a nil attribute does not end the pattern");
+		this.assertEquals(b.keyProxy(\sustain), nil, "nil attribute not declared");
+	}
+
 	test_reserved_key_warning {
 		RCBeat(layer, \rk, [type: \rest, dur_flex: 1, release: 1]);
 		this.assert(this.logHas("shadows a method"), "reserved attribute name warned");

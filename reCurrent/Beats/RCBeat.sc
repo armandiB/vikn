@@ -191,8 +191,10 @@ RCBeat {
 	}
 
 	// Pairs to declare at creation for one attribute (dur keys go to realDur).
+	// A nil value means "not set" (a template key deleted with deleteAttrs).
 	prInitialPairs { |key, val, seed|
 		key = key.asSymbol;
+		if(val.isNil) { ^[] };
 		if(key == \dur) { key = \dur_flex };
 		if(key == \dur_flex or: { key == \dur_list } or: { key == \real_dur }) {
 			this.prSetDur(key, val, seed);
