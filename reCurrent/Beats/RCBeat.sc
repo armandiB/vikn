@@ -155,6 +155,7 @@ RCBeat {
 			if(hiddenKeys.includes(key).not and: { key != \chan }) { keyOrder.add(key) };
 		};
 		pbindProxy.source.quant = editQuant;
+		pbindProxy.source.clock = layer.clock;   // JITLib defers key changes on this clock, never TempoClock.default
 		pattern = this.prGuardedPattern;
 	}
 
@@ -379,9 +380,11 @@ RCBeat {
 		}
 	}
 
+	// Free from outside the pattern evaluation. AppClock is never stopped and
+	// runs on the main thread, so this cannot fail on a stopped TempoClock.
 	prScheduleFree {
 		if(isFreed) { ^this };
-		layer.clock.sched(0, { this.free(post: false); nil });
+		AppClock.sched(0, { RCGuard.call(tag, nil) { this.free(post: false) }; nil });
 	}
 
 	//////// live editing
@@ -473,11 +476,14 @@ RCBeat {
 	isPlaying { ^player.notNil and: { player.isPlaying } }
 	asStream { ^pattern.asStream }
 
+	// No pbindProxy.clear here: EventPatternProxy.clear schedules deferred work
+	// on its clock, which could touch the dead stream later. Dropping the
+	// player is enough; the proxy is garbage once unreferenced.
 	free { |post = true|
 		if(isFreed) { ^this };
 		isFreed = true;
-		this.stop;
-		RCGuard.call(tag, nil) { pbindProxy.clear };
+		RCGuard.call(tag, nil) { this.stop };
+		player = nil;
 		layer.unregisterBeat(this);
 		if(post) { RCLog.post(tag, "freed") };
 	}
