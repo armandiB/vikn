@@ -207,6 +207,18 @@ RCUtil {
 		^res
 	}
 
+	//////// function-valued attributes
+
+	// A function stored in an Event is auto-called by dict.key (with the Event
+	// as first argument), which is why the proto-library wrapped such
+	// functions in an extra {}. This returns the function either way: a
+	// zero-argument function is taken as a wrapper and unwrapped once.
+	*attrFunc { |dict, key|
+		var raw = dict[key];
+		if(raw.isKindOf(Function) and: { raw.def.argNames.isNil or: { raw.def.argNames.size == 0 } }) { ^raw.value };
+		^raw
+	}
+
 	//////// attribute names
 
 	// True when `ev.key` would call a method instead of reading the key
