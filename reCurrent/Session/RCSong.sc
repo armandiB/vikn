@@ -12,7 +12,7 @@ RCSong {
 	var <name, <seed, <session, <layers, <groups;
 	var <groupArray, <outArray, <inChanArray, <fobjectGroupArray, <fobjectOutArray;
 	var <loopBuffers, <>sampleLibrary, <history;
-	var <osc, <midi, <keyboard;
+	var <osc, <midi, <keyboard, <registry;
 	var server, clock;
 
 	*new { |name, seed, session, layerKeys = #[\core, \details, \meta]|
@@ -37,6 +37,7 @@ RCSong {
 		fobjectOutArray = [0];
 		osc = RCOsc(this);
 		midi = RCMidi(this);
+		registry = RCOrgnsmRegistry(this);
 		layerKeysarg.do { |k| this.addLayer(k) };
 		session.registerSong(this);
 	}
@@ -157,6 +158,9 @@ RCSong {
 	// definitions survive (a scene/init handler must stay reachable).
 	clearAll { |freeGroups = true|
 		this.killAllBeats;
+		registry.fobjects.copy.do { |f| RCGuard.call(\song, nil) { f.free } };
+		registry.all.do { |o| RCGuard.call(\song, nil) { o.free } };
+		registry.clear;
 		loopBuffers.copy.do(_.free);
 		loopBuffers.clear;
 		this.freeSampleLibrary;
