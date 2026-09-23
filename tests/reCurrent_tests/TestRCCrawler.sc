@@ -2,9 +2,8 @@ TestRCCrawler : UnitTest {
 	var clock, song, savedRateLimit, lib, rd;
 
 	setUp {
-		RCSession.reset;
-		clock = TempoClock.new(20);
-		RCSession.boot(Server.default, clock, oscPort: nil, initMidi: false);
+		clock = RCTestSupport.clock;
+		RCTestSupport.bootSession;
 		song = RCSong(\cr, 1994);
 		savedRateLimit = RCLog.rateLimit;
 		RCLog.rateLimit = 0;
@@ -19,8 +18,7 @@ TestRCCrawler : UnitTest {
 	}
 
 	tearDown {
-		RCSession.reset;
-		clock.stop;
+		RCTestSupport.reset;
 		RCLog.rateLimit = savedRateLimit;
 	}
 

@@ -12,15 +12,13 @@ TestRCSession : UnitTest {
 	var clock;
 
 	setUp {
-		RCSession.reset;
-		clock = TempoClock.new;
-		RCSession.boot(Server.default, clock, oscPort: nil, initMidi: false);
+		clock = RCTestSupport.clock;
+		RCTestSupport.bootSession;
 		RCLog.reset;
 	}
 
 	tearDown {
-		RCSession.reset;
-		clock.stop;
+		RCTestSupport.reset;
 	}
 
 	test_boot_is_idempotent {

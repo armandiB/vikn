@@ -2,9 +2,8 @@ TestRCBeat : UnitTest {
 	var clock, song, layer, savedRateLimit;
 
 	setUp {
-		RCSession.reset;
-		clock = TempoClock.new(20);
-		RCSession.boot(Server.default, clock, oscPort: nil, initMidi: false);
+		clock = RCTestSupport.clock;
+		RCTestSupport.bootSession;
 		song = RCSong(\tb, 1994);
 		layer = song.layer(\core);
 		savedRateLimit = RCLog.rateLimit;
@@ -13,8 +12,7 @@ TestRCBeat : UnitTest {
 	}
 
 	tearDown {
-		RCSession.reset;
-		clock.stop;
+		RCTestSupport.reset;
 		RCLog.rateLimit = savedRateLimit;
 	}
 
