@@ -1,0 +1,16 @@
+TITLE:: RCSynthDefs
+summary:: SynthDef helpers for orgnsms
+categories:: Libraries>reCurrent
+related:: Classes/RCOrgnsm, Classes/RCFObject, Classes/RCLoopBuffer
+
+CLASSMETHODS::
+METHOD:: addForOrgnsms
+Wraps a sound function (returning its signal) in an output stage and adds one SynthDef per possible number of outputs (code::name__1_out:: ... code::name__<maxNumOuts>_out::) so that a note can be spread over several fobject buses (code::\outs:: / code::\outamps::). A failing sound function is reported, not thrown.
+argument:: name
+argument:: soundFunc
+argument:: offsetOut
+argument:: oneOutputOnly
+METHOD:: outputSuffix
+METHOD:: maxNumOuts
+METHOD:: addLoopBufferWriters
+code::write_buffer_<n>chan:: SynthDefs for link::Classes/RCLoopBuffer::.

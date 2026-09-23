@@ -1,0 +1,33 @@
+TITLE:: RCMidi
+summary:: MIDI CC control of a song, with 14-bit fine pairing
+categories:: Libraries>reCurrent
+related:: Classes/RCSong, Classes/RCKeyboardState
+
+DESCRIPTION::
+The proto-library's code::control_synth:: / code::control_midi:: / code::control_attribute::. Every MIDIdef made here is remembered by name and freed by link::#-free:: / link::#-freeAll::. code::fine: true:: pairs cc with cc + 32 (LSB).
+
+CLASSMETHODS::
+METHOD:: findSrcId
+uid of a MIDI source by name; nil with a warning when absent (the mapping then listens to all sources).
+
+INSTANCEMETHODS::
+METHOD:: control
+argument:: name
+argument:: ccNum
+argument:: chan
+argument:: deviceName
+argument:: valFunc
+Maps the raw value (0..127, fractional with fine).
+argument:: action
+Receives code::(value, raw)::.
+argument:: fine
+METHOD:: controlSynth
+argument:: synth
+argument:: attr
+nil sets the value itself (buses).
+argument:: setNothing
+METHOD:: controlAttribute
+code::object[key] = value:: for dictionaries, code::object.key_(value):: otherwise.
+METHOD:: free
+argument:: name
+METHOD:: freeAll

@@ -1,0 +1,26 @@
+TITLE:: RCMatrix
+summary:: Small dense linear algebra on nested Arrays, usable on UGens
+categories:: Libraries>reCurrent
+related:: Classes/RCFObject
+
+DESCRIPTION::
+Written without conditionals on values so that the same code runs on numbers and on control-rate UGens inside a SynthDef. Divisions go through link::#*safeReciprocal:: (code::x / max(x², eps²)::): a singular pivot yields zeros, never NaN or inf.
+
+CLASSMETHODS::
+METHOD:: identity
+METHOD:: diagonal
+METHOD:: product
+METHOD:: frobeniusNorm
+METHOD:: safeReciprocal
+METHOD:: safeDiv
+METHOD:: givens
+Rotation mapping strong::vector:: onto the direction of strong::origin::, acting only in their plane.
+METHOD:: householder
+METHOD:: invertGJ
+METHOD:: invertLU
+Numbers only (partial pivoting needs comparisons).
+METHOD:: invertCholesky
+METHOD:: invertLDL
+METHOD:: widthMatrixFromFactors
+METHOD:: powerAdjustmentAmbisonics
+METHOD:: inversePowerAdjustmentAmbisonics

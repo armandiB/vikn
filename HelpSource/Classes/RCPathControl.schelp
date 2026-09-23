@@ -1,0 +1,35 @@
+TITLE:: RCPathControl
+summary:: A silent orgnsm distributing one rhythm over a batch along a path on a sphere
+categories:: Libraries>reCurrent
+related:: Classes/RCOrgnsm, Classes/RCBatch, Classes/RCRhythmDict, Classes/RCSpherePath, Classes/RCOrgnsmPatterns
+
+DESCRIPTION::
+Port of the Assemblage files' code::~orgnsm_path_control::. Once per loop it reads one rhythm from a link::Classes/RCRhythmDict::, walks a path over a spherical design (any object answering code::size::, code::triplets::, code::calcTriplets::) and hands each hit to the orgnsm of the controlled batch sitting at that point, writing every orgnsm's code::seq_list::, code::other_params_key_list:: and code::dur_params:: for the coming loop. The controlled orgnsms read the result through link::Classes/RCOrgnsmPatterns#*seqParams::.
+
+Configurable static attributes: code::dur_params::, code::path_priority::, code::start_orgnsm_series::, code::seed_orgnsm_series::, code::orgnsm_series_pattern:: (default code::Pseq(path.mirror1, inf)::; Ref an Array in the series to hit several orgnsms at once), code::add_previous_orgnsms_to_other_params::, code::other_params_default_values::, code::path_generation_func:: (Ref'd function code::(design, start, seed)::).
+
+CLASSMETHODS::
+METHOD:: new
+argument:: song
+argument:: design
+argument:: rhythmDict
+argument:: pathName
+argument:: pathKey
+argument:: controlledBatch
+argument:: species
+argument:: tribe
+
+INSTANCEMETHODS::
+METHOD:: seqsInfo
+METHOD:: otherParamsKeyList
+METHOD:: seqListByOrgnsm
+Compile the loop and distribute its hits: batchKey → [RCSubseq].
+METHOD:: setAttrsInOrgnsms
+
+EXAMPLES::
+code::
+~path = RCPathControl(~song, ~tdesign, ~rhythmDict, \sampler, \test_sampler_w0, ~batch);
+~pathBatch = RCBatch(\path_sampler, ~path, layerKey: \core);
+~pathBatch.addCreate(~batch.name, ("dur_params": [4, 1], "quant": [4, 0]));
+~pathBatch.startPrepared;
+::

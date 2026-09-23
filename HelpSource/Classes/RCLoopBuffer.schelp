@@ -1,0 +1,25 @@
+TITLE:: RCLoopBuffer
+summary:: A live input loop capture
+categories:: Libraries>reCurrent
+related:: Classes/RCSong, Classes/RCOrgnsmPatterns, Classes/RCSynthDefs
+
+DESCRIPTION::
+Allocates a buffer of strong::loopBeats:: × strong::maxTempoDrop:: beats at the current tempo, starts a code::write_buffer_<n>chan:: synth recording from code::song.inChanArray[inChanIdx]:: and a clock-locked routine that retriggers the record head every loop. If the tempo later drops by more than the margin, a warning is posted once and the recording is truncated. Registered under its key in the song; freed by the song's code::clearAll::.
+
+CLASSMETHODS::
+METHOD:: new
+argument:: song
+argument:: key
+argument:: loopBeats
+argument:: inChanIdx
+argument:: numChannels
+argument:: layerKey
+argument:: maxTempoDrop
+METHOD:: framesFor
+
+INSTANCEMETHODS::
+METHOD:: buffer
+METHOD:: synth
+METHOD:: numFramesPerLoop
+METHOD:: fits
+METHOD:: free

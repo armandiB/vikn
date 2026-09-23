@@ -1,0 +1,33 @@
+TITLE:: RCSubseqLibrary
+summary:: The vocabulary of subsequences of a piece
+categories:: Libraries>reCurrent
+related:: Classes/RCRhythmDict, Classes/RCSubseq
+
+DESCRIPTION::
+Entries are nested Events: category → sub-category → name → code::[name, shift, durs, params?, keysIgnoreOrder?]::, addressed by dotted paths.
+
+CLASSMETHODS::
+METHOD:: newFrom
+argument:: nestedEvent
+
+INSTANCEMETHODS::
+METHOD:: at
+argument:: name
+returns:: the entry padded to 4 elements, or nil with an error
+METHOD:: put
+argument:: category
+argument:: event
+METHOD:: includes
+METHOD:: size
+argument:: name
+METHOD:: names
+METHOD:: entries
+
+EXAMPLES::
+code::
+~lib = RCSubseqLibrary.newFrom((
+    clave_44: (son: ('1': [\son, 0, [3, 3, 4, 2, 4]])),
+    percs: (kick: (fourfour: [\fourfour, 0, [1, 1, 1, 1]]))
+));
+~lib.at("percs.kick.fourfour");
+::

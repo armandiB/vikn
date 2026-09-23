@@ -1,0 +1,28 @@
+TITLE:: RCOrgnsmPatterns
+summary:: The pattern library for orgnsms
+categories:: Libraries>reCurrent
+related:: Classes/RCOrgnsm, Classes/RCRhythmDict, Classes/RCPathControl
+
+DESCRIPTION::
+All patterns read the orgnsm through the event (code::ev.self::) so they can live in a template and serve every clone. Plazy bodies receive the event under construction: code::Plazy { |ev| ev.self.staticAttrs }:: replaces the old code::~pat.self.dereference.static_attrs::.
+
+CLASSMETHODS::
+METHOD:: seqParams
+Loop after loop of link::#*seqParamsForLoop:: over code::staticAttrs.seq_list::, aligned on the earliest subseq shift. Use in code::addFirstArrayBase:: as code::compute_seq_params: RCOrgnsmPatterns.seqParams(true):: and read code::ev.compute_seq_params.dereference[\dur]:: / code::[key]::.
+argument:: returnDict
+true: Ref'd Dictionary per value; false: code::[dur, params...]:: arrays.
+METHOD:: seqParamsForLoop
+One loop merged from subseqs with an offset-aware scheduler: a hit at the loop start keeps its length and no zero-length rest trails the loop.
+argument:: useOrgnsmStaticAttrs
+argument:: staticAttrs
+argument:: initialBegShift
+argument:: returnDict
+METHOD:: euclidDurAmp
+code::[dur, amp]:: pairs from code::staticAttrs.amp_params:: (code::[[onsets, shift, amp], ...]::) over code::dur_params = [loopDur, pulses]::.
+METHOD:: numFramesPerLoop
+METHOD:: cuttingFadeStart
+Buffer start position: real-time tracking at code::cutting_fade:: 0, Brownian/serial cutting at 1. The cursor lives in the orgnsm's static attributes (per orgnsm) or in strong::holder:: to share it.
+argument:: cursorKey
+argument:: holder
+METHOD:: loop
+code::Pn(Plazy(func)):: that cannot spin: a body yielding nothing rests one beat.

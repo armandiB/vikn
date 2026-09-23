@@ -1,0 +1,70 @@
+TITLE:: RCSong
+summary:: One song: identity, seed, layers, server topology and resources
+categories:: Libraries>reCurrent
+related:: Guides/reCurrent, Classes/RCSession, Classes/RCLayer, Classes/RCOrgnsmRegistry, Classes/RCOsc, Classes/RCMidi
+
+DESCRIPTION::
+Replaces the per-song globals of the proto-library: song name and seed, the beat environments (now link::Classes/RCLayer::s), the global out/group arrays, the orgnsm registry and the group variables. A song registers itself in the session; creating a song with an existing name frees the previous one.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: name
+A Symbol, used in OSC paths (code::/<name>/...::) and beat names.
+argument:: seed
+Default random seed for every streamed attribute of every beat.
+argument:: session
+Defaults to link::Classes/RCSession#*default::.
+argument:: layerKeys
+Layers created at construction, code::#[\core, \details, \meta]:: by default.
+
+INSTANCEMETHODS::
+
+METHOD:: layer
+argument:: key
+The link::Classes/RCLayer::, or nil (with a warning).
+METHOD:: addLayer
+argument:: key
+argument:: clock
+argument:: swing
+argument:: midiOut
+argument:: addMidiOuts
+
+METHOD:: outArray
+METHOD:: groupArray
+METHOD:: inChanArray
+METHOD:: fobjectOutArray
+METHOD:: fobjectGroupArray
+Arrays indexed by code::orgnsm_out_idx::, code::orgnsm_group_idx::, loop buffer input index and fobject create() indices. An index outside the array is reported and falls back (out 0, default group).
+
+METHOD:: makeGroups
+Standard node tree: code::\in:: → code::\sounds:: { code::\orgnsms:: (ParGroup), code::\fobjects:: (ParGroup) } → code::\background:: → code::\outputDecode::. Sets code::groupArray:: and code::fobjectGroupArray::. Needs a running server.
+METHOD:: group
+argument:: role
+METHOD:: releaseAll
+code::group.set(\gate, 0):: on a group (default code::\sounds::): the clean panic.
+METHOD:: freeAllNodes
+
+METHOD:: registry
+The link::Classes/RCOrgnsmRegistry::.
+METHOD:: osc
+The link::Classes/RCOsc::.
+METHOD:: midi
+The link::Classes/RCMidi::.
+METHOD:: makeKeyboard
+argument:: deviceName
+argument:: staleTimeout
+A link::Classes/RCKeyboardState:: for an MPE keyboard.
+METHOD:: keyboard
+
+METHOD:: loopBuffer
+argument:: key
+METHOD:: sampleLibrary
+A code::MultiLevelIdentityDictionary:: of buffers (see link::Classes/RCUtil#*fileTree::), freed by code::clearAll::.
+
+METHOD:: allBeats
+METHOD:: killAllBeats
+METHOD:: clearAll
+Everything a scene/init re-creates: beats, orgnsms, fobjects, loop buffers, sample library, groups. OSC and MIDI definitions survive.
+argument:: freeGroups
+METHOD:: free

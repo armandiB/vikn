@@ -1,0 +1,50 @@
+TITLE:: RCSession
+summary:: The rig: server, clock, OSC port, MIDI and the registry of songs
+categories:: Libraries>reCurrent
+related:: Guides/reCurrent, Classes/RCSong
+
+DESCRIPTION::
+One session per sclang process. Nothing is created at class-load time: a piece bootstrap calls link::#*boot::, which is idempotent (a running clock is never re-created, an already open port is fine, MIDI is initialised once). The library never stops the clock.
+
+CLASSMETHODS::
+
+METHOD:: boot
+Create or update the default session.
+argument:: server
+Defaults to code::Server.default::.
+argument:: clock
+A clock to use. When nil, a permanent code::LinkClock:: is created unless a running clock exists.
+argument:: oscPort
+UDP port to open for OSC control (nil: none).
+argument:: initMidi
+When true, code::MIDIClient.init:: and code::MIDIIn.connectAll:: once.
+returns:: the session
+
+METHOD:: default
+The current session, or nil before boot.
+
+METHOD:: killAll
+Stop every beat of every song. Frees nothing else (emergency handle).
+
+METHOD:: reset
+Free all songs and forget the session (tests).
+
+INSTANCEMETHODS::
+
+METHOD:: server
+METHOD:: clock
+METHOD:: localAddr
+The code::NetAddr:: OSC defs listen to (127.0.0.1, any port).
+METHOD:: songs
+code::IdentityDictionary:: name → link::Classes/RCSong::.
+METHOD:: song
+argument:: name
+METHOD:: killAll
+METHOD:: free
+
+EXAMPLES::
+
+code::
+RCSession.boot(s, oscPort: 32345);
+RCSession.boot(Server.default, TempoClock.new(2).permanent_(true), oscPort: nil, initMidi: false);   // tests, no hardware
+::

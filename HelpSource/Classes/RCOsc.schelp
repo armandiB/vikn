@@ -1,0 +1,34 @@
+TITLE:: RCOsc
+summary:: OSC control surface of a song
+categories:: Libraries>reCurrent
+related:: Classes/RCSong, Classes/RCBeatSpec
+
+DESCRIPTION::
+Paths are code::/<song>/<instr>/<names...>:: and keys code::<song>_<instr>_<names...>::, exactly as the proto-library made them, so a Chataigne project built for it keeps working. A Symbol with underscores becomes nested segments (code::\start_normal:: → code::/start/normal::), an Array gives the segments, nil adds nothing. Handlers are guarded.
+
+INSTANCEMETHODS::
+METHOD:: def
+argument:: instr
+argument:: names
+argument:: func
+argument:: print
+argument:: inEnvir
+returns:: the guarded handler, callable directly
+METHOD:: startDefs
+kill / pause / resume / start defs for an link::Classes/RCBeatSpec::.
+argument:: spec
+argument:: instr
+argument:: names
+METHOD:: editDef
+One path → one attribute change on one beat.
+argument:: layerKey
+argument:: beatName
+argument:: names
+argument:: key
+argument:: val
+argument:: seed
+METHOD:: killAllDef
+METHOD:: path
+METHOD:: key
+METHOD:: free
+METHOD:: freeAll

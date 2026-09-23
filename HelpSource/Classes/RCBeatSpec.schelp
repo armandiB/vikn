@@ -1,0 +1,28 @@
+TITLE:: RCBeatSpec
+summary:: A prepared beat: everything needed to start it, without starting
+categories:: Libraries>reCurrent
+related:: Classes/RCBeat, Classes/RCOsc
+
+DESCRIPTION::
+The proto-library returned "a function that starts the pattern when calling .value"; an RCBeatSpec is that function as an object. link::Classes/RCOsc#-startDefs:: makes kill / pause / resume / start OSC defs for it.
+
+CLASSMETHODS::
+METHOD:: new
+argument:: layer
+argument:: name
+argument:: attrDict
+argument:: chan
+argument:: seeds
+argument:: addFirst
+argument:: addFirstSeeds
+argument:: terminationKey
+argument:: killFunc
+
+INSTANCEMETHODS::
+METHOD:: start
+argument:: quant
+returns:: the link::Classes/RCBeat::
+METHOD:: value
+Same as start.
+METHOD:: kill
+METHOD:: beat

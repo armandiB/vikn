@@ -1,0 +1,22 @@
+TITLE:: RCSwing
+summary:: Swing function of a layer
+categories:: Libraries>reCurrent
+related:: Classes/RCLayer, Classes/RCBeat
+
+DESCRIPTION::
+code::value(t):: is the time offset (beats) added to the event that starts at running time strong::t:: of a beat. Default shape: code::amount * sin(pi * (t % mod)) + shift::. A custom code::func:: receives code::(t, swing)::. Non-finite results become 0.
+
+CLASSMETHODS::
+METHOD:: new
+argument:: amount
+argument:: mod
+argument:: shift
+argument:: func
+
+INSTANCEMETHODS::
+METHOD:: value
+argument:: t
+METHOD:: amount
+METHOD:: mod
+METHOD:: shift
+METHOD:: func

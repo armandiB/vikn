@@ -1,0 +1,18 @@
+TITLE:: RCSpherePath
+summary:: Seeded paths and disjoint triplets over a spherical design, Thue-Morse
+categories:: Libraries>reCurrent
+related:: Classes/RCPathControl
+
+CLASSMETHODS::
+METHOD:: generatePath
+A path of strong::pathSize:: adjacent, distinct points starting at strong::startPoint::; retried (seeded) up to strong::maxTries:: times, the longest path found is returned.
+argument:: design
+argument:: startPoint
+argument:: seed
+argument:: pathSize
+argument:: maxTries
+METHOD:: disjointTriplets
+Faces sharing no point, covering as many points as found.
+METHOD:: thueMorse
+argument:: pos
+argument:: base

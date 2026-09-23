@@ -1,0 +1,21 @@
+TITLE:: RCDurList
+summary:: An editable list of durations driving a beat
+categories:: Libraries>reCurrent
+related:: Classes/RCBeat, Classes/RCRhythm
+
+DESCRIPTION::
+Installed by code::beat.set(\dur, [1, 0.5, Rest(0.5)])::. Element edits take effect immediately (Pseq reads lazily), structural edits at the next loop.
+
+INSTANCEMETHODS::
+METHOD:: removeHit
+Turn the hit at a position (wrapped) into a rest.
+argument:: pos
+METHOD:: addHit
+Insert a hit at a time from the loop start, splitting the hit or rest that contains it.
+argument:: durFromStart
+METHOD:: totalDur
+Set: truncate or extend the loop (fixes the proto-library's index-shifting removal).
+METHOD:: duplicate
+argument:: copies
+METHOD:: array
+METHOD:: size

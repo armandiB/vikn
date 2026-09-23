@@ -1,0 +1,24 @@
+TITLE:: RCOrgnsmRegistry
+summary:: Registry of a song's orgnsms and fobjects
+categories:: Libraries>reCurrent
+related:: Classes/RCSong, Classes/RCOrgnsm, Classes/RCFObject
+
+DESCRIPTION::
+code::orgnsms:: is species → tribe → number → link::Classes/RCOrgnsm::. Numbers are allocated per (species, tribe) and never reused within a song; registering a fixed number that already exists picks the next free one instead of overwriting. Fobjects are registered by name, with a numeric suffix when the name is taken.
+
+INSTANCEMETHODS::
+METHOD:: register
+argument:: orgnsm
+argument:: pickNewNumber
+METHOD:: remove
+METHOD:: tribe
+argument:: species
+argument:: tribe
+METHOD:: all
+METHOD:: size
+METHOD:: fobjects
+METHOD:: fobject
+argument:: name
+METHOD:: addFobject
+METHOD:: removeFobject
+METHOD:: clear

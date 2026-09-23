@@ -1,0 +1,35 @@
+TITLE:: RCUtil
+summary:: Small pure utilities of the reCurrent module
+categories:: Libraries>reCurrent
+related:: Guides/reCurrent
+
+DESCRIPTION::
+Key-value arrays ("kv") are flat arrays code::[key, value, key, value, ...]:: used wherever the order of pattern keys matters.
+
+CLASSMETHODS::
+METHOD:: rPut
+METHOD:: rGet
+Nested dictionary access by a key path.
+METHOD:: kvAt
+METHOD:: kvReplace
+METHOD:: kvReplaceMany
+METHOD:: kvPutAll
+METHOD:: kvKeys
+METHOD:: asKV
+METHOD:: isStatic
+True when a value can be used as-is in a pattern without being streamed.
+METHOD:: cartesianProduct
+Capped by link::#*maxProductSize::.
+METHOD:: cartesianProductProducts
+METHOD:: l1Vectors
+METHOD:: bagDifference
+METHOD:: digitsInBase
+METHOD:: fileTree
+Folder → code::MultiLevelIdentityDictionary:: of PathNames.
+METHOD:: attrFunc
+A function-valued Event entry written code::{ }:: or code::{{ }}::.
+METHOD:: camelCase
+METHOD:: isReservedKey
+True when code::ev.key:: would call a method instead of reading the key.
+METHOD:: warnIfReservedKey
+METHOD:: maxProductSize

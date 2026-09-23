@@ -4,12 +4,33 @@
 ### Dependencies
 Quarks:
 - miscellanous_Lib: PL and PLnaryop in PatternH.sc
-- ddwPatterns: PnNilSafe in PatternH.sc
- 
-### Main classes
+- ddwPatterns: PnNilSafe in PatternH.sc (Paccum is used by pieces, not by the library)
+
+### reCurrent (current)
+`reCurrent/` is the object-based live pattern library that replaces the
+`Building_Blocks/Beats_Block` proto-library of HomewareSC: sessions, songs and
+layers, beats with a swing pipeline and live edits, orgnsms cloned into
+batches, path control over a spherical design, crawlers, rhythm dictionaries,
+fobjects, loop buffers, OSC/MIDI control surfaces. Every class is prefixed
+`RC`. Start with `HelpSource/Guides/reCurrent.schelp`.
+
+- `reCurrent/Core`: RCLog (rate-limited logging), RCGuard (guarded calls), RCUtil
+- `reCurrent/Session`: RCSession, RCSong, RCLayer, RCSwing
+- `reCurrent/Beats`: RCBeat, RCBeatSpec, RCDurList, RCRhythm
+- `reCurrent/Control`: RCOsc, RCMidi, RCKeyboardState
+- `reCurrent/Orgnsm`: RCOrgnsm, RCOrgnsmRegistry, RCBatch, RCPathControl, RCSpherePath,
+  RCCrawler, RCCrawlerMoves, RCNoteAlg, RCOrgnsmPatterns, RCSynthDefs
+- `reCurrent/Rhythm`: RCSubseq, RCSubseqLibrary, RCRhythmDict
+- `reCurrent/Space`: RCFObject, RCMatrix
+- `reCurrent/Resources`: RCLoopBuffer
+
+Tests live in `tests/reCurrent_tests/` (UnitTest, no server needed) and run with
+`~/Music/Supercollider/HomewareSC/scripts/test.sh`.
+
+### Main classes (older modules)
 - FileIO/Recording/RecorderModule: creates a Recorder and a recording bus, with monitoring to another bus, organizes multiple takes
 
-- FileIO/Recording/PatternH: holds a Pdef and creates a RecorderModule, can send corresponding MIDI and OSC info, handles parallel recording with other PatternH, sets seed
+- Patterns/PatternH: holds a Pdef and creates a RecorderModule, can send corresponding MIDI and OSC info, handles parallel recording with other PatternH, sets seed
 
 - Tuning/RealTuning, JIRealTuning: an extension of Tuning that gives an actual note (Z) -> frequency (R+) mapping thanks to a reference note+freq (e.g. 9 = A4 -> 440Hz). This is like tuning a piano in 10ms. The reference note+freq can be changed live. JIRealTuning has a just intonation structure as coordinates in a space of (prime) numbers and finds automatically the good octave for each note
 

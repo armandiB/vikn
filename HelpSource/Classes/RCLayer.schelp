@@ -1,0 +1,50 @@
+TITLE:: RCLayer
+summary:: A layer of beats inside a song (the proto-library's beat_env)
+categories:: Libraries>reCurrent
+related:: Classes/RCSong, Classes/RCBeat, Classes/RCSwing
+
+DESCRIPTION::
+Holds the clock, server, link::Classes/RCSwing:: and MIDI outputs shared by its beats, the live beats by name and the history of every beat name ever created. A beat with the same name replaces (frees) the previous one.
+
+INSTANCEMETHODS::
+
+METHOD:: addBeat
+Create, register and play a beat (the proto-library's code::make_beat_from_dict::).
+argument:: name
+argument:: attrDict
+Key/value array (order matters) or Event.
+argument:: chan
+MIDI channel.
+argument:: midiOut
+Defaults to the layer's.
+argument:: seeds
+nil: the song seed for every streamed key; code::\none::: unseeded; a number; an Array by position; a Dictionary by key with code::\default::.
+argument:: addFirst
+Pairs evaluated before the dur pipeline.
+argument:: addFirstSeeds
+argument:: terminationKey
+The beat frees itself when this key's pattern ends.
+argument:: quant
+argument:: post
+returns:: the link::Classes/RCBeat::
+
+METHOD:: beat
+argument:: name
+METHOD:: beats
+METHOD:: deleteBeat
+argument:: name
+argument:: post
+METHOD:: killAll
+METHOD:: pauseAll
+METHOD:: resumeAll
+METHOD:: beatValue
+Last value a beat produced for a key.
+argument:: beatName
+argument:: valueKey
+argument:: default
+METHOD:: swing
+The link::Classes/RCSwing::.
+METHOD:: clock
+METHOD:: midiOut
+METHOD:: addMidiOuts
+METHOD:: history

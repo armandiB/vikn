@@ -1,0 +1,25 @@
+TITLE:: RCNoteAlg
+summary:: Note algorithms for orgnsms: firefly walks, tonnetz scale force fields
+categories:: Libraries>reCurrent
+related:: Classes/RCOrgnsm, Classes/RCBatch
+
+DESCRIPTION::
+Each firefly method returns the walk function an orgnsm stores under code::staticAttrs.notealg::. The functions read their parameters from the orgnsm's static attributes at every call; all searches are bounded and any failure returns the previous value.
+
+CLASSMETHODS::
+METHOD:: fireflyNote1d
+1-D raga walk: code::(prev, othersNotes, origin, stattrs) → note::. Uses code::scale::, code::aroh::, code::avaroh::, code::octaves::, code::notealg_maxrandomjump::, code::notealg_maxothersjump::, code::notealg_startnotefunc::.
+METHOD:: fireflyTonnetz
+Flocking walk on a discrete tonnetz: code::(prev = [tpos, freqMult], others = [[tpos, freqMult, weight]...], forceField, stattrs) → [tpos, freqMult]::.
+argument:: centerOfMassFromStaticAttrs
+METHOD:: tonnetzPositions
+Tonnetz coordinates of ratios (floats are turned into fractions with code::asFraction::).
+METHOD:: scaleForceField
+The force field the pieces apply during a section, built without the Rational quark.
+argument:: targetPos
+argument:: scaleForceFactor
+argument:: scale
+argument:: tuningRatios
+argument:: tonnetzMultFactors
+METHOD:: applyScaleForceField
+code::batch.editAttr("force_field", { field })::.

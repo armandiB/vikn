@@ -1,0 +1,24 @@
+TITLE:: RCLog
+summary:: Tagged, rate-limited logging
+categories:: Libraries>reCurrent
+related:: Classes/RCGuard
+
+DESCRIPTION::
+When the same (tag, level) fires again within link::#*rateLimit:: seconds the message is swallowed and counted; the next message that gets through carries "(+N suppressed)". Lifecycle messages can bypass the limit with strong::force::.
+
+CLASSMETHODS::
+METHOD:: post
+METHOD:: info
+Silent unless link::#*verbose::.
+METHOD:: warn
+METHOD:: error
+METHOD:: exception
+argument:: tag
+argument:: err
+argument:: context
+METHOD:: verbose
+METHOD:: rateLimit
+METHOD:: history
+The last link::#*historySize:: emitted lines as code::[time, level, text]::.
+METHOD:: historySize
+METHOD:: reset

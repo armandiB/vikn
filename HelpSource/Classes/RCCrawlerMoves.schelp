@@ -1,0 +1,19 @@
+TITLE:: RCCrawlerMoves
+summary:: The crawler's rhythm-morphing move generator
+categories:: Libraries>reCurrent
+related:: Classes/RCCrawler, Classes/RCRhythmDict
+
+DESCRIPTION::
+At each step the crawler holds the code::seq_list:: of its current orgnsm and a target from code::staticAttrs.rhythm_dict_target::. One elementary move is tried per step, in order: shift, changeSubseq, convergeMask, decreaseMask, switchOtherParams; each can take a wrong turn with its code::error_probability_*:: attribute. Only array-based subseqs can be morphed.
+
+CLASSMETHODS::
+METHOD:: nextValRhythmChange
+The code::Pfunc:: to use as code::next_val:: in a crawler's pattern attributes. Yields code::[newSeqList]::.
+METHOD:: computeNext
+argument:: crawler
+argument:: st
+METHOD:: shift
+METHOD:: changeSubseq
+METHOD:: convergeMask
+METHOD:: decreaseMask
+METHOD:: switchOtherParams

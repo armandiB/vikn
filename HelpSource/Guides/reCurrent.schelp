@@ -1,0 +1,98 @@
+title:: reCurrent
+summary:: Object-based live pattern library: sessions, songs, beats, orgnsms, batches, rhythms
+categories:: Libraries>reCurrent
+related:: Classes/RCSession, Classes/RCSong, Classes/RCBeat, Classes/RCOrgnsm, Classes/RCBatch, Classes/RCPathControl
+
+section:: What it is
+
+reCurrent is the object-based successor of the BlockBeats / BlockOrgnsm proto-library. The same musical machinery (beats with a swing pipeline and live-editable attributes, orgnsms cloned from templates into batches, rhythms compiled from subsequence libraries, path control over a spherical design, crawlers, fobjects) lives in classes with explicit ownership, so a single failing beat or orgnsm is reported and recovered without touching the rest of the sound.
+
+Design rules:
+list::
+## Nothing runs at class-load time. Hardware, clock and OSC port are initialised only by link::Classes/RCSession#*boot::.
+## Every user callback the library invokes is guarded (link::Classes/RCGuard::): an error is posted once per second per tag (link::Classes/RCLog::) and replaced by a fallback.
+## A beat that raises restarts after a short backoff and gives up after a few attempts (link::Classes/RCBeat#-errorPolicy::). Non-positive durations are clamped and counted; a beat that only produces them stops itself.
+## Live attribute edits land on the next beat by default, like Pdef; strong::quant: nil:: lands on the next event, strong::quant: 4:: on a grid.
+## Objects replace environment lookups: every event carries code::\rc_beat:: (the link::Classes/RCBeat::) and, for orgnsms, code::\self:: (the link::Classes/RCOrgnsm::), so pattern code reads code::Pfunc { |ev| ev.self.staticAttrs.bufrate }::.
+::
+
+section:: Minimal piece
+
+code::
+(
+RCSession.boot(s, oscPort: 32345);              // once per sclang session; idempotent
+~song = RCSong(\demo, 20260923);                // layers \core, \details, \meta
+~song.makeGroups;                               // in → sounds { orgnsms, fobjects } → background → outputDecode
+~song.outArray = [0, 2];                        // what orgnsm_out_idx indexes
+~song.layer(\core).swing.amount = 1/22;
+)
+
+// a plain beat
+~kick = ~song.layer(\core).addBeat(\kick, [instrument: \default, dur_flex: [1, 0.5, Rest(0.5)], amp: 0.2, quant: [2, 0]]);
+~kick.set(\amp, Pwhite(0.1, 0.3));              // next beat
+~kick.set(\amp, 0.5, quant: nil);               // next event
+~kick.durList.addHit(1.75);
+~kick.free;
+
+// an orgnsm template and a batch
+(
+~tpl = RCOrgnsm(\firefly, 0, 0, ~song);
+~tpl.addStaticAttrs((seed: 1994, loop_time: 4, quant: { |self| [self.loop_time, 0] }, amp_unadj: 0.1));
+~tpl.attrDictBase = [type: \note, instrument: \default, dur_flex: 0.5, amp: Pfunc { |ev| ev.self.staticAttrs.amp_unadj }, orgnsm_out_idx: 0];
+~batch = RCBatch(\fireflies, ~tpl, layerKey: \details, replaceAttrs: ("tribe": 1));
+4.do { |i| ~batch.addCreate(i, ("seed": 1994 + i, "amp_unadj": 0.05 * (i + 1))) };
+~batch.startPrepared;
+)
+~batch.editAttr("amp_unadj", 0.02, { |o, i, list, key| key.even });
+~batch.free;
+
+// control surfaces
+~song.osc.def(\scene, \init, { "init".postln });           // /demo/scene/init
+~song.midi.controlAttribute(~song.layer(\core).swing, \amount, { |x| x / 127 / 11 }, 50, 0, "APC40 mkII");
+~song.clearAll;
+::
+
+section:: Porting from the proto-library
+
+table::
+## BlockBeats / BlockOrgnsm || reCurrent
+## code::~linkClock::, MIDI init, port 32345 || code::RCSession.boot(s, oscPort: 32345)::
+## code::~beat_envs[\core]:: || code::song.layer(\core)::
+## code::~beat_envs[\global][\orgnsms][\out_array]:: || code::song.outArray::
+## code::~make_osc_def.(instr, names, func):: || code::song.osc.def(instr, names, func)::
+## code::~make_osc_def_start.(layer, instr, names, chan, dict, ...):: || code::song.osc.startDefs(RCBeatSpec(layer, instr, dict, ...), instr, names)::
+## code::~make_osc_def_edit.(...):: || code::song.osc.editDef(...)::
+## code::~make_beat_from_dict:: || code::layer.addBeat(name, attrDict, ...)::
+## code::~set_attr_to_beat_env:: || code::beat.set(key, val, seed, quant)::
+## code::~delete_beat:: || code::beat.free:: / code::layer.deleteBeat(name)::
+## code::~add_hit_beat:: etc. || code::beat.durList.addHit:: / removeHit / totalDur_ / duplicate / offset_
+## code::~control_synth:: / code::~control_midi:: || code::song.midi.controlSynth::, code::song.midi.control::
+## code::~on_dict:: keyboard state || code::song.makeKeyboard("Seaboard RISE 2")::
+## code::~make_new_orgnsm.(species, tribe, n, beat_envs, song, seed):: || code::RCOrgnsm(species, tribe, n, song)::
+## code::orgnsm.create(dict, max, layerKey, ...):: || code::orgnsm.create(layerKey: \core, ...).start::
+## code::~make_new_batch.(name, tpl, [dict, max, layer], replace):: || code::RCBatch(name, tpl, layerKey: \core, replaceAttrs: replace)::
+## code::batch.add_create / start_prepared_orgnsms / edit_attr / delete_beats:: || code::addCreate / startPrepared / editAttr / deleteBeats::
+## code::{ |s, o, i, l, k| }:: iteration functions || code::{ |orgnsm, i, list, key| }::
+## code::~orgnsm_path_control:: || code::RCPathControl(song, design, rhythmDict, pathName, pathKey, batch)::
+## code::~make_subseq_library:: / code::~make_rhythm_dict:: || code::RCSubseqLibrary.newFrom(...)::, code::RCRhythmDict(library)::
+## code::~orgnsm_pattern_lib[...]:: || code::RCOrgnsmPatterns.*::
+## code::~orgnsm_notealg_lib[...]:: || code::RCNoteAlg.*::
+## code::~pat.self.dereference.static_attrs:: inside Plazy || code::Plazy { |ev| ev.self.staticAttrs }::
+## code::~access_beat_value_in_pattern.(k, d):: || code::ev.rc_beat.lastValue(k, d)::
+## code::~make_new_fobject:: || code::RCFObject(song, ...)::
+## code::~add_synthdef_for_orgnsms:: || code::RCSynthDefs.addForOrgnsms::
+## code::~create_loop_buffer:: || code::RCLoopBuffer(song, key, loopBeats, ...)::
+::
+
+Key paths accept both spellings: code::"attr_dict_base.bufrate":: and code::"attrDictBase.bufrate"::. A bare key addresses the static attributes.
+
+section:: Failure isolation
+
+list::
+## link::Classes/RCLog:: rate-limits per tag and level; lifecycle messages bypass the limit.
+## link::Classes/RCGuard#*call:: wraps user code; code::RCGuard.strict = true:: rethrows during development.
+## link::Classes/RCBeat:: clamps non-positive durations, stops after too many in a row, restarts its stream after an error (bounded), and warns when an attribute name shadows a method (code::release::, code::size::...).
+## link::Classes/RCFObject:: synths pass through code::Sanitize::; link::Classes/RCMatrix:: inversions never produce NaN.
+## Searches in link::Classes/RCNoteAlg::, link::Classes/RCUtil:: and link::Classes/RCSpherePath:: are bounded.
+## The library never stops a clock. Stopping a busy TempoClock and dropping its last reference can corrupt sclang's memory (a due item is awoken with a dangling clock); keep clocks permanent.
+::

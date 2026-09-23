@@ -1,0 +1,40 @@
+TITLE:: RCCrawler
+summary:: An agent owning attributes of one orgnsm at a time, jumping between orgnsms
+categories:: Libraries>reCurrent
+related:: Classes/RCCrawlerMoves, Classes/RCOrgnsm, Classes/RCBatch
+
+DESCRIPTION::
+Port of the proto-library's crawler. Its (silent) pattern orgnsm runs code::make_jump:: (jump to link::#-nextOrgnsm::), then code::next_val::, then code::set_next_val:: (apply the value) at every event. Keys with strong::keyIsMethod:: are applied by calling code::orgnsm.<camelCase key>(value)::.
+
+CLASSMETHODS::
+METHOD:: new
+argument:: attrKeys
+argument:: keyIsMethod
+
+INSTANCEMETHODS::
+METHOD:: init
+argument:: orgnsm
+argument:: val
+METHOD:: initFromBatch
+argument:: batch
+argument:: batchKey
+argument:: idxStart
+argument:: val
+METHOD:: nextOrgnsm
+METHOD:: leaveVal
+Value applied to the orgnsm being left when link::#-setLeaveVal:: is true.
+METHOD:: setLeaveVal
+METHOD:: patternAttrs
+Event with code::tribe::, code::static_attrs::, code::attr_dict_base::, code::add_first_array_base:: of the pattern orgnsm.
+METHOD:: createPattern
+argument:: layerKey
+METHOD:: jumpNext
+METHOD:: setNextVal
+METHOD:: setVal
+METHOD:: accessCurrentPatternValue
+METHOD:: state
+METHOD:: orgnsm
+METHOD:: val
+METHOD:: prevVal
+METHOD:: clone
+METHOD:: free

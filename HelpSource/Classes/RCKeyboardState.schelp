@@ -1,0 +1,31 @@
+TITLE:: RCKeyboardState
+summary:: Live state of an MPE keyboard
+categories:: Libraries>reCurrent
+related:: Classes/RCSong, Classes/RCMidi
+
+DESCRIPTION::
+The pieces' code::~on_dict:: machine as a class: one Event per channel (code::note::, code::velocity::, code::bend:: -1..1, code::touch::, code::control:: cc → value, code::time::). A new noteOn on a busy channel replaces the old note (warned), a noteOff for a different note still clears the channel (warned), and a channel silent longer than strong::staleTimeout:: seconds is dropped when read.
+
+CLASSMETHODS::
+METHOD:: new
+argument:: song
+argument:: deviceName
+Installs the MIDIdefs when given (see link::#-listen::).
+argument:: staleTimeout
+
+INSTANCEMETHODS::
+METHOD:: heldChans
+Channel states holding a note, sorted by note.
+METHOD:: notes
+METHOD:: held
+argument:: chan
+METHOD:: size
+METHOD:: reset
+METHOD:: listen
+METHOD:: stopListening
+METHOD:: free
+METHOD:: noteOn
+METHOD:: noteOff
+METHOD:: bend
+METHOD:: touch
+METHOD:: cc

@@ -1,0 +1,91 @@
+TITLE:: RCBeat
+summary:: One pattern voice with a live-editable attribute set
+categories:: Libraries>reCurrent
+related:: Guides/reCurrent, Classes/RCLayer, Classes/RCBeatSpec, Classes/RCDurList
+
+DESCRIPTION::
+The successor of the proto-library's beat env + PLbindef. The pattern is a code::PbindProxy:: whose pairs are, in order: code::[\rc_beat, beat] ++ addFirst ++ [\dur_unadj, realDur, \dur, pipeline] ++ [\midiout, \chan] ++ attrDict ++ [\rc_finish]::, wrapped in a guarding code::Prout::.
+
+The dur pipeline computes code::dur = dur_unadj + swing(timeTrack) - previous swing offset::, clamps non-positive values to link::#*minDur:: (zero-length rests pass) and stops the beat after link::#*maxClampedInARow:: clamped events in a row. The last pair clamps negative code::legato:: / code::sustain::.
+
+Errors raised by any key stream are caught: with the default policy code::\restart:: the stream is rebuilt after code::restartDelay:: beats, up to code::maxRestarts:: consecutive failures; with code::\stop:: the beat stops at the first error. Other beats are never affected.
+
+Every non-static value is mirrored: link::#-lastValue:: returns the last value a key produced, link::#-thread:: / link::#-randData:: its stream thread (a separate thread per key when seeded).
+
+CLASSMETHODS::
+
+METHOD:: new
+See link::Classes/RCLayer#-addBeat:: (which also registers and plays).
+
+METHOD:: defaultEditQuant
+Where live edits land: 1 = next beat (Pdef behaviour), nil = next event.
+METHOD:: defaultErrorPolicy
+METHOD:: defaultMaxRestarts
+METHOD:: defaultRestartDelay
+METHOD:: minDur
+METHOD:: maxClampedInARow
+
+METHOD:: auxPattern
+A pattern spawning a fresh, self-terminating beat at every event (the proto-library's code::make_aux_beat::).
+argument:: layer
+argument:: namePrefix
+argument:: terminationKey
+argument:: attrDictFunc
+Receives the parent event, returns the attribute dict.
+argument:: chan
+argument:: seeds
+argument:: addFirst
+argument:: addFirstSeeds
+
+METHOD:: valuePattern
+A code::Pfunc:: reading another beat's last value.
+argument:: layer
+argument:: beatName
+argument:: key
+argument:: default
+argument:: overrideNil
+
+INSTANCEMETHODS::
+
+METHOD:: set
+argument:: key
+code::\dur:: is code::\dur_flex::: an Array becomes an editable link::Classes/RCDurList::, a Function becomes a per-loop pattern, anything else is streamed. Dur edits land at the next event.
+argument:: val
+nil removes the key (the pattern restarts).
+argument:: seed
+argument:: quant
+code::\default:: → link::#-editQuant::; nil → next event; a number → grid in beats.
+METHOD:: setAll
+METHOD:: reserveKeys
+Declare keys up front so that later code::set:: calls never rebuild the pattern.
+METHOD:: editQuant
+METHOD:: errorPolicy
+METHOD:: maxRestarts
+METHOD:: restartDelay
+
+METHOD:: play
+argument:: quant
+METHOD:: pause
+METHOD:: resume
+METHOD:: stop
+METHOD:: free
+METHOD:: isPlaying
+METHOD:: isFreed
+
+METHOD:: durList
+The link::Classes/RCDurList:: when the dur is a list.
+METHOD:: seqOffset
+METHOD:: realDur
+
+METHOD:: lastValue
+argument:: key
+argument:: default
+METHOD:: thread
+METHOD:: randData
+METHOD:: keyProxy
+The code::PatternProxy:: of a key.
+
+METHOD:: layer
+METHOD:: name
+METHOD:: playQuant
+METHOD:: keyOrder

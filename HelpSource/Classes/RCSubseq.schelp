@@ -1,0 +1,27 @@
+TITLE:: RCSubseq
+summary:: One resolved subsequence of a rhythm
+categories:: Libraries>reCurrent
+related:: Classes/RCRhythmDict, Classes/RCSubseqLibrary, Classes/RCCrawlerMoves
+
+DESCRIPTION::
+The proto-library passed these as 8-slot arrays; the fields are named here but code::at(i):: / code::put(i, v):: keep the indices: 0 priority, 1 shift, 2 durs, 3 params, 4 mask, 5 name, 6 keysIgnoreOrder, 7 timeMult. Equality and hash are structural so subseqs can live in Bags and Sets.
+
+CLASSMETHODS::
+METHOD:: new
+METHOD:: fromArray
+
+INSTANCEMETHODS::
+METHOD:: priority
+METHOD:: shift
+METHOD:: durs
+Array of durations (numbers / Rests) or a Pattern.
+METHOD:: params
+Event key → Array (one value per hit) or Pattern.
+METHOD:: mask
+Array of Booleans or a Pattern.
+METHOD:: name
+METHOD:: keysIgnoreOrder
+METHOD:: timeMult
+METHOD:: isArraySeq
+METHOD:: numHits
+METHOD:: asArray

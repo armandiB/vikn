@@ -1,0 +1,24 @@
+TITLE:: RCGuard
+summary:: Failure isolation helpers
+categories:: Libraries>reCurrent
+related:: Classes/RCLog
+
+DESCRIPTION::
+Every user callback the library invokes goes through link::#*call::, so an error in one of them is reported once (rate-limited, tagged) and replaced by a fallback value instead of killing the caller.
+
+CLASSMETHODS::
+METHOD:: call
+argument:: tag
+argument:: fallback
+Value (or function) returned on error.
+argument:: func
+METHOD:: callWithError
+METHOD:: wrap
+A Function whose every call is guarded.
+METHOD:: strict
+When true, errors are rethrown (tests, development).
+METHOD:: finite
+Replace NaN / inf (recursively) by a fallback, with a warning.
+METHOD:: isFinite
+METHOD:: boundedLoop
+A while loop with an iteration cap.

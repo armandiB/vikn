@@ -1,0 +1,27 @@
+TITLE:: RCRhythmDict
+summary:: Per-batch rhythm definitions resolved against a subseq library
+categories:: Libraries>reCurrent
+related:: Classes/RCSubseqLibrary, Classes/RCSubseq, Classes/RCPathControl
+
+DESCRIPTION::
+code::at(batchName)[key]:: holds rhythm-dict entries code::[priority, shiftAdd, "lib.path.name", mask?, params?, keysIgnoreOrder?, unused, timeMult?]::; link::#-subseqs:: resolves them into link::Classes/RCSubseq::s with the library shift and durations scaled by timeMult, params expanded per hit and the mask expanded per hit. Unlike the proto-library, the library entries are never mutated and their keysIgnoreOrder is honoured.
+
+CLASSMETHODS::
+METHOD:: new
+argument:: library
+
+INSTANCEMETHODS::
+METHOD:: at
+The mutable Dictionary of a batch name, created on demand.
+METHOD:: put
+argument:: batchName
+argument:: key
+argument:: entriesArray
+METHOD:: subseqs
+argument:: batchName
+argument:: key
+returns:: Array of RCSubseq
+METHOD:: includes
+METHOD:: clone
+METHOD:: library
+METHOD:: entries

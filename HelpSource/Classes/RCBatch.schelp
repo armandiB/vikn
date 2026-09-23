@@ -1,0 +1,52 @@
+TITLE:: RCBatch
+summary:: A keyed collection of orgnsms cloned from one template
+categories:: Libraries>reCurrent
+related:: Guides/reCurrent, Classes/RCOrgnsm, Classes/RCPathControl
+
+DESCRIPTION::
+The proto-library's batch. Iteration functions receive code::(orgnsm, index, list, key):: (they received code::(s, o, i, l, k):: before). Bulk operations are guarded: one failing orgnsm is reported, the others are processed.
+
+CLASSMETHODS::
+METHOD:: new
+argument:: name
+argument:: template
+argument:: layerKey
+argument:: replaceAttrs
+Applied to every clone (a Dictionary; String key paths compare by value).
+argument:: terminationKey
+argument:: osc
+argument:: oscNames
+argument:: chan
+argument:: pickNewNumber
+
+INSTANCEMETHODS::
+METHOD:: addCreate
+argument:: key
+argument:: replaceAttrs
+Per-orgnsm key paths, winning over the batch ones.
+argument:: deleteAttrs
+argument:: start
+false keeps the orgnsm prepared for link::#-startPrepared::.
+METHOD:: startPrepared
+argument:: keys
+METHOD:: orgnsms
+Live orgnsms under a key.
+METHOD:: allOrgnsms
+key → Array of live orgnsms.
+METHOD:: keys
+METHOD:: size
+METHOD:: apply
+argument:: func
+argument:: cond
+METHOD:: editAttr
+argument:: attr
+argument:: value
+argument:: cond
+argument:: valueIsFunc
+METHOD:: collectAll
+METHOD:: deleteBeats
+argument:: cond
+argument:: cleanup
+METHOD:: store
+METHOD:: recall
+METHOD:: free

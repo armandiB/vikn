@@ -1,0 +1,24 @@
+TITLE:: RCRhythm
+summary:: Rhythm arithmetic: euclidean patterns, dur lists, onset times
+categories:: Libraries>reCurrent
+related:: Classes/RCDurList, Classes/RCSubseq, Classes/RCOrgnsmPatterns
+
+CLASSMETHODS::
+METHOD:: euclid
+Euclidean pattern of strong::o:: onsets over strong::p:: pulses as a 0/1 array (Bresenham form, identical to the proto-library).
+argument:: o
+argument:: p
+argument:: shift
+METHOD:: durListFromBinary
+code::[1, 0, 0, 1, 0]:: → code::[3, 2]::; leading zeros become a leading Rest.
+METHOD:: durListFromBinaryWithAux
+METHOD:: euclidDurList
+METHOD:: cumdurFromSubseq
+Onset times of a subseq: code::[onsets, indices, lastHitDur]::, wrapped in the loop when strong::loopTime:: is given.
+argument:: subseq
+argument:: shift
+argument:: mask
+argument:: loopTime
+argument:: timeMult
+METHOD:: durFromCumdur
+METHOD:: differentiateRestSafe

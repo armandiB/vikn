@@ -1,0 +1,43 @@
+TITLE:: RCFObject
+summary:: A spatial effect unit orgnsms can send to
+categories:: Libraries>reCurrent
+related:: Classes/RCOrgnsm, Classes/RCMatrix, Classes/RCOrgnsmRegistry
+
+DESCRIPTION::
+Port of the proto-library's fobject: an in bus, a Synth in the song's fobject group, a priority and a transparency function code::(zpos, pos) → 0..1::. When an orgnsm's attributes carry code::instrument_flex::, each event takes fobjects by increasing priority until the transparency budget reaches 1 and the remainder goes to the orgnsm's own out (code::\outs:: / code::\outamps:: and the code::__N_out:: SynthDef variant). A failing transparency function counts as 0. link::#-addSynthDef:: wraps a sound function in an in-graph space transform (rotation and width matrices recomputed on code::\recompute_space::) and passes the output through code::Sanitize::.
+
+CLASSMETHODS::
+METHOD:: new
+argument:: song
+argument:: synthDefName
+argument:: numChansIn
+argument:: additionalSynthArgs
+argument:: transparencyFunc
+argument:: priority
+argument:: isAmbisonics
+argument:: orderAmbisonics
+argument:: isPointSource
+argument:: addSongInName
+
+INSTANCEMETHODS::
+METHOD:: create
+argument:: name
+argument:: overrideSynthArgs
+argument:: groupIdx
+argument:: outIdx
+returns:: the registered instance, or nil with an error
+METHOD:: addSynthDef
+argument:: soundFunction
+argument:: centerFromPos
+METHOD:: setCenter
+METHOD:: setOrigin
+METHOD:: setRotationMatrix
+METHOD:: setWidth
+METHOD:: setArg
+METHOD:: transparency
+METHOD:: posToSignalWeights
+METHOD:: free
+METHOD:: name
+METHOD:: inBus
+METHOD:: synth
+METHOD:: priority

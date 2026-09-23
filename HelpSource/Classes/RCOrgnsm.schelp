@@ -1,0 +1,71 @@
+TITLE:: RCOrgnsm
+summary:: An orgnsm: a beat template with identity, state and resources
+categories:: Libraries>reCurrent
+related:: Guides/reCurrent, Classes/RCBatch, Classes/RCOrgnsmRegistry, Classes/RCPathControl, Classes/RCOrgnsmPatterns
+
+DESCRIPTION::
+An RCOrgnsm is a template; link::#-create:: returns a registered clone that is prepared (an link::Classes/RCBeatSpec::) and started with link::#-start::. Identity is species / tribe / number → name code::orgnsm_<species>_t<tribe>_<number>::, the beat name in its layer and the OSC instrument name.
+
+State lives in link::#-staticAttrs:: (an Event, so computed entries code::{ |self| ... }:: work); patterns in link::#-attrDictBase:: read it through code::Pfunc { |ev| ev.self.staticAttrs.x }:: so edits take effect at the next event. Function-valued static attributes may be written code::{ }:: or, as before, code::{{ }}::.
+
+Key paths (link::#-rPut:: / link::#-rGet::): a bare key addresses code::staticAttrs::; code::"attr_dict_base.x":: / code::"attrDictBase.x"::, code::"add_first_array_base.x":: / code::"addFirstArrayBase.x"::, code::"static_attrs.x"::, code::"server_ressources.x":: / code::"serverResources.x"::. A static attribute whose name shadows a method (code::release::, code::size::, code::value::...) is warned about: code::ev.release:: would call the method.
+
+CLASSMETHODS::
+METHOD:: new
+argument:: species
+argument:: tribe
+argument:: number
+argument:: song
+argument:: addSongInName
+
+INSTANCEMETHODS::
+METHOD:: staticAttrs
+METHOD:: addStaticAttrs
+METHOD:: attrDictBase
+Key/value array (order matters) or Event.
+METHOD:: addFirstArrayBase
+METHOD:: rPut
+argument:: key
+argument:: val
+METHOD:: rGet
+
+METHOD:: create
+A registered, prepared clone.
+argument:: layerKey
+argument:: terminationKey
+argument:: replaceAttrs
+Dictionary of key paths → values applied to the clone.
+argument:: deleteAttrs
+argument:: osc
+Make kill/pause/resume/start OSC defs.
+argument:: pickNewNumber
+argument:: oscNames
+argument:: chan
+argument:: batch
+argument:: batchKey
+METHOD:: start
+argument:: quant
+returns:: the link::Classes/RCBeat::
+METHOD:: value
+Same as start.
+METHOD:: free
+argument:: freeAllServerResources
+METHOD:: beat
+METHOD:: spec
+METHOD:: name
+METHOD:: layer
+METHOD:: clone
+METHOD:: register
+METHOD:: tribeDict
+
+METHOD:: setBuffer
+argument:: buffer
+argument:: freePrevious
+argument:: alwaysFreeAtDelete
+METHOD:: freeBuffer
+METHOD:: serverResources
+
+METHOD:: attrDict
+The pairs a beat is built from: code::[\quant, ...] ++ attrDictBase:: plus the fobject routing keys (code::outs::, code::outamps::, code::instrument::) when code::instrument_flex:: is present.
+METHOD:: addFirstArray
+code::[\self, this] ++ addFirstArrayBase::.
