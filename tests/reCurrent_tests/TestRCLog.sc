@@ -20,6 +20,7 @@ TestRCLog : UnitTest {
 		this.assert(RCLog.post(\a, "one"), "first message emitted");
 		this.assert(RCLog.post(\a, "two").not, "same tag within rateLimit suppressed");
 		this.assert(RCLog.post(\b, "other tag"), "different tag not affected");
+		this.assert(RCLog.error(\a, "an error"), "a different level under the same tag is not suppressed");
 		now = now + 1.5;
 		this.assert(RCLog.post(\a, "three"), "emitted again after rateLimit");
 		this.assert(RCLog.history.last[2].contains("(+1 suppressed)"), "suppressed count reported");

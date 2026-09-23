@@ -32,15 +32,17 @@ RCLog {
 		history.clear;
 	}
 
-	*post { |tag, msg| ^this.prEmit(tag, msg, \post) }
-	*info { |tag, msg| if(verbose) { ^this.prEmit(tag, msg, \post) }; ^false }
-	*warn { |tag, msg| ^this.prEmit(tag, msg, \warn) }
-	*error { |tag, msg| ^this.prEmit(tag, msg, \error) }
+	// force: bypass the rate limit (for bounded lifecycle messages such as
+	// "beat stopped", never for per-event messages).
+	*post { |tag, msg, force = false| ^this.prEmit(tag, msg, \post, force) }
+	*info { |tag, msg, force = false| if(verbose) { ^this.prEmit(tag, msg, \post, force) }; ^false }
+	*warn { |tag, msg, force = false| ^this.prEmit(tag, msg, \warn, force) }
+	*error { |tag, msg, force = false| ^this.prEmit(tag, msg, \error, force) }
 
-	*exception { |tag, err, context|
+	*exception { |tag, err, context, force = false|
 		var text = this.describe(err);
 		context !? { text = context.asString ++ ": " ++ text };
-		^this.prEmit(tag, text, \error)
+		^this.prEmit(tag, text, \error, force)
 	}
 
 	// Human-readable one-liner for an Exception (or anything else).
@@ -54,12 +56,13 @@ RCLog {
 	*format { |tag, msg| ^"RC[%]: %".format(tag, msg) }
 
 	// Returns true if the line was emitted, false if rate-limited.
-	*prEmit { |tag, msg, level|
-		var key = tag.asSymbol;
+	// The limit is per (tag, level): a flood of warnings never hides an error.
+	*prEmit { |tag, msg, level, force = false|
+		var key = (tag.asString ++ "/" ++ level).asSymbol;
 		var now = timeFunc.value;
 		var last = lastTimes[key];
 		var text, suppressed;
-		if(last.notNil and: { (now - last) < rateLimit }) {
+		if(force.not and: { last.notNil } and: { (now - last) < rateLimit }) {
 			suppressedCounts[key] = (suppressedCounts[key] ? 0) + 1;
 			^false
 		};
