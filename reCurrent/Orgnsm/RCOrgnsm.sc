@@ -236,8 +236,11 @@ RCOrgnsm {
 
 	//////// lifecycle
 
+	// A bare instance of the same class (subclasses with other constructors override this).
+	prNewLike { ^this.class.new(species, tribe, number, song, addSongInName) }
+
 	clone {
-		var c = this.class.new(species, tribe, number, song, addSongInName);
+		var c = this.prNewLike;
 		c.staticAttrs_(staticAttrs.copy);
 		c.attrDictBase_(attrDictBase.deepCopy);
 		c.addFirstArrayBase_(addFirstArrayBase.deepCopy);
