@@ -11,11 +11,14 @@
 RCOrgnsmPatterns {
 
 	// Pn(Plazy(func)) that cannot spin: a body that yields nothing rests 1 beat.
-	*loop { |func, tag = \orgnsmPattern|
+	// Like Pn, `key` (when given) is set to true in the event at every repeat,
+	// so a Pgate on that key advances once per loop.
+	*loop { |func, tag = \orgnsmPattern, key|
 		^Prout { |inval|
 			loop {
-				var pat = RCGuard.call(tag, nil) { func.value(inval) };
-				var stream, v, n = 0;
+				var pat, stream, v, n = 0;
+				if(key.notNil) { inval[key] = true };
+				pat = RCGuard.call(tag, nil) { func.value(inval) };
 				if(pat.isNil) {
 					inval = Rest(1).yield;
 				} {

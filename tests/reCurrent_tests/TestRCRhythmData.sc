@@ -156,4 +156,12 @@ TestRCRhythmData : UnitTest {
 		stream = RCOrgnsmPatterns.loop({ nil.explode }).asStream;
 		this.assert(stream.next(()).isRest, "error in body → rest, no crash");
 	}
+
+	test_loop_helper_key_gates_like_Pn {
+		// the gated key must come after the loop key: Pn-style keys are visible to later keys of the same event
+		var pat = Pbind(\x, RCOrgnsmPatterns.loop({ Pseq([1, 2], 1) }, \t, \advance), \seed, Pgate(Pseries(0, 1), inf, \advance));
+		var s = pat.asStream;
+		var seeds = 6.collect { s.next(()).seed };
+		this.assertEquals(seeds, [0, 0, 1, 1, 2, 2], "the gate advances once per loop of the body");
+	}
 }
