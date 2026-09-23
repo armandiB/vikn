@@ -283,9 +283,13 @@ RCBeat {
 						this.prScheduleFree;
 						nil
 					} {
-						RCLog.warn(tag, "dur % (unadj %, swing %) clamped to %".format(durVal, d, swingAdd, minDur));
-						durVal = minDur;
-						if(durUnadj.isRest) { Rest(durVal) } { durVal }
+						if(durUnadj.isRest and: { durVal == 0 }) {
+							Rest(0)   // a zero-length rest is harmless (counted, not clamped)
+						} {
+							RCLog.warn(tag, "dur % (unadj %, swing %) clamped to %".format(durVal, d, swingAdd, minDur));
+							durVal = minDur;
+							if(durUnadj.isRest) { Rest(durVal) } { durVal }
+						}
 					}
 				} {
 					clampedInARow = 0;
