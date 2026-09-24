@@ -1,0 +1,30 @@
+title:: reCording
+summary:: Recorders, replays and takes as objects held by a song
+categories:: Libraries>reCording
+related:: Classes/RERecorder, Classes/REReplay, Classes/RETake, Guides/reCurrent
+
+section:: What it is
+
+The pieces recorded through global functions (code::~start_recording::, code::~stop_recording::, code::~start_playback_file::) redefined by every recorder block. reCording replaces them with objects a song holds by name: link::Classes/RERecorder:: (a set of tracks recorded together under a piece folder), link::Classes/REReplay:: (a take cued into a proxy or a bus) and link::Classes/RETake:: (paths, and the record-a-replay session used for AmbiX conversions). What is recorded varies per scene, so a song keeps a dictionary of recorders and of replays (link::Classes/RCSong#-addRecorder::, link::Classes/RCSong#-addReplay::); registering under an existing name frees the previous object, and code::clearAll:: frees them all.
+
+section:: Usage
+
+code::
+(
+~song.addRecorder(\ambix, RERecorder(s, ~piece_dir +/+ "RecorderSC", "LeafHues/AmbiX", "w1", numChannels: 16)
+	.addTrack('AmbiX Out', ~song.ambi.decoder)).prepare;
+)
+~song.recorder(\ambix).start([4, 0]);            // on the song's clock
+~song.recorder(\ambix).stop;
+
+// replay an earlier take into the chain and record the conversion
+(
+~song.addReplay(\take, REReplay(s, ~original_root +/+ "LeafHues/take.aiff", 16, ampDb: 0)
+	.into(~song.ambi.signal)).prepare;
+)
+RETake.session(~song.recorder(\ambix), ~song.replay(\take), minutes: 9, seconds: 24, quant: [4, 0]);
+::
+
+section:: Timing
+
+A recorder starts at a quantized beat of its clock (the song's once registered). link::Classes/Recorder#-record:: sends immediately while the replay's DiskIn synth is a latency-stamped bundle, so a conversion take starts code::server.latency:: early unless code::start(alignToLatency: true):: is used. code::stopAfter:: counts seconds on SystemClock, whatever the tempo.

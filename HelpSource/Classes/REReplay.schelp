@@ -1,0 +1,46 @@
+TITLE:: REReplay
+summary:: A soundfile cued for replay into a NodeProxy or a Bus
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/RERecorder, Classes/RETake
+
+DESCRIPTION::
+Replays a take, typically into an output chain's signal for an AmbiX conversion, or into a bus. code::prepare:: (server running) cues the file with link::Classes/Buffer#*cueSoundFile:: and, for a proxy target, primes a link::Classes/DiskIn:: source into it (fade time 0, code::awake:: false: nothing plays until code::start::). code::free:: gives the proxy its fade time and code::awake:: back.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: server
+argument:: path
+argument:: numChannels
+argument:: clock
+argument:: ampDb
+argument:: bufferSize
+argument:: process
+A code::{ |sig| }:: applied to the DiskIn output (a re-encoding, a gain).
+
+INSTANCEMETHODS::
+
+METHOD:: into
+argument:: proxyOrBus
+A link::Classes/NodeProxy:: (the source is primed into it) or a link::Classes/Bus:: / index (a synth plays into it).
+argument:: group
+The group of the synth for a bus target. Chainable.
+METHOD:: targetKind
+code::\proxy::, code::\bus:: or nil.
+METHOD:: prepare
+METHOD:: start
+argument:: quant
+argument:: clock
+argument:: amp
+METHOD:: stop
+METHOD:: set
+argument:: key
+argument:: value
+The source's controls: code::\amp::.
+METHOD:: process
+METHOD:: ampDb
+METHOD:: isPrepared
+METHOD:: buffer
+METHOD:: synth
+METHOD:: path
+METHOD:: free

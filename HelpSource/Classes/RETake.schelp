@@ -1,0 +1,39 @@
+TITLE:: RETake
+summary:: Take paths and the record-a-replay session
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/RERecorder, Classes/REReplay
+
+DESCRIPTION::
+Two class methods: the stamped path of a take, and the session that records a replay (an AmbiX conversion of an earlier take).
+
+CLASSMETHODS::
+
+METHOD:: path
+argument:: root
+argument:: subfolder
+argument:: name
+argument:: version
+argument:: format
+argument:: stamp
+Defaults to code::Date.localtime.stamp::.
+returns:: code::<root>/<subfolder>/<stamp>_<name>[ <version>].<format>::
+
+METHOD:: session
+argument:: recorder
+An link::Classes/RERecorder::, prepared.
+argument:: replay
+An link::Classes/REReplay::, prepared, or nil.
+argument:: minutes
+argument:: seconds
+argument:: quant
+argument:: clock
+Defaults to the recorder's clock.
+argument:: margin
+Seconds added to the duration.
+returns:: The total seconds. Both start at code::quant::, the recorder stops after the total (armed at the quantized start).
+
+EXAMPLES::
+
+code::
+RETake.session(~song.recorder(\ambix), ~song.replay(\take), minutes: 9, seconds: 24, quant: [4, 0]);
+::

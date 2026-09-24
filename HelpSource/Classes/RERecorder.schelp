@@ -1,0 +1,73 @@
+TITLE:: RERecorder
+summary:: A named set of tracks recorded together, one Recorder per track, under a piece folder
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REReplay, Classes/RETake, Classes/RCSong
+
+DESCRIPTION::
+Records several buses at once into stamped files code::<root>/<subfolder>/<stamp>_<name>[ <version>].<format>:: (link::Classes/RETake#*path::). A track's bus is a link::Classes/Bus::, a link::Classes/NodeProxy:: (its bus, read at record time: a chain stage can be cued before it is built) or an integer index.
+
+code::prepare:: needs a running server: it makes the folder and one link::Classes/Recorder:: per track with stamped paths. code::start:: is quantized on a clock (the song's, once registered with link::Classes/RCSong#-addRecorder::); an unprepared recorder is prepared on the spot with a warning (unquantized). code::stop:: closes the files; the next start needs a new code::prepare:: (a new stamp). code::stopAfter:: counts seconds on SystemClock, whatever the tempo.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: server
+argument:: root
+argument:: subfolder
+argument:: version
+argument:: format
+File format ("aiff", "wav").
+argument:: numChannels
+Default channel count for tracks whose bus has none (an index).
+argument:: clock
+argument:: node
+The node the record synths are placed after (nil: the tail of the root node, after every group).
+argument:: sampleFormat
+
+INSTANCEMETHODS::
+
+METHOD:: addTrack
+argument:: name
+argument:: bus
+argument:: numChannels
+Chainable; re-adding a name replaces its track.
+METHOD:: removeTrack
+argument:: name
+METHOD:: trackNames
+METHOD:: tracks
+METHOD:: pathFor
+argument:: name
+argument:: stamp
+The file a track would get (pure).
+
+METHOD:: prepare
+argument:: stamp
+METHOD:: start
+argument:: quant
+argument:: clock
+argument:: node
+argument:: alignToLatency
+Delay the record synths by code::server.latency::, in line with scheduled bundles (conversion takes).
+METHOD:: stop
+METHOD:: stopAfter
+argument:: seconds
+METHOD:: isRecording
+METHOD:: isPrepared
+METHOD:: paths
+METHOD:: stamp
+METHOD:: clock
+METHOD:: node
+METHOD:: free
+
+EXAMPLES::
+
+code::
+(
+~song.addRecorder(\ambix,
+	RERecorder(s, "~/piece/RecorderSC".standardizePath, "LeafHues/AmbiX", "w1", numChannels: 16)
+		.addTrack('AmbiX Out', ~song.ambi.decoder)
+).prepare;
+)
+~song.recorder(\ambix).start([4, 0]);
+~song.recorder(\ambix).stop;
+::

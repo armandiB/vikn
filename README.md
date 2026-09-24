@@ -27,6 +27,18 @@ fobjects, loop buffers, OSC/MIDI control surfaces. Every class is prefixed
 Tests live in `tests/reCurrent_tests/` (UnitTest, no server needed) and run with
 `~/Music/Supercollider/HomewareSC/scripts/test.sh`.
 
+### reAmbi and reCording
+Two small modules the songs hold by name (`~song.ambi`, `~song.recorder(\k)`):
+
+- `reAmbi/`: RAOutputChain (an ambisonic output chain built synchronously
+  in ordered Groups: signal → transformer → inserted stages → AmbiX / binaural
+  decoder), RAStereoMonitor (FOA cardioid stereo feed of the chain). Guide:
+  `HelpSource/Guides/reAmbi.schelp`; tests in `tests/reAmbi_tests/`.
+- `reCording/`: RERecorder (tracks recorded together under a piece folder),
+  REReplay (a take cued into a proxy or a bus), RETake (paths, and the
+  record-a-replay session). Guide: `HelpSource/Guides/reCording.schelp`;
+  tests in `tests/reCording_tests/`.
+
 ### Main classes (older modules)
 - FileIO/Recording/RecorderModule: creates a Recorder and a recording bus, with monitoring to another bus, organizes multiple takes
 
