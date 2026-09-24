@@ -49,7 +49,7 @@ RCPathControl : RCOrgnsm {
 			seed_orgnsm_series: 2,
 			tdesign: design,
 			path_generation_func: Ref({ |design, start, seed| RCSpherePath.generatePath(design, start, seed) }),
-			orgnsm_series: { |self| self.path_generation_func.dereference.value(self.tdesign, self.start_orgnsm_series, self.seed_orgnsm_series) },
+			orgnsm_series: { |self| RCPathControl.cachedSeries(self) },
 			skip_orgnsm_if_rest: false,
 			orgnsm_series_pattern: { |self| Pseq(self.orgnsm_series.mirror1, inf) },
 
@@ -76,15 +76,45 @@ RCPathControl : RCOrgnsm {
 		];
 	}
 
+	// The default orgnsm_series: the seeded path is generated once per
+	// (design, start, seed, generation function) and cached in the static
+	// attrs; the series stream itself is rebuilt every loop, as in the
+	// original, so each loop walks the path from its start.
+	*cachedSeries { |st|
+		var key = [st[\tdesign].identityHash, st[\start_orgnsm_series], st[\seed_orgnsm_series], st[\path_generation_func]];
+		if(st[\zZZZ_series_cache_key] != key) {
+			st[\zZZZ_series_cache] = st[\path_generation_func].dereference.value(st[\tdesign], st[\start_orgnsm_series], st[\seed_orgnsm_series]);
+			st[\zZZZ_series_cache_key] = key;
+		};
+		^st[\zZZZ_series_cache]
+	}
+
 	// The subseqs of this loop, fresh from the rhythm dict.
 	seqsInfo {
 		var st = staticAttrs;
 		^RCGuard.call(\pathControl, []) { st[\rhythm_dict].subseqs(st[\path_name], st[\path_key]) }
 	}
 
-	// Union of the param keys of the subseqs.
+	// Union of the param keys of the subseqs, in a stable (sorted) order.
 	otherParamsKeyList { |seqsInfo|
-		^(seqsInfo ? []).collect { |subseq| (subseq[3] ? ()).keys }.inject(Set.new, { |acc, keys| acc.union(keys) }).asArray
+		var res = List.new;
+		(seqsInfo ? []).do { |subseq|
+			(subseq[3] ? ()).keys.asArray.sort { |a, b| a.asString < b.asString }.do { |key|
+				if(res.includes(key).not) { res.add(key) };
+			};
+		};
+		^res.asArray
+	}
+
+	// Declare the current rhythm's param keys on every beat of the batch (the
+	// controlled one by default) so that the first loop sets them without a
+	// pattern restart. Call it after the batch started. Returns the keys.
+	reserveKeysIn { |batch|
+		var keys = this.otherParamsKeyList(this.seqsInfo);
+		var b = batch ?? { staticAttrs[\controlled_batch] };
+		if(b.isNil) { RCLog.error(\pathControl, "% reserveKeysIn: no batch".format(this.name)); ^keys };
+		b.apply({ |o| o.beat !? (_.reserveKeys(keys)); o });
+		^keys
 	}
 
 	// Compile the loop, then distribute its hits over the orgnsm series.
@@ -148,12 +178,14 @@ RCPathControl : RCOrgnsm {
 								entry[3].add(subseqIndex);
 							};
 						};
-						if(addedRest > -1e-5) {   // the same orgnsm may appear twice in one hit
+						if(addedRest > -1e-5) {
 							var params = if(addPrev) { otherParams ++ [previousOrgnsms ? noPreviousOrgnsmKey] } { otherParams };
 							entry[1].add(if(addedRest >= 0) { dur } { dur + addedRest });
 							entry[2].add(params);
 							entry[3].add(subseqIndex);
 							cumdurPosByOrgnsm[orgnsmKey] = cumdurPosByOrgnsm[orgnsmKey] + addedRest + dur;
+						} {   // the same orgnsm twice in one hit group: the second hit has no room
+							RCLog.warn(\pathControl, { "%: orgnsm % hit twice at once, second hit dropped".format(this.name, orgnsmKey) });
 						};
 					};
 				};
@@ -189,6 +221,8 @@ RCPathControl : RCOrgnsm {
 		if(batch.isNil) { RCLog.error(\pathControl, "% has no controlled_batch".format(this.name)); ^this };
 		if(st[\add_previous_orgnsms_to_other_params] ? false) { keyList = keyList ++ [st[\reserved_key_add_previous_orgnsms_to_other_params]] };
 		batch.editAttr("dur_params", st.dur_params_orgnsms);
+		// an orgnsm records only the keys installed on its beat: one without a
+		// beat yet gets them at the first loop after it starts
 		batch.apply({ |o|
 			var beat = o.beat;
 			var oldKeys = o.staticAttrs[\other_params_key_list] ? [];
@@ -197,16 +231,18 @@ RCPathControl : RCOrgnsm {
 					beat.set(key, Pfunc { |ev2|
 						ev2[\compute_seq_params].dereference[key] ?? {
 							defaults[key] ?? {
-								RCLog.warn(\pathControl, "%: key % not found in compute_seq_params, returning Rest()".format(o.name, key));
+								RCLog.warn(\pathControl, { "%: key % not found in compute_seq_params, returning Rest()".format(o.name, key) });
 								Rest()
 							}
 						}
 					});
 				};
+				o.rPut("other_params_key_list", keyList);
+			} {
+				o.rPut("other_params_key_list", []);
 			};
 			o
 		});
-		batch.editAttr("other_params_key_list", keyList);
 		batch.editAttr("seq_list", { |o, i, list, key| seqLists[key] ? [] }, nil, true);
 	}
 }

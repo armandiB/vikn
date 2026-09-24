@@ -9,6 +9,7 @@
 //   dur_flex: Pfunc { |ev| ev.compute_seq_params.dereference[\dur] }      // in attrDictBase
 
 RCOrgnsmPatterns {
+	classvar <>maxEventsPerLoop = 4096;   // prMerge stops (error) past this many events in one loop
 
 	// Pn(Plazy(func)) that cannot spin: a body that yields nothing rests 1 beat.
 	// Like Pn, `key` (when given) is set to true in the event at every repeat,
@@ -70,7 +71,8 @@ RCOrgnsmPatterns {
 				pos
 			} {
 				advance = ev.delta * clock.beatDur * buffer.sampleRate * (ev[\stretch] ? 1).reciprocal * (ev[\bufrate] ? 1) * (1 - fade);
-				store[cursorKey] = (pos + advance).wrap(0, (frames - 1).max(0)).asInteger;
+				// stretch 0 or a NaN rate would poison the cursor for good
+				store[cursorKey] = RCGuard.finite((pos + advance).wrap(0, (frames - 1).max(0)), 0, \cuttingFadeStart).asInteger;
 				pos
 			}
 		};
@@ -124,8 +126,9 @@ RCOrgnsmPatterns {
 			var durParams = st[\dur_params];
 			var keyList = st[\other_params_key_list] ? [];
 			var timeMult, loopTimeNoMult, loopTime, patArray, seqList;
-			if(durParams.isNil or: { durParams[0].isNil } or: { durParams[0] <= 0 }) {
-				RCLog.error(\seqParams, "dur_params % invalid, resting 1 beat".format(durParams));
+			if(durParams.isNil or: { durParams[0].isNumber.not } or: { durParams[0] <= 0 }
+				or: { (durParams[1] ? 1).isNumber.not } or: { (durParams[1] ? 1) <= 0 }) {
+				RCLog.error(\seqParams, "dur_params % invalid (loop dur and time mult must be positive), resting 1 beat".format(durParams));
 				Pseq([this.prRestValue(1, keyList, returnDict)])
 			} {
 				timeMult = durParams[1] ? 1;
@@ -166,22 +169,25 @@ RCOrgnsmPatterns {
 	// Merge [offset, pattern] pairs into one event stream (delta = time to the
 	// next event of any pattern). Unlike Ppar with leading rests, a hit at the
 	// loop start keeps its length and no zero-length rest trails the loop.
+	// The silent gap and tail events are built from an empty Event, so that a
+	// param key which also exists upstream (\amp) never leaks its value into
+	// a rest. A subseq yielding zero durations cannot spin: maxEventsPerLoop.
 	*prMerge { |offsetsAndPatterns, loopTime|
 		^Prout { |inval|
 			var q = PriorityQueue.new;
-			var now = 0, stream, ev, nexttime;
+			var now = 0, stream, ev, nexttime, count = 0;
 			offsetsAndPatterns.do { |pair| q.put(pair[0], pair[1].asStream) };
 			if(q.notEmpty and: { (nexttime = q.topPriority) > 0 }) {
-				inval = Event.silentNoDefault(nexttime, inval).yield;
+				inval = Event.silentNoDefault(nexttime).yield;
 				now = nexttime;
 			};
-			while { q.notEmpty } {
+			while { q.notEmpty and: { count < maxEventsPerLoop } } {
 				stream = q.pop;
 				ev = stream.next(inval);
 				if(ev.isNil) {
 					nexttime = q.topPriority;
 					if(nexttime.notNil and: { nexttime > now }) {
-						inval = Event.silentNoDefault(nexttime - now, inval).yield;
+						inval = Event.silentNoDefault(nexttime - now).yield;
 						now = nexttime;
 					};
 				} {
@@ -191,10 +197,14 @@ RCOrgnsmPatterns {
 					ev.put(\delta, nexttime - now);
 					inval = ev.yield;
 					now = nexttime;
+					count = count + 1;
 				};
 			};
+			if(count >= maxEventsPerLoop) {
+				RCLog.error(\seqParams, "% events in one loop (zero durations?), the rest of the loop is dropped".format(count), force: true);
+			};
 			if(loopTime.notNil and: { now < loopTime }) {
-				inval = Event.silentNoDefault(loopTime - now, inval).yield;
+				inval = Event.silentNoDefault(loopTime - now).yield;
 			};
 			inval
 		}
@@ -212,8 +222,16 @@ RCOrgnsmPatterns {
 		var patternDur, begShift, eventPat, allArrays;
 		if(mask.isKindOf(Boolean)) { mask = if(durInfo.isKindOf(SequenceableCollection)) { mask ! durInfo.size } { Pn(mask) } };
 		s.mask = mask;
-		allArrays = durInfo.isKindOf(SequenceableCollection) and: { mask.isKindOf(SequenceableCollection) }
-			and: { params.values.every { |val, i| keysIgnoreOrder.includes(params.keys.asArray[i]) or: { val.isKindOf(SequenceableCollection) } } };
+		// every param must be an array (or be listed in keysIgnoreOrder) for the
+		// array branch; keys and values are visited together (their separate
+		// enumerations are in different orders)
+		allArrays = durInfo.isKindOf(SequenceableCollection) and: { mask.isKindOf(SequenceableCollection) } and: {
+			var ok = true;
+			params.keysValuesDo { |key, val|
+				if(keysIgnoreOrder.includes(key).not and: { val.isKindOf(SequenceableCollection).not }) { ok = false };
+			};
+			ok
+		};
 		if(allArrays) {
 			var cumdur = RCRhythm.cumdurFromSubseq(s, shift: s.shift - (initialBegShift / timeMult), loopTime: loopTimeNoMult, timeMult: timeMult);
 			var durShift = RCRhythm.durFromCumdur(cumdur[0], cumdur[2]);

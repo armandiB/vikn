@@ -63,6 +63,15 @@ RCRhythmDict {
 				if(isArray) { val ! numHits } { Pn(val) }
 			} { val }
 		};
+		// an array param must give one value per hit: reported here, at
+		// definition time, rather than as a truncated subseq at play time
+		if(isArray) {
+			params.keysValuesDo { |k, v|
+				if(v.isKindOf(SequenceableCollection) and: { v.size != numHits }) {
+					RCLog.error(\rhythmDict, "%: param % has % values for % hits".format(libName, k, v.size, numHits));
+				};
+			};
+		};
 		// keys whose order is not tied to the hits: library ones (unless overridden) + the entry's
 		keysIgnoreOrder = (libEntry[4] ? []).select { |k| originalKeys.includes(k).not } ++ (info[5] ? []);
 		mask = info[3] ? true;

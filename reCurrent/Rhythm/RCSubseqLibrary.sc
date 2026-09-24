@@ -58,10 +58,14 @@ RCSubseqLibrary {
 		^nil
 	}
 
-	size { |name|
+	// Number of hits of a named subseq (nil for pattern durations).
+	sizeOf { |name|
 		var entry = this.at(name);
 		^entry !? { this.subseqSize(entry) }
 	}
+
+	// Object:size is the number of subseqs (a bare .size must stay valid).
+	size { ^this.names.size }
 
 	// All dotted names, for browsing.
 	names {

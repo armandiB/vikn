@@ -13,11 +13,21 @@ RCSpherePath {
 		^triplets
 	}
 
+	// The candidates around each point: the points of its faces, with the
+	// repetitions of triplets.flat (a shared neighbour counts twice) so that a
+	// seeded walk picks the same points as the original select/flat version.
+	*prAdjacency { |triplets|
+		var res = IdentityDictionary.new;
+		triplets.do { |t| t.do { |p| res[p] = (res[p] ? []) ++ t } };
+		^res
+	}
+
 	// A path of `pathSize` adjacent, distinct points starting at startPoint.
 	// Retries (seeded) up to maxTries times to reach the requested size and
 	// returns the longest path found.
 	*generatePath { |design, startPoint = 0, seed = 0, pathSize, maxTries = 1000|
 		var triplets = this.prTriplets(design);
+		var adjacency = this.prAdjacency(triplets);
 		var routine, best;
 		pathSize = pathSize ? design.size;
 		routine = Routine {
@@ -25,13 +35,14 @@ RCSpherePath {
 			best = [startPoint];
 			while { (best.size < pathSize) and: { tries < maxTries } } {
 				var path = List[startPoint];
+				var visited = IdentitySet[startPoint];
 				var current = startPoint;
 				(pathSize - 1).max(0).do {
-					var adjacent = triplets.select { |t| t.includes(current) };
-					var acceptable = adjacent.flat.reject { |p| path.includes(p) };
+					var acceptable = (adjacency[current] ? []).reject { |p| visited.includes(p) };
 					if(acceptable.size > 0) {
 						current = acceptable.choose;
 						path.add(current);
+						visited.add(current);
 					};
 				};
 				if(path.size > best.size) { best = path.asArray };

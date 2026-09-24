@@ -44,8 +44,9 @@ TestRCRhythmData : UnitTest {
 		this.assertEquals(lib.at("percs.kick.fourfour").size, 4, "3-element entries padded with params");
 		this.assertEquals(lib.at("percs.snare.twos")[4], [\accent], "keysIgnoreOrder kept");
 		this.assertEquals(lib.at("percs.nope.x"), nil, "unknown → nil + error");
-		this.assertEquals(lib.size("percs.hh.short"), 2, "size");
-		this.assertEquals(lib.size("pattern.any.x"), nil, "size of a pattern seq is nil");
+		this.assertEquals(lib.sizeOf("percs.hh.short"), 2, "sizeOf");
+		this.assertEquals(lib.sizeOf("pattern.any.x"), nil, "sizeOf a pattern seq is nil");
+		this.assertEquals(lib.size, 5, "size is the number of subseqs (Object:size stays valid)");
 		this.assert(lib.includes("percs.hh.short") and: { lib.includes("zz").not }, "includes");
 		this.assertEquals(lib.names.size, 5, "names enumerated");
 		lib.put(\extra, (a: ('1': [\a, 0, [1]])));
@@ -136,6 +137,45 @@ TestRCRhythmData : UnitTest {
 		RCGuard.boundedLoop(100, \test, { var v = stream.next(()); v !? { out.add(v) }; v.notNil }, {});
 		this.assertEquals(out.collect { |v| v[0].value }, [1, 1, 0.5, 0.5, 0.5, 0.5], "raw arrays fill the loop, a Boolean or missing mask means every hit");
 		this.assertEquals(out.collect { |v| v[1] }, [\a, \b, \c, \e, \d, \f], "params follow their subseq");
+	}
+
+	pullAll { |stream|
+		var out = List.new;
+		RCGuard.boundedLoop(10000, \test, { var v = stream.next(()); v !? { out.add(v) }; v.notNil }, {});
+		^out
+	}
+
+	test_seqParamsForLoop_two_params_one_ignoring_order {
+		var st = (dur_params: [4, 1], seq_list: [[1, 0, [1, 1], (a: [\x, \y], b: Pseq([7], inf)), true, \n, [\b]]], other_params_key_list: [\a, \b]);
+		var out = this.pullAll(RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, false).asStream);
+		var hits = out.reject { |v| v[0].isRest };
+		this.assertEquals(hits.collect { |v| v[1] }, [\x, \y], "the array param follows the hits");
+		this.assertEquals(hits.collect { |v| v[2] }, [7, 7], "the pattern param listed in keysIgnoreOrder streams alongside");
+	}
+
+	test_seqParamsForLoop_rejects_zero_time_mult {
+		var st = (dur_params: [4, 0], seq_list: [[1, 0, [1, 1], (), true]], other_params_key_list: []);
+		var v = RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, false).asStream.next(());
+		this.assert(v[0].isRest and: { v[0].value == 1 }, "a zero time mult rests one beat");
+		this.assert(RCLog.history.any { |e| e[2].contains("dur_params") }, "reported");
+	}
+
+	test_prMerge_caps_zero_duration_patterns {
+		var saved = RCOrgnsmPatterns.maxEventsPerLoop;
+		var st = (dur_params: [4, 1], seq_list: [[1, 0, Pn(0), (), true]], other_params_key_list: []);
+		var out;
+		RCOrgnsmPatterns.maxEventsPerLoop = 50;
+		out = this.pullAll(RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, false).asStream);
+		this.assert(out.size <= 52, "a zero-duration pattern is cut at the cap (%)".format(out.size));
+		this.assert(RCLog.history.any { |e| e[2].contains("events in one loop") }, "reported");
+		RCOrgnsmPatterns.maxEventsPerLoop = saved;
+	}
+
+	test_rhythmDict_reports_param_length_mismatch {
+		var rd = RCRhythmDict(this.library);
+		rd.at(\d)[\bad] = [[1, 0, "percs.kick.fourfour", true, (acc: [1, 2])]];
+		rd.subseqs(\d, \bad);
+		this.assert(RCLog.history.any { |e| e[2].contains("2 values for 4 hits") }, "array params must match the hit count");
 	}
 
 	test_seqParamsForLoop_dict_form_and_empty {

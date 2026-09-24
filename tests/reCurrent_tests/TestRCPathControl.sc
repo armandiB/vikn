@@ -93,6 +93,73 @@ TestRCPathControl : UnitTest {
 		batch.free;
 	}
 
+	// a controlled batch of `n` voices and its path control, as in test_distribution_over_batch
+	makeRig { |n = 3, startAll = true|
+		var lib = RCSubseqLibrary.newFrom((percs: (kick: ('fourfour': [\fourfour, 0, [1, 1, 1, 1]]))));
+		var rd = RCRhythmDict(lib);
+		var tpl = RCOrgnsm(\voice, 0, 0, song);
+		var batch, pc;
+		rd.at(\voices)[\basic] = [[1, 0, "percs.kick.fourfour", true, (who: \k)]];
+		tpl.addStaticAttrs((seed: 1, dur_params: [1, 1], other_params_key_list: [], seq_list: [], quant: [1, 0]));
+		tpl.addFirstArrayBase = [compute_seq_params: RCOrgnsmPatterns.seqParams(true)];
+		tpl.attrDictBase = [type: \rest, dur_flex: Pfunc { |ev| ev.compute_seq_params.dereference[\dur] }];
+		batch = RCBatch(\voices, tpl, layerKey: \core);
+		n.do { |i| batch.addCreate(i) };
+		if(startAll) { batch.startPrepared };
+		pc = RCPathControl(song, RCTestFakeDesign.new, rd, \voices, \basic, batch);
+		pc.rPut("dur_params", [4, 1]);
+		^(batch: batch, pc: pc)
+	}
+
+	controlStream { |control|
+		^RCBeat(song.layer(\core), control.name, control.attrDict, seeds: 1, addFirst: control.addFirstArray, addFirstSeeds: 1).asStream
+	}
+
+	test_series_generated_once_per_configuration {
+		var rig = this.makeRig;
+		var calls = 0, control, stream;
+		rig.pc.rPut("path_generation_func", Ref({ |design, start, seed| calls = calls + 1; [0, 1, 2] }));
+		control = rig.pc.create(layerKey: \core);
+		stream = this.controlStream(control);
+		2.do { stream.next(Event.default) };
+		this.assertEquals(calls, 1, "the path is generated once, not once per loop");
+		this.assertEquals(control.staticAttrs[\zZZZ_series_cache], [0, 1, 2], "cached in the static attrs");
+		control.rPut("seed_orgnsm_series", 5);
+		stream.next(Event.default);
+		this.assertEquals(calls, 2, "a new seed regenerates it");
+		rig.batch.free;
+	}
+
+	test_key_list_recorded_only_with_a_beat {
+		var rig = this.makeRig(2, false);
+		var control, stream, orgnsms;
+		rig.batch.startPrepared([0]);
+		control = rig.pc.create(layerKey: \core);
+		stream = this.controlStream(control);
+		stream.next(Event.default);
+		orgnsms = [0, 1].collect { |k| (rig.batch.orgnsms(k) ? rig.batch.prepared[k])[0] };
+		this.assertEquals(orgnsms[0].staticAttrs.other_params_key_list, [\who], "a started orgnsm records its keys");
+		this.assertEquals(orgnsms[1].staticAttrs.other_params_key_list, [], "one without a beat records none");
+		rig.batch.startPrepared;
+		stream.next(Event.default);
+		this.assertEquals(orgnsms[1].staticAttrs.other_params_key_list, [\who], "installed at the first loop after it starts");
+		this.assert(orgnsms[1].beat.keyProxy(\who).notNil, "key on its beat");
+		rig.batch.free;
+	}
+
+	test_reserveKeysIn_avoids_live_key_adds {
+		var rig = this.makeRig;
+		var control, stream, adds;
+		this.assertEquals(rig.pc.reserveKeysIn(rig.batch), [\who], "returns the reserved keys");
+		this.assert(rig.batch.orgnsms(0)[0].beat.keyProxy(\who).notNil, "key declared on the beats");
+		adds = RCLog.history.count { |e| e[2].contains("added key who") };
+		control = rig.pc.create(layerKey: \core);
+		stream = this.controlStream(control);
+		stream.next(Event.default);
+		this.assertEquals(RCLog.history.count { |e| e[2].contains("added key who") }, adds, "the loop sets the reserved keys without adding any");
+		rig.batch.free;
+	}
+
 	test_missing_batch_and_rhythm_are_reported {
 		var design = RCTestFakeDesign.new;
 		var pc = RCPathControl(song, design, RCRhythmDict(RCSubseqLibrary.new), \nope, \nope, nil);
