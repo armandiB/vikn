@@ -12,6 +12,7 @@ Loop after loop of link::#*seqParamsForLoop:: over code::staticAttrs.seq_list::,
 argument:: returnDict
 true: Ref'd Dictionary per value; false: code::[dur, params...]:: arrays.
 METHOD:: seqParamsForLoop
+One loop of code::seq_list:: merged into one stream. Entries are link::Classes/RCSubseq:: objects (from link::Classes/RCRhythmDict#-subseqs::) or raw code::[priority, shift, durs, params, mask, name, keysIgnoreOrder, timeMult]:: arrays written by hand; a Boolean or missing mask means every hit.
 One loop merged from subseqs with an offset-aware scheduler: a hit at the loop start keeps its length and no zero-length rest trails the loop.
 argument:: useOrgnsmStaticAttrs
 argument:: staticAttrs

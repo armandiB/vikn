@@ -197,16 +197,21 @@ RCOrgnsmPatterns {
 	}
 
 	// One subseq → [offset, Pevent of its hits within the loop] (durations, params, rests).
+	// subseq: an RCSubseq or a raw [priority, shift, durs, params, mask, ...] array
+	// (a Boolean mask means every hit, like RCRhythmDict.resolve).
 	*prSubseqPattern { |subseq, loopTime, loopTimeNoMult, timeMult, initialBegShift|
-		var params = (subseq[3] ? ()).copy;
-		var durInfo = subseq[2];
-		var mask = subseq[4] ?? { if(durInfo.isKindOf(SequenceableCollection)) { true ! durInfo.size } { Pn(true) } };
-		var keysIgnoreOrder = subseq[6] ? [];
-		var patternDur, begShift, eventPat;
-		var allArrays = durInfo.isKindOf(SequenceableCollection) and: { mask.isKindOf(SequenceableCollection) }
+		var s = if(subseq.isKindOf(RCSubseq)) { subseq.copy } { RCSubseq.fromArray(subseq) };
+		var params = (s.params ? ()).copy;
+		var durInfo = s.durs;
+		var mask = s.mask ? true;
+		var keysIgnoreOrder = s.keysIgnoreOrder ? [];
+		var patternDur, begShift, eventPat, allArrays;
+		if(mask.isKindOf(Boolean)) { mask = if(durInfo.isKindOf(SequenceableCollection)) { mask ! durInfo.size } { Pn(mask) } };
+		s.mask = mask;
+		allArrays = durInfo.isKindOf(SequenceableCollection) and: { mask.isKindOf(SequenceableCollection) }
 			and: { params.values.every { |val, i| keysIgnoreOrder.includes(params.keys.asArray[i]) or: { val.isKindOf(SequenceableCollection) } } };
 		if(allArrays) {
-			var cumdur = RCRhythm.cumdurFromSubseq(subseq, shift: subseq[1] - (initialBegShift / timeMult), loopTime: loopTimeNoMult, timeMult: timeMult);
+			var cumdur = RCRhythm.cumdurFromSubseq(s, shift: s.shift - (initialBegShift / timeMult), loopTime: loopTimeNoMult, timeMult: timeMult);
 			var durShift = RCRhythm.durFromCumdur(cumdur[0], cumdur[2]);
 			patternDur = if(durShift[0].size == 0) { [Rest(loopTime)] } { durShift[0] };
 			begShift = durShift[1] ? 0;
@@ -215,7 +220,7 @@ RCOrgnsmPatterns {
 			};
 		} {
 			var combined;
-			begShift = ((timeMult * subseq[1]) - initialBegShift) % loopTime;
+			begShift = ((timeMult * s.shift) - initialBegShift) % loopTime;
 			if(mask.isKindOf(SequenceableCollection)) { mask = Pseq(mask) };
 			if(durInfo.isKindOf(SequenceableCollection)) { durInfo = Pseq(durInfo) };
 			combined = Ptuple([timeMult * durInfo, mask]);

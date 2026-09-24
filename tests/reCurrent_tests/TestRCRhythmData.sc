@@ -114,6 +114,16 @@ TestRCRhythmData : UnitTest {
 		this.assert(out.last[0].isRest, "trailing rest fills the loop");
 	}
 
+	test_seqParamsForLoop_raw_array_subseq {
+		// a seq_list written by hand, as in WeMadeATrack: [priority, shift, durs, params, mask]
+		var st = (dur_params: [4, 1], seq_list: [[1, 0, [1, 1, 1, 1], (who: [\a, \b, \c, \d]), true], [1, 2.5, [1, 1], (who: [\e, \f])]], other_params_key_list: [\who]);
+		var stream = RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, false).asStream;
+		var out = List.new;
+		RCGuard.boundedLoop(100, \test, { var v = stream.next(()); v !? { out.add(v) }; v.notNil }, {});
+		this.assertEquals(out.collect { |v| v[0].value }, [1, 1, 0.5, 0.5, 0.5, 0.5], "raw arrays fill the loop, a Boolean or missing mask means every hit");
+		this.assertEquals(out.collect { |v| v[1] }, [\a, \b, \c, \e, \d, \f], "params follow their subseq");
+	}
+
 	test_seqParamsForLoop_dict_form_and_empty {
 		var st = (dur_params: [2, 1], seq_list: [], other_params_key_list: [\a]);
 		var v = RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, true).asStream.next(());
