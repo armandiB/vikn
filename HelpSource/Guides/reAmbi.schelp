@@ -1,0 +1,41 @@
+title:: reAmbi
+summary:: Ambisonic output chains and stereo monitors as objects
+categories:: Libraries>reAmbi
+related:: Classes/RAOutputChain, Classes/RAStereoMonitor, Guides/reCurrent
+
+section:: What it is
+
+The pieces of HomewareSC monitored their ambisonic mix through three NodeProxies (signal, transformer, decoder) created in a routine and chained by hand, with reverbs and all-pass stages moved into place with waits and code::moveAfter::. reAmbi makes that one object, link::Classes/RAOutputChain::, held by the song (link::Classes/RCSong#-addOutput::, code::~song.ambi::), plus link::Classes/RAStereoMonitor:: for the PA feed.
+
+list::
+## The chain is configured at boot and built at scene/init, after the song's node tree exists: its channel count, order and buses are valid before build.
+## build is synchronous: groups created in order, proxies placed, links set before sources, the decoder played into its own group. No waits, no moves.
+## Stages are inserted, removed and moved live with the other stages untouched.
+## clear frees the groups first, then the proxies: the song can free its output group right after, with no late message.
+## With the server stopped everything works client-side (tests, NRT), sending nothing.
+::
+
+section:: Usage
+
+code::
+(
+// at boot (Common/Rc_Session)
+~song.addOutput(\main, RAOutputChain(s, hoa_order_output, \main,
+	decode: if(binaural) { \binaural } { \ambix },
+	outBus: if(binaural) { cue_output_bus } { ambix_output_bus }));
+)
+// at scene/init, after makeGroups
+~song.buildOutputs;
+
+// instrument files
+~song.ambi.signal.source = { ... };                       // the mix
+~song.ambi.transformer.source = { LPF.ar(\in.ar(0 ! 16), 4000) };
+~reverb = ~song.ambi.insert(\reverb, { ... \in.ar(0 ! 16) ... });   // before the decoder
+~song.ambi.move(\reverb, after: \signal);
+~song.ambi.addMonitor(RAStereoMonitor(16, 18, 5.0, 131/2, 0.5));
+~song.ambi.bus(\decoder);                                 // for a recorder
+::
+
+section:: Binaural decoding
+
+The binaural decoder needs the HRTF buffers of its order. link::Classes/RAOutputChain#*loadBinauralIRs:: loads them per order with a completion callback; a chain built before they are in gets its decoder synth when they arrive (the proxy, its group and links exist at once). A server reboot forgets the cache.

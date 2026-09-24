@@ -1,0 +1,36 @@
+TITLE:: RAStereoMonitor
+summary:: FOA cardioid stereo decode of an RAOutputChain
+categories:: Libraries>reAmbi
+related:: Guides/reAmbi, Classes/RAOutputChain
+
+DESCRIPTION::
+A stereo monitor for the PA: the first-order part of the stage feeding the chain's decoder is high-passed, proximity-compensated and decoded with link::Classes/FoaDecoderMatrix#*newStereo:: to two channels on strong::outBus::. Registered on a chain with link::Classes/RAOutputChain#-addMonitor::, built and cleared with it; its configuration survives a clear. The chain re-taps the monitor when stages are inserted, removed or moved.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: outBus
+argument:: ampDb
+Gain in dB (a control on the proxy, adjustable live).
+argument:: hpFreq
+argument:: angleDeg
+Stereo decoder angle in degrees.
+argument:: pattern
+Microphone pattern of the decoder (0.5 = cardioid).
+argument:: fadeTime
+
+INSTANCEMETHODS::
+
+METHOD:: build
+argument:: chain
+METHOD:: clear
+METHOD:: isBuilt
+METHOD:: proxy
+METHOD:: chain
+METHOD:: ampDb
+Live: sets the proxy's code::\amp::.
+METHOD:: outBus
+METHOD:: hpFreq
+METHOD:: angleDeg
+METHOD:: pattern
+Take effect at the next build.

@@ -1,0 +1,133 @@
+TITLE:: RAOutputChain
+summary:: An ambisonic output chain: signal → transformer → inserted stages → decoder, each a NodeProxy in its own Group
+categories:: Libraries>reAmbi
+related:: Guides/reAmbi, Classes/RAStereoMonitor, Classes/RCSong
+
+DESCRIPTION::
+The monitoring chain of a piece as an object: a strong::signal:: proxy the instruments write to, an optional identity strong::transformer::, any number of inserted stages (reverbs, all-pass, dry-outs) and a strong::decoder:: (AmbiX matrix, binaural HRTF convolution, or raw) played on an output bus. Registered on a song with link::Classes/RCSong#-addOutput:: and built by link::Classes/RCSong#-buildOutputs:: after the node tree exists.
+
+The constructor allocates nothing: the server resets its allocators at every boot, so buses and proxies are made in code::build::. Until then the configuration (code::numChannels::, code::order::, code::outBus::, code::decode::) is already valid for the instrument files.
+
+code::build:: is synchronous and race-free: one Group per stage created in order (message order is node order: no moves, no waits), each proxy placed in its group with code::group_::, the stages linked (nodeMaps only, before any synth exists), then the sources and the decoder's monitor into a play group after the stages. With the server stopped it builds client-side and sends nothing (tests, NRT). code::insert::, code::remove:: and code::move:: re-map only the links they touch, so the other stages keep playing (a full rewire would cut reverb tails). code::clear:: frees the groups first (immediate code::/n_free::) and then the proxies, so nothing delayed reaches a dead node: link::Classes/RCSong#-clearAll:: can free the parent group right after.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: server
+argument:: order
+Ambisonic order (3 → 16 channels).
+argument:: name
+argument:: decode
+code::\ambix:: (link::Classes/HoaMatrixDecoder::), code::\binaural:: (link::Classes/HOABinaural::, IRs loaded per order with a completion callback) or code::\raw:: (identity, for conversion rigs).
+argument:: outBus
+argument:: play
+Whether the decoder is played on outBus.
+argument:: useTransformer
+An identity transformer stage after the signal (the pieces set its source to a filter live).
+argument:: headphoneModel
+link::Classes/HOABinaural:: headphone correction index, or nil.
+argument:: refRadius
+AmbiX near-field decoding radius.
+argument:: binauralRadius
+Binaural near-field decoding radius.
+argument:: foaRefRadius
+Kept for the pieces' FOA effects.
+argument:: fadeTime
+Proxy fade time.
+argument:: placeholder
+A faint circling pink noise as the signal's initial source.
+
+METHOD:: loadBinauralIRs
+argument:: server
+argument:: order
+argument:: action
+Loads the IRs of one order (the quark loads all seven with no callback); action runs once the last buffer is in. A server reboot forgets the cache.
+METHOD:: binauralReady
+argument:: server
+argument:: order
+
+INSTANCEMETHODS::
+
+METHOD:: build
+argument:: parentGroup
+The group the stage groups are created in (the song's code::\outputDecode:: group). Returns this.
+METHOD:: clear
+Back to the unbuilt configuration; inserted stages and taps are dropped, the monitor stays registered.
+METHOD:: isBuilt
+METHOD:: isOffline
+True when the last build happened with the server stopped.
+
+METHOD:: numChannels
+code::(order + 1).squared::, valid before build.
+METHOD:: playChannels
+2 for binaural, code::numChannels:: otherwise (the scope lines).
+
+METHOD:: signal
+METHOD:: transformer
+METHOD:: decoder
+The stage NodeProxies (nil before build; transformer nil when unused).
+METHOD:: stages
+Ordered Array of code::[name, proxy]::.
+METHOD:: stageNames
+METHOD:: stage
+argument:: stageName
+METHOD:: lastStage
+The stage feeding the decoder.
+METHOD:: bus
+argument:: stageName
+The proxy bus of a stage (code::\monitor:: for the stereo monitor's), for recorders.
+
+METHOD:: insert
+argument:: stageName
+argument:: source
+A Function (or any proxy source: the chain makes and owns the proxy) or an existing NodeProxy (adopted).
+argument:: after
+argument:: before
+Stage names; default right before the decoder. Returns the stage proxy. Before build the stage is recorded and realized by build.
+METHOD:: remove
+argument:: stageName
+argument:: fadeTime
+METHOD:: move
+argument:: stageName
+argument:: after
+argument:: before
+
+METHOD:: tap
+argument:: tapName
+argument:: proxy
+argument:: from
+A stage name, or code::\last::: the stage feeding the decoder, followed across inserts, removes and moves. Maps the proxy's code::\in::.
+METHOD:: untap
+argument:: tapName
+METHOD:: addMonitor
+argument:: monitor
+An link::Classes/RAStereoMonitor::, built now if the chain is, rebuilt with every build.
+METHOD:: monitor
+METHOD:: removeMonitor
+
+METHOD:: decode
+METHOD:: outBus
+METHOD:: play
+METHOD:: useTransformer
+METHOD:: headphoneModel
+METHOD:: refRadius
+METHOD:: binauralRadius
+METHOD:: foaRefRadius
+METHOD:: fadeTime
+METHOD:: placeholder
+Configuration; the setters take effect at the next build (code::useTransformer_:: needs an unbuilt chain).
+
+EXAMPLES::
+
+code::
+(
+~song.addOutput(\main, RAOutputChain(s, 3, \main, decode: \ambix, outBus: 0));
+~song.makeGroups;
+~song.buildOutputs;     // synchronous
+)
+~song.ambi.signal.source = { HOAEncoder.ar(3, PinkNoise.ar(0.1), 0, 0) };
+~reverb = ~song.ambi.insert(\reverb, { var in = \in.ar(0 ! 16); in + FreeVerb.ar(in, 0.3) });
+~song.ambi.addMonitor(RAStereoMonitor(16, 18));
+~song.ambi.remove(\reverb);
+~song.clearAll;
+::
