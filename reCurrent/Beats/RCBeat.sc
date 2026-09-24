@@ -15,7 +15,8 @@
 //     is streamed as is. Dur edits always land at the next event.
 // Every non-static value is mirrored: lastValue(key) is the last value the
 // key produced, thread(key)/randData(key) its stream thread (per key when
-// seeded).
+// seeded). A Function value is called per event (wrapped in Pfunc); a key
+// given twice keeps its later definition (warned).
 
 RCBeat {
 	classvar <>defaultEditQuant = 1;
@@ -24,6 +25,7 @@ RCBeat {
 	classvar <>defaultRestartDelay = 1;
 	classvar <>minDur = 0.001;                 // durations <= 0 are clamped to this
 	classvar <>maxClampedInARow = 64;          // then the beat stops itself
+	classvar <>maxAuxBeatsPerLayer = 256;      // auxPattern stops spawning above this
 	classvar <hiddenKeys;
 	classvar auxCounter = 0;
 
@@ -45,16 +47,18 @@ RCBeat {
 		});
 	}
 
-	*new { |layer, name, attrDict, chan, midiOut, seeds, addFirst, addFirstSeeds, terminationKey|
-		^super.new.initRCBeat(layer, name, attrDict, chan, midiOut, seeds, addFirst, addFirstSeeds, terminationKey)
+	// logTag: the RCLog tag (default "beat <song>/<layer>/<name>"); aux beats
+	// share their parent's so the limiter does not grow with every spawn.
+	*new { |layer, name, attrDict, chan, midiOut, seeds, addFirst, addFirstSeeds, terminationKey, logTag|
+		^super.new.initRCBeat(layer, name, attrDict, chan, midiOut, seeds, addFirst, addFirstSeeds, terminationKey, logTag)
 	}
 
-	initRCBeat { |layerarg, namearg, attrDictarg, chanarg, midiOutarg, seedsarg, addFirstarg, addFirstSeedsarg, terminationKeyarg|
+	initRCBeat { |layerarg, namearg, attrDictarg, chanarg, midiOutarg, seedsarg, addFirstarg, addFirstSeedsarg, terminationKeyarg, logTagarg|
 		var attrKV, addFirstKV, attrEvent, addFirstEvent;
 		var overrides = ();          // type / types / midicmd overrides (midiOnCtl)
 		var extraFirst = [];         // pairs prepended to addFirst (type, group, out)
 		var extraFirstSeeds = [];
-		var pairs;
+		var pairs, initialDur;
 		var type, midiOnCtl;
 
 		layer = layerarg;
@@ -62,7 +66,7 @@ RCBeat {
 		chan = chanarg;
 		midiOut = midiOutarg ?? { layer.midiOut };
 		terminationKey = terminationKeyarg;
-		tag = ("beat " ++ layer.songName ++ "/" ++ layer.key ++ "/" ++ name).asSymbol;
+		tag = logTagarg ?? { ("beat " ++ layer.songName ++ "/" ++ layer.key ++ "/" ++ name).asSymbol };
 		editQuant = defaultEditQuant;
 		errorPolicy = defaultErrorPolicy;
 		maxRestarts = defaultMaxRestarts;
@@ -71,8 +75,8 @@ RCBeat {
 		threads = IdentityDictionary.new;
 		keyOrder = List.new;
 
-		attrKV = RCUtil.asKV(attrDictarg);
-		addFirstKV = RCUtil.asKV(addFirstarg);
+		attrKV = RCUtil.asKV(attrDictarg, tag);
+		addFirstKV = RCUtil.asKV(addFirstarg, tag);
 		attrEvent = attrKV.asEvent;
 		addFirstEvent = addFirstKV.asEvent;
 		playQuant = this.prCheckQuant(attrEvent[\quant] ?? { addFirstEvent[\quant] } ? 1);
@@ -129,7 +133,8 @@ RCBeat {
 		realDurProxy = PatternProxy.new;
 		realDurProxy.quant = nil;
 		realDurProxy.clock = layer.clock;
-		realDurProxy.setSource(this.prCheckQuant(playQuant)[0]);   // BlockBeats: env[real_dur] = quant[0]
+		initialDur = playQuant[0];                                  // BlockBeats: env[real_dur] = quant[0]
+		realDurProxy.setSource(if(initialDur <= 0) { 1 } { initialDur });   // quant 0 ("now") still needs a positive dur
 		pairs = pairs ++ [\dur_unadj, realDurProxy, \dur, this.prDurPipeline];
 		if(midiOut.notNil) { pairs = pairs ++ [\midiout, midiOut] };
 		if(chan.notNil) { pairs = pairs ++ [\chan, chan] };
@@ -146,7 +151,7 @@ RCBeat {
 				pairs = pairs ++ this.prInitialPairs(key, val, seed);
 			};
 		};
-		pairs = pairs ++ [\rc_finish, this.prFinishPfunc];
+		pairs = this.prDedupePairs(pairs ++ [\rc_finish, this.prFinishPfunc]);
 
 		pbindProxy = PbindProxy(*pairs);
 		pbindProxy.pairs.pairsDo { |key, proxy|
@@ -169,9 +174,29 @@ RCBeat {
 
 	//////// value preparation
 
+	// A key given twice (the beat's own \chan and a user \chan, \group from
+	// addFirst and from the attributes) keeps its later definition, where
+	// it stands: PbindProxy would otherwise edit the inert first one.
+	prDedupePairs { |pairs|
+		var seen = IdentitySet.new, kept = List.new;
+		if(RCUtil.kvKeys(pairs).asSet.size * 2 == pairs.size) { ^pairs };
+		forBy(pairs.size - 2, 0, -2) { |i|
+			var key = pairs[i];
+			if(seen.includes(key)) {
+				RCLog.warn(tag, "key % given twice: the later definition is used".format(key));
+			} {
+				seen.add(key);
+				kept.add([key, pairs[i + 1]]);
+			};
+		};
+		^kept.reverse.flatten(1)
+	}
+
 	// Wrap a user value: termination, mirroring of streamed values, seeding.
+	// A Function is called per event (a bare Function would reach the synth).
 	prPrepareValue { |key, val, seed|
 		if(val.isNil) { ^nil };
+		if(val.isKindOf(Function)) { val = Pfunc(val) };
 		if(terminationKey.notNil and: { key == terminationKey }) {
 			val = Pseq([val, Pfunc { this.prScheduleFree; nil }]);
 		};
@@ -257,9 +282,10 @@ RCBeat {
 		^seeds
 	}
 
+	// 0 is valid ("now": nextTimeOnGrid returns the current beat).
 	prCheckQuant { |quant|
 		if(quant.isNumber) { quant = [quant, 0] };
-		if(quant.isKindOf(SequenceableCollection).not or: { quant.size < 1 } or: { quant[0].isNumber.not } or: { quant[0] <= 0 }) {
+		if(quant.isKindOf(SequenceableCollection).not or: { quant.size < 1 } or: { quant[0].isNumber.not } or: { quant[0] < 0 }) {
 			RCLog.warn(tag, "invalid quant %, using [1, 0]".format(quant));
 			^[1, 0]
 		};
@@ -289,7 +315,7 @@ RCBeat {
 						if(durUnadj.isRest and: { durVal == 0 }) {
 							Rest(0)   // a zero-length rest is harmless (counted, not clamped)
 						} {
-							RCLog.warn(tag, "dur % (unadj %, swing %) clamped to %".format(durVal, d, swingAdd, minDur));
+							RCLog.warn(tag, { "dur % (unadj %, swing %) clamped to %".format(durVal, d, swingAdd, minDur) });
 							durVal = minDur;
 							if(durUnadj.isRest) { Rest(durVal) } { durVal }
 						}
@@ -308,7 +334,7 @@ RCBeat {
 			[\legato, \sustain].do { |k|
 				var v = ev[k];
 				if(v.isNumber and: { v.isNaN or: { v < 0 } }) {
-					RCLog.warn(tag, "% % clamped to 0".format(k, v));
+					RCLog.warn(tag, { "% % clamped to 0".format(k, v) });
 					ev[k] = 0;
 				};
 			};
@@ -339,6 +365,7 @@ RCBeat {
 					if((errorPolicy == \restart) and: { restartCount <= maxRestarts }) {
 						RCLog.warn(tag, "restarting in % beat(s) (attempt %/%)".format(restartDelay, restartCount, maxRestarts), force: true);
 						stream = pbindProxy.asStream;
+						timeTrack = timeTrack + restartDelay;   // the swing phase follows the silent gap
 						inval = Event.silent(restartDelay, inval).yield;
 					} {
 						RCLog.error(tag, "stopped after % consecutive error(s)".format(restartCount), force: true);
@@ -428,13 +455,43 @@ RCBeat {
 		pbindProxy.source.quant = quant;
 		pbindProxy.set(key, val);
 		pbindProxy.at(key).clock_(layer.clock).quant_(nil);
+		this.prMoveFinishLast;
 		keyOrder.add(key);
-		RCLog.info(tag, "added key % to a running beat: the pattern restarts (use reserveKeys to avoid this)".format(key));
+		if(this.isPlaying) {
+			RCLog.info(tag, "added key % to a running beat: the pattern restarts (use reserveKeys to avoid this)".format(key));
+		} {
+			RCLog.info(tag, "added key %".format(key));
+		};
 	}
 
-	// Declare keys up front (value \rc_reserved) so that later sets never rebuild the pattern.
+	// PbindProxy.set appends: keep the sustain/legato clamp (\rc_finish) last.
+	prMoveFinishLast {
+		var pairs = pbindProxy.pairs;
+		var i = pbindProxy.find(\rc_finish);
+		var finish;
+		if(i.isNil or: { i == (pairs.size - 2) }) { ^this };
+		pairs = pairs.copy;
+		finish = pairs[i + 1];
+		pairs.removeAt(i);
+		pairs.removeAt(i);
+		pairs = pairs ++ [\rc_finish, finish];
+		pbindProxy.pairs = pairs;
+		pbindProxy.source.source = Pbind(*pairs);   // same rebuild as set, on the same quant
+	}
+
+	// Declare keys up front so that later sets never rebuild the pattern. The
+	// placeholder is the key's numeric Event default (\db → -20, \legato → 0.8),
+	// else 0: a plain synth argument, never a Symbol reaching the server.
 	reserveKeys { |keys|
-		keys.do { |key| if(pbindProxy.at(key.asSymbol).isNil) { this.prSetKey(key.asSymbol, \rc_reserved, nil) } };
+		keys.do { |key|
+			key = key.asSymbol;
+			if(pbindProxy.at(key).isNil) { this.prSetKey(key, this.class.reservedValue(key), nil) };
+		};
+	}
+
+	*reservedValue { |key|
+		var default = Event.default[key.asSymbol];
+		^if(default.isNumber) { default } { 0 }
 	}
 
 	editQuant_ { |q| editQuant = q; pbindProxy.source.quant = q }
@@ -464,11 +521,12 @@ RCBeat {
 
 	//////// transport
 
+	// quant: nil → the beat's playQuant; a given quant becomes the playQuant.
 	play { |quant|
-		quant = this.prCheckQuant(quant ? playQuant);
 		if(isFreed) { RCLog.warn(tag, "cannot play a freed beat"); ^this };
 		if(this.isPlaying) { RCLog.warn(tag, "already playing"); ^this };
-		player = pattern.play(layer.clock, quant: quant);
+		if(quant.notNil) { playQuant = this.prCheckQuant(quant) };
+		player = pattern.play(layer.clock, quant: playQuant);
 		^this
 	}
 
@@ -476,7 +534,12 @@ RCBeat {
 	resume { player !? { |p| p.resume(layer.clock) } }
 	stop { player !? (_.stop) }
 	isPlaying { ^player.notNil and: { player.isPlaying } }
-	asStream { ^pattern.asStream }
+
+	// A second stream shares the dur pipeline state (timeTrack, swing) with the player.
+	asStream {
+		if(this.isPlaying) { RCLog.warn(tag, "asStream on a playing beat: both streams advance the same swing phase") };
+		^pattern.asStream
+	}
 
 	// No pbindProxy.clear here: EventPatternProxy.clear schedules deferred work
 	// on its clock, which could touch the dead stream later. Dropping the
@@ -515,16 +578,30 @@ RCBeat {
 
 	// A pattern that spawns a fresh, self-terminating beat at every event
 	// (BlockBeats' make_aux_beat). attrDictFunc receives the parent event.
+	// The aux beat starts at once (quant 0) and must carry terminationKey,
+	// else it would never end: such a dict is refused with an error. Above
+	// maxAuxBeatsPerLayer live beats nothing is spawned (error, \skipped).
 	*auxPattern { |layer, namePrefix, terminationKey, attrDictFunc, chan, seeds, addFirst, addFirstSeeds|
+		var logTag = ("beat " ++ layer.songName ++ "/" ++ layer.key ++ "/" ++ namePrefix ++ "_aux").asSymbol;
 		^Pn(Pfunc { |ev|
 			var auxName, attrDict, seedsNew;
-			auxCounter = auxCounter + 1;
-			auxName = (namePrefix.asString ++ "_" ++ auxCounter).asSymbol;
-			attrDict = RCGuard.call(\auxBeat, nil) { attrDictFunc.value(ev) };
-			if(attrDict.isNil) { \skipped } {
+			attrDict = RCGuard.call(logTag, nil) { attrDictFunc.value(ev) };
+			case
+			{ attrDict.isNil } { \skipped }
+			{ terminationKey.notNil and: { RCUtil.kvIncludesKey(RCUtil.asKV(attrDict), terminationKey).not } } {
+				RCLog.error(logTag, "aux beat has no % key, it would never end: not created".format(terminationKey));
+				\skipped
+			}
+			{ layer.beats.size >= maxAuxBeatsPerLayer } {
+				RCLog.error(logTag, "% live beats in the layer: aux beat not created".format(layer.beats.size));
+				\skipped
+			}
+			{
+				auxCounter = auxCounter + 1;
+				auxName = (namePrefix.asString ++ "_" ++ auxCounter).asSymbol;
 				seedsNew = if(seeds.isKindOf(Function)) { seeds.value(ev) } { seeds };
 				layer.addBeat(auxName, attrDict, chan: chan, seeds: seedsNew ? \none, addFirst: addFirst,
-					addFirstSeeds: addFirstSeeds ? \none, terminationKey: terminationKey, post: false);
+					addFirstSeeds: addFirstSeeds ? \none, terminationKey: terminationKey, quant: 0, post: false, logTag: logTag);
 				auxName
 			}
 		})

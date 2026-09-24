@@ -210,6 +210,86 @@ TestRCBeat : UnitTest {
 		var name = s.next(());
 		this.assert(name.asString.beginsWith("aux_"), "aux beat named with a counter");
 		this.assert(layer.beat(name).notNil, "aux beat created and playing");
+		this.assertEquals(layer.beat(name).tag, 'beat tb/core/aux_aux', "aux beats log under one shared tag");
+		this.assertEquals(layer.beat(name).playQuant, [0, 0], "aux beat starts at once");
 		layer.killAll;
+	}
+
+	test_auxPattern_refuses_endless_and_excess_beats {
+		var saved = RCBeat.maxAuxBeatsPerLayer;
+		var endless = RCBeat.auxPattern(layer, \nope, \x, { |ev| [type: \rest, dur_flex: 1] }).asStream;
+		var ok = RCBeat.auxPattern(layer, \cap, \x, { |ev| [type: \rest, dur_flex: 1, x: Pseq([1])] }).asStream;
+		this.assertEquals(endless.next(()), \skipped, "a dict without the termination key is refused");
+		this.assert(this.logHas("would never end"), "refusal reported");
+		this.assertEquals(layer.beats.size, 0, "nothing created");
+		RCBeat.maxAuxBeatsPerLayer = 1;
+		this.assert(ok.next(()) != \skipped, "first aux beat created");
+		this.assertEquals(ok.next(()), \skipped, "above the cap nothing is spawned");
+		this.assert(this.logHas("live beats in the layer"), "cap reported");
+		RCBeat.maxAuxBeatsPerLayer = saved;
+		layer.killAll;
+	}
+
+	test_play_now {
+		var b = RCBeat(layer, \now, [type: \rest, dur_flex: 0.25]);
+		var q0 = RCBeat(layer, \q0, [type: \rest, quant: 0]);
+		b.play(0);
+		this.assert(b.isPlaying, "quant 0 plays");
+		this.assert(this.logHas("invalid quant").not, "quant 0 is valid");
+		this.assertEquals(q0.playQuant, [0, 0], "quant 0 kept");
+		this.assertEquals(this.pull(q0, 1)[0].dur, 1, "a quant of 0 still gives a positive initial dur");
+		b.set(\quant, -1);
+		this.assert(this.logHas("invalid quant"), "negative quant rejected");
+		b.free(post: false);
+	}
+
+	test_function_attribute_is_called_per_event {
+		var count = 0;
+		var b = RCBeat(layer, \fn, [type: \rest, dur_flex: 1, x: { count = count + 1 }]);
+		this.assertEquals(this.pull(b, 3).collect(_.x), [1, 2, 3], "a Function value is evaluated at every event");
+		this.assertEquals(b.lastValue(\x), 3, "and mirrored");
+	}
+
+	test_live_key_stays_before_the_finish_clamp {
+		var b = RCBeat(layer, \lk, [type: \rest, dur_flex: 1]);
+		var s = b.asStream;
+		s.next(Event.default);
+		b.set(\sustain, -1, quant: nil);
+		this.assertEquals(RCUtil.kvKeys(b.pbindProxy.pairs).last, \rc_finish, "rc_finish moved back to the end");
+		this.assertEquals(s.next(Event.default).sustain, 0, "the clamp still runs after a key added live");
+	}
+
+	test_reserved_keys_hold_plain_values {
+		var b = RCBeat(layer, \rv, [type: \rest, dur_flex: 1]);
+		b.reserveKeys([\db, \stretch, \amp, \my_param]);
+		this.assertEquals(RCBeat.reservedValue(\db), -20.0, "numeric Event default");
+		this.assertEquals(RCBeat.reservedValue(\stretch), 1.0, "stretch default");
+		this.assertEquals(RCBeat.reservedValue(\amp), 0, "a Function default → 0");
+		this.assertEquals(this.pull(b, 1)[0][\my_param], 0, "an unknown key is reserved with 0, not a Symbol");
+		this.assert(b.keyProxy(\my_param).notNil, "key declared");
+	}
+
+	test_duplicate_key_keeps_the_later_definition {
+		var b = RCBeat(layer, \dk, [type: \rest, dur_flex: 1, chan: 5], chan: 2);
+		var s = b.asStream;
+		this.assertEquals(s.next(Event.default).chan, 5, "the attribute chan wins over the beat's own");
+		this.assert(this.logHas("given twice"), "duplicate reported");
+		b.set(\chan, 7, quant: nil);
+		this.assertEquals(s.next(Event.default).chan, 7, "set edits the live key");
+	}
+
+	test_restart_advances_the_swing_phase {
+		var count = 0;
+		var b = RCBeat(layer, \sw, [type: \rest, dur_flex: 1, boom: Pfunc { count = count + 1; if(count == 2) { Error("boom").throw }; count }]);
+		b.restartDelay = 0.25;
+		this.pull(b, 2);
+		this.assertFloatEquals(b.timeTrack, 2.25, "the silent restart gap counts in the swing time track");
+	}
+
+	test_asStream_warns_while_playing {
+		var b = layer.addBeat(\as, [type: \rest, dur_flex: 1], post: false);
+		b.asStream;
+		this.assert(this.logHas("asStream on a playing beat"), "warned");
+		b.free(post: false);
 	}
 }
