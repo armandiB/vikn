@@ -51,10 +51,14 @@ RCMatrix {
 		^this.identity(vector.size) + this.product(plane.flop, this.product(rPlane - this.identity(2), plane))
 	}
 
-	// Gauss–Jordan inverse (no pivoting; singular pivots give zero rows).
+	// Gauss–Jordan inverse. No pivoting (it needs comparisons, and this runs on
+	// UGens): a zero on the diagonal gives a zero row even when the matrix is
+	// invertible, e.g. [[0, 1], [1, 0]]. Meant for the diagonally dominant width
+	// matrices; use invertLU for arbitrary numeric matrices.
 	*invertGJ { |matrix|
 		var n = matrix.size;
-		var aug = matrix.collect { |row, i| row.copy ++ this.identity(n)[i] };
+		var id = this.identity(n);
+		var aug = matrix.collect { |row, i| row.copy ++ id[i] };
 		n.do { |i|
 			var inv = this.safeReciprocal(aug[i][i]);
 			aug[i] = aug[i].collect { |x| x * inv };
@@ -73,7 +77,8 @@ RCMatrix {
 		var n = matrix.size;
 		var l = this.identity(n);
 		var u = matrix.collect(_.copy);
-		var p = (0..(n - 1));
+		var p = (0..(n - 1));      // row k of U came from row p[k] of the matrix
+		var pinv = Array.newClear(n);
 		var inverse = n.collect { 0.0 ! n };
 		n.do { |i|
 			var maxVal = -1, maxRow = i;
@@ -88,9 +93,12 @@ RCMatrix {
 				};
 			};
 		};
+		// solving A x = e_col is L U x = P e_col, whose 1 sits at the position
+		// the pivoting moved row `col` to: the inverse permutation
+		p.do { |orig, k| pinv[orig] = k };
 		n.do { |col|
 			var e = 0.0 ! n, y = 0.0 ! n, x = 0.0 ! n;
-			e[p[col]] = 1;
+			e[pinv[col]] = 1;
 			n.do { |i| y[i] = e[i] - (if(i > 0) { (0..(i - 1)).sum { |j| l[i][j] * y[j] } } { 0 }) };
 			((n - 1)..0).do { |i|
 				var s = if(i < (n - 1)) { ((i + 1)..(n - 1)).sum { |j| u[i][j] * x[j] } } { 0 };

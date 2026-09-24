@@ -42,6 +42,13 @@ TestRCSpace : UnitTest {
 		this.assert(this.closeTo(RCMatrix.invertCholesky([[4]]), [[0.25]]), "1x1");
 	}
 
+	test_invertLU_with_cyclic_pivoting {
+		var perm = [[0, 0, 1], [1, 0, 0], [0, 1, 0]];   // pivoting composes two swaps into a 3-cycle
+		var m = [[0, 2, 1], [3, 0, 1], [1, 1, 0]];
+		this.assert(this.closeTo(RCMatrix.invertLU(perm), [[0, 1, 0], [0, 0, 1], [1, 0, 0]]), "inverse of a permutation matrix");
+		this.assert(this.closeTo(RCMatrix.product(m, RCMatrix.invertLU(m)), RCMatrix.identity(3)), "m × inverse = identity");
+	}
+
 	test_singular_gives_zeros_not_nan {
 		var singular = [[1, 2], [2, 4]];
 		[RCMatrix.invertGJ(singular), RCMatrix.invertLU(singular), RCMatrix.invertCholesky(singular), RCMatrix.invertLDL(singular)].do { |res, i|
@@ -101,6 +108,32 @@ TestRCSpace : UnitTest {
 			this.assert(desc.controlNames.includes(k), "control % present".format(k));
 		};
 		this.assertEquals(RCFObject(song, \rc_bad_fob, 2, nil, { 1 }).addSynthDef({ nil.explode }), nil, "failing sound function reported, nil returned");
+	}
+
+	test_ambisonic_and_mono_fobjects {
+		var ambi = RCFObject(song, \rc_test_ambi_fob, 4, nil, { 1 }, isAmbisonics: true, orderAmbisonics: 1, isPointSource: true);
+		var bad = RCFObject(song, \rc_bad_ambi_fob, 2, nil, { 1 }, isAmbisonics: true, orderAmbisonics: 1);
+		var mono = RCFObject(song, \rc_mono_fob, 1, nil, { 1 });
+		var weights = ambi.typicalPowerPerComponent;
+		var desc;
+		this.assertEquals(weights.size, 4, "one weight per ambisonic component (orders 0..N)");
+		this.assertFloatEquals(weights.sum, 1, "weights sum to 1");
+		this.assertFloatEquals(weights[1], 1/6, "order 1 shares its power over three components");
+		this.assertEquals(ambi.addSynthDef({ |in| in }), \rc_test_ambi_fob, "ambisonic synthdef builds");
+		this.assertEquals(bad.addSynthDef({ |in| in }), nil, "channel count must match the order");
+		this.assert(RCLog.history.any { |e| e[2].contains("channels in") }, "reported");
+		this.assertEquals(mono.addSynthDef({ |in| in * 2 }), \rc_mono_fob, "one channel: sound function wrapped alone");
+		desc = SynthDescLib.global[\rc_mono_fob];
+		this.assert(desc.controlNames.includes(\in) and: { desc.controlNames.includes(\width_factors).not }, "no space controls on the mono def");
+	}
+
+	test_fobject_replace_lookup_with_song_prefix {
+		var tpl = RCFObject(song, \rc_pref_fob, 2, nil, { 1 }, addSongInName: true);
+		var c = tpl.clone;
+		c.register(\verb);
+		this.assertEquals(c.name, \sp_verb, "song-prefixed registry name");
+		this.assert(song.registry.fobject(tpl.registeredName(\verb)) === c, "create's replace lookup finds it under the real name");
+		c.free;
 	}
 
 	test_fobject_routing_in_orgnsm {

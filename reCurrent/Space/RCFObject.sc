@@ -43,11 +43,19 @@ RCFObject {
 
 	numChansOut { ^if(isAmbisonics) { (orderAmbisonics + 1).squared } { numChansIn } }
 
+	// One weight per channel, summing to 1: for an ambisonic point source each
+	// order 0..N carries the same power, spread over its 2n+1 components.
 	typicalPowerPerComponent {
 		if(isAmbisonics and: { isPointSource }) {
-			^orderAmbisonics.collect { |order| var size = 2 * order + 1; size.collect { 1 / size / orderAmbisonics } }.flatten
+			var numOrders = orderAmbisonics + 1;
+			^numOrders.collect { |order| var size = 2 * order + 1; size.collect { 1 / size / numOrders } }.flatten
 		};
 		^(1 / this.numChansOut) ! this.numChansOut
+	}
+
+	// The registry name: the song name is prefixed when addSongInName is set.
+	registeredName { |namearg|
+		^(if(addSongInName) { song.name.asString ++ "_" } { "" } ++ namearg).asSymbol
 	}
 
 	// Transparency at a position, guarded: a failing function counts as 0.
@@ -91,8 +99,7 @@ RCFObject {
 	}
 
 	register { |namearg|
-		var real = (if(addSongInName) { song.name.asString ++ "_" } { "" } ++ namearg).asSymbol;
-		name = song.registry.addFobject(real, this);
+		name = song.registry.addFobject(this.registeredName(namearg), this);
 		isRegistered = true;
 		^name
 	}
@@ -102,11 +109,12 @@ RCFObject {
 		isRegistered = false;
 	}
 
-	// A registered instance with its bus and synth. Replaces an existing fobject of that name.
+	// A registered instance with its bus and synth. Replaces an existing fobject
+	// of that name. A synth that cannot be created leaves nothing behind.
 	create { |namearg, overrideSynthArgs, groupIdx = 0, outIdx = 0|
 		var c = this.clone;
 		var server;
-		song.registry.fobject(namearg.asSymbol) !? { |old| RCLog.warn(\fobject, "replacing fobject %".format(namearg)); old.free };
+		song.registry.fobject(this.registeredName(namearg)) !? { |old| RCLog.warn(\fobject, "replacing fobject %".format(namearg)); old.free };
 		c.prSetGroup(song.fobjectGroupArray[groupIdx]);
 		if(c.group.isNil) {
 			RCLog.error(\fobject, "no fobject group at index % (song.fobjectGroupArray has %)".format(groupIdx, song.fobjectGroupArray.size));
@@ -117,7 +125,12 @@ RCFObject {
 		c.register(namearg);
 		c.prSetBuses(Bus.audio(server, numChansIn), song.fobjectOutArray[outIdx] ? 0);
 		c.prSetSynthArgs(RCUtil.kvPutAll(RCUtil.kvPutAll([\in, c.inBus, \out, c.outBus], additionalSynthArgs), overrideSynthArgs ? []));
-		c.prSetSynth(Synth(synthDefName, c.synthArgs, c.group));
+		c.prSetSynth(RCGuard.call(\fobject, nil) { Synth(synthDefName, c.synthArgs, c.group) });
+		if(c.synth.isNil) {
+			RCLog.error(\fobject, "fobject %: synth % could not be created, freed".format(namearg, synthDefName));
+			c.free;
+			^nil
+		};
 		^c
 	}
 
@@ -153,12 +166,18 @@ RCFObject {
 		widthFactors = factors;
 	}
 
+	// The in bus is released a little later: events already scheduled with
+	// its index are still in flight, and Bus.free returns the index at once.
 	free {
+		var bus = inBus;
 		if(isFreed) { ^this };
 		isFreed = true;
 		this.unregister;
 		RCGuard.call(\fobject, nil) { synth !? (_.free) };
-		RCGuard.call(\fobject, nil) { inBus !? (_.free) };
+		if(bus.isKindOf(Bus)) {   // a plain index (tests, external buses) is not ours to free
+			var delay = (bus.server.latency ? 0.2) * 2 + 0.1;
+			SystemClock.sched(delay, { RCGuard.call(\fobject, nil) { bus.free }; nil });
+		};
 		synth = nil;
 		inBus = nil;
 	}
@@ -168,9 +187,14 @@ RCFObject {
 	//////// SynthDef: space transform around the sound function
 
 	// Adds SynthDef(synthDefName): In → pre-matrix → soundFunction(signal) →
-	// post-matrix → Sanitize → Out. Matrices are recomputed in-graph on
+	// post-matrix → Sanitize → Out. Matrices are sampled by Demand.kr on
 	// \recompute_space from \origin/\center (or \rotation_matrix) and
 	// \width_factors; a singular width matrix yields zeros, never NaN.
+	// Demand.kr samples its input, it does not gate its computation: the
+	// matrix UGens (an n³ Gauss-Jordan and two n³ products) run at control
+	// rate all the time, so keep numChansIn small (8 is already ~1000 UGens).
+	// With one channel there is no space to transform: the sound function is
+	// wrapped alone.
 	addSynthDef { |soundFunc, centerFromPosarg = true|
 		var dims = numChansIn;
 		var ambi = isAmbisonics;
@@ -178,6 +202,21 @@ RCFObject {
 		var transform, inFunc, outFunc;
 		soundFunction = soundFunc;
 		centerFromPos = centerFromPosarg;
+		if(ambi and: { numChansIn != this.numChansOut }) {
+			RCLog.error(\fobject, "%: an ambisonic fobject needs % channels in for order % (got %)".format(synthDefName, this.numChansOut, orderAmbisonics, numChansIn));
+			^nil
+		};
+		if(dims < 2) {
+			RCLog.warn(\fobject, "%: % channel, the space transform is skipped".format(synthDefName, dims));
+			^RCGuard.call(\fobject, nil) {
+				SynthDef(synthDefName, {
+					var signal = In.ar(\in.kr(0), dims);
+					signal = SynthDef.wrap(soundFunc, nil, [signal]);
+					Out.ar(\out.kr(0), Sanitize.ar(signal));
+				}).add;
+				synthDefName
+			}
+		};
 
 		transform = {
 			var recompute = \recompute_space.tr(1);
