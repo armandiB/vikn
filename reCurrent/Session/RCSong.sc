@@ -13,6 +13,7 @@ RCSong {
 	var <groupArray, <outArray, <inChanArray, <fobjectGroupArray, <fobjectOutArray;
 	var <loopBuffers, <>sampleLibrary;
 	var <osc, <midi, <keyboard, <registry;
+	var <outputs, <recorders, <replays;
 	var server, clock;
 
 	*new { |name, seed, session, layerKeys = #[\core, \details, \meta]|
@@ -29,6 +30,9 @@ RCSong {
 		layers = IdentityDictionary.new;
 		groups = IdentityDictionary.new;
 		loopBuffers = IdentityDictionary.new;
+		outputs = IdentityDictionary.new;
+		recorders = IdentityDictionary.new;
+		replays = IdentityDictionary.new;
 		groupArray = [];
 		outArray = [0];
 		inChanArray = [0];
@@ -137,6 +141,55 @@ RCSong {
 		RCLog.post(\song, "% freed all nodes in %".format(name, groupKey));
 	}
 
+	//////// outputs, recorders, replays (duck-typed: reAmbi / reCording objects, or anything
+	// answering build(parentGroup) / clear, and free / clock)
+
+	// An output chain (RAOutputChain) under a name; \main is the song's ambi. An
+	// existing object under that name is cleared first. Registered unbuilt: its
+	// configuration (numChannels, order, outBus) is valid before buildOutputs.
+	addOutput { |key, output|
+		key = key.asSymbol;
+		outputs[key] !? { |old| if(old !== output) { RCGuard.call(\song, nil) { old.clear } } };
+		outputs[key] = output;
+		^output
+	}
+
+	output { |key| ^outputs[key.asSymbol] }
+	ambi { ^outputs[\main] }
+
+	// Build every output inside parent (the outputDecode group by default), after makeGroups.
+	buildOutputs { |parent|
+		parent = parent ?? { groups[\outputDecode] };
+		outputs.do { |o| RCGuard.call(\song, nil) { o.build(parent) } };
+		^outputs
+	}
+
+	// Recorders and replays (RERecorder, REReplay): the song's clock is adopted
+	// when the object has none; a previous object under the name is freed.
+	addRecorder { |key, recorder|
+		key = key.asSymbol;
+		recorders[key] !? { |old| if(old !== recorder) { RCGuard.call(\song, nil) { old.free } } };
+		this.prAdoptClock(recorder);
+		recorders[key] = recorder;
+		^recorder
+	}
+
+	recorder { |key| ^recorders[key.asSymbol] }
+
+	addReplay { |key, replay|
+		key = key.asSymbol;
+		replays[key] !? { |old| if(old !== replay) { RCGuard.call(\song, nil) { old.free } } };
+		this.prAdoptClock(replay);
+		replays[key] = replay;
+		^replay
+	}
+
+	replay { |key| ^replays[key.asSymbol] }
+
+	prAdoptClock { |obj|
+		if(obj.respondsTo(\clock) and: { obj.respondsTo(\clock_) } and: { obj.clock.isNil }) { obj.clock = this.clock };
+	}
+
 	//////// resources
 
 	loopBuffer { |key| ^loopBuffers[key.asSymbol] }
@@ -160,8 +213,10 @@ RCSong {
 		sampleLibrary = nil;
 	}
 
-	// Everything a scene/init re-creates: beats, buffers, groups. OSC and MIDI
-	// definitions survive (a scene/init handler must stay reachable).
+	// Everything a scene/init re-creates: beats, buffers, recorders, replays,
+	// output chains (cleared but kept registered: their configuration is
+	// rebuilt by buildOutputs), groups. OSC and MIDI definitions survive (a
+	// scene/init handler must stay reachable).
 	clearAll { |freeGroups = true|
 		this.killAllBeats;
 		registry.fobjects.copy.do { |f| RCGuard.call(\song, nil) { f.free } };
@@ -170,12 +225,18 @@ RCSong {
 		loopBuffers.copy.do(_.free);
 		loopBuffers.clear;
 		this.freeSampleLibrary;
+		recorders.copy.do { |r| RCGuard.call(\song, nil) { r.free } };
+		recorders.clear;
+		replays.copy.do { |r| RCGuard.call(\song, nil) { r.free } };
+		replays.clear;
+		outputs.do { |o| RCGuard.call(\song, nil) { o.clear } };   // before the groups they live in
 		if(freeGroups) { this.freeGroups };
 		RCLog.post(\song, "% cleared".format(name));
 	}
 
 	free {
 		this.clearAll(true);
+		outputs.clear;
 		layers.do(_.free);
 		osc.freeAll;
 		midi.freeAll;

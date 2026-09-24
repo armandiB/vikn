@@ -62,9 +62,37 @@ argument:: key
 METHOD:: sampleLibrary
 A code::MultiLevelIdentityDictionary:: of buffers (see link::Classes/RCUtil#*fileTree::), freed by code::clearAll::.
 
+METHOD:: addOutput
+argument:: key
+argument:: output
+An output chain (link::Classes/RAOutputChain::, or anything answering code::build(parentGroup):: and code::clear::) under a name; an existing one under that name is cleared first. Registered unbuilt: its configuration is valid before code::buildOutputs::.
+METHOD:: output
+argument:: key
+METHOD:: ambi
+The output registered as code::\main::.
+METHOD:: buildOutputs
+argument:: parent
+Builds every output inside code::parent:: (the code::\outputDecode:: group by default), after code::makeGroups::.
+METHOD:: outputs
+
+METHOD:: addRecorder
+argument:: key
+argument:: recorder
+An link::Classes/RERecorder:: (or anything answering code::free::, and code::clock:: / code::clock_::: the song's clock is adopted when it has none); a previous one under the name is freed.
+METHOD:: recorder
+argument:: key
+METHOD:: recorders
+METHOD:: addReplay
+argument:: key
+argument:: replay
+An link::Classes/REReplay::, same rules.
+METHOD:: replay
+argument:: key
+METHOD:: replays
+
 METHOD:: allBeats
 METHOD:: killAllBeats
 METHOD:: clearAll
-Everything a scene/init re-creates: beats, orgnsms, fobjects, loop buffers, sample library, groups. OSC and MIDI definitions survive.
+Everything a scene/init re-creates: beats, orgnsms, fobjects, loop buffers, sample library, recorders, replays, output chains (cleared, kept registered), groups. OSC and MIDI definitions survive.
 argument:: freeGroups
 METHOD:: free
