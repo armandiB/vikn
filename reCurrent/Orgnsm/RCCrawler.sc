@@ -88,10 +88,23 @@ RCCrawler {
 		^orgnsm !? { |o| o.beat !? { |b| b.lastValue(key) } }
 	}
 
+	// nextOrgnsm and leaveVal are values, or functions of the crawler evaluated
+	// at each jump (BlockOrgnsm's next_orgnsm / leave_val). A failing function
+	// is reported and counts as nil.
+	prResolveNext {
+		^if(nextOrgnsm.isKindOf(Function)) { RCGuard.call(\crawler, nil) { nextOrgnsm.value(this) } } { nextOrgnsm }
+	}
+
+	prResolveLeaveVal {
+		^if(leaveVal.isKindOf(Function)) { RCGuard.call(\crawler, nil) { leaveVal.value(this) } } { leaveVal }
+	}
+
 	jumpNext {
-		if(setLeaveVal) { this.setVal(leaveVal) };
-		if(nextOrgnsm.isNil) { RCLog.warn(\crawler, "jumpNext: no nextOrgnsm, staying"); ^this };
-		this.setNewOrgnsm(nextOrgnsm);
+		var next;
+		if(setLeaveVal) { this.setVal(this.prResolveLeaveVal) };
+		next = this.prResolveNext;
+		if(next.isNil) { RCLog.warn(\crawler, "jumpNext: no nextOrgnsm, staying"); ^this };
+		this.setNewOrgnsm(next);
 	}
 
 	setNextVal { |newVal|
@@ -149,7 +162,7 @@ RCCrawler {
 	prSetState { |s| state = s }
 
 	free {
-		this.setVal(leaveVal);
+		this.setVal(this.prResolveLeaveVal);
 		patternInstance !? (_.free);
 		patternInstance = nil;
 	}

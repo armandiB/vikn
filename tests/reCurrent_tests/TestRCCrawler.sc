@@ -129,6 +129,33 @@ TestRCCrawler : UnitTest {
 		batch.free;
 	}
 
+	test_function_next_and_leave {
+		var tpl = RCOrgnsm(\fnl, 0, 0, song);
+		var batch, crawler;
+		tpl.addStaticAttrs((seed: 1, quant: [1, 0], width: 0));
+		tpl.attrDictBase = [type: \rest, dur_flex: 1];
+		batch = RCBatch(\fnl, tpl, layerKey: \core);
+		batch.addCreate(0, start: true);
+		batch.addCreate(1, start: true);
+		crawler = RCCrawler(["width"]);
+		crawler.initFromBatch(batch, 0, val: [5]);
+		crawler.leaveVal = { |c| c.prevVal };
+		crawler.nextOrgnsm = { |c| batch.orgnsms(1)[0] };
+		crawler.jumpNext;
+		this.assertEquals(batch.orgnsms(0)[0].staticAttrs.width, 0, "function leaveVal restores the previous value");
+		this.assert(crawler.orgnsm === batch.orgnsms(1)[0], "function nextOrgnsm picks the next orgnsm");
+		crawler.nextOrgnsm = { nil.explode };
+		crawler.jumpNext;
+		this.assert(crawler.orgnsm === batch.orgnsms(1)[0], "a failing nextOrgnsm function keeps the crawler in place");
+		this.assert(this.logHas("explode"), "failure reported");
+		crawler.free;
+		batch.free;
+	}
+
+	logHas { |text|
+		^RCLog.history.any { |entry| entry[2].contains(text) }
+	}
+
 	test_method_keys {
 		var c = RCCrawler(["set_width"], true);
 		var fake = RCTestFakeSettable.new;

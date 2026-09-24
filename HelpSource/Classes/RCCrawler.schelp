@@ -21,8 +21,9 @@ argument:: batchKey
 argument:: idxStart
 argument:: val
 METHOD:: nextOrgnsm
+The orgnsm to jump to at the next code::make_jump::, or a function of the crawler returning it, evaluated at each jump (e.g. code::{ |c| c.orgnsm.tribeDict.values.choose }::). A failing function is reported and the crawler stays where it is.
 METHOD:: leaveVal
-Value applied to the orgnsm being left when link::#-setLeaveVal:: is true.
+Value applied to the orgnsm being left when link::#-setLeaveVal:: is true, or a function of the crawler returning it (e.g. code::{ |c| c.prevVal }:: restores what the orgnsm had before the crawler arrived).
 METHOD:: setLeaveVal
 METHOD:: patternAttrs
 Event with code::tribe::, code::static_attrs::, code::attr_dict_base::, code::add_first_array_base:: of the pattern orgnsm.
