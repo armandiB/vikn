@@ -140,10 +140,14 @@ RCOrgnsmPatterns {
 				} {
 					this.prMerge(patArray, loopTime).collect { |e|
 						var dur = if(e[\dur].isRest) { Rest(e[\delta]) } { e[\delta] };
+						// the silent events prMerge adds (leading gap, loop tail) carry no params:
+						// rest them like prRestValue does, a missing key only matters on a hit
+						var missing = if(dur.isRest) { Rest() };
+						var valueFor = { |key| var v = e[key]; if(v.isNil or: { v == \nil }) { missing } { v } };
 						if(returnDict) {
-							Ref(([\dur -> dur] ++ keyList.collect { |key| var v = e[key]; key -> if(v == \nil) { nil } { v } }).asDict)
+							Ref(([\dur -> dur] ++ keyList.collect { |key| key -> valueFor.(key) }).asDict)
 						} {
-							[dur] ++ keyList.collect { |key| var v = e[key]; if(v == \nil) { nil } { v } }
+							[dur] ++ keyList.collect { |key| valueFor.(key) }
 						}
 					}
 				}

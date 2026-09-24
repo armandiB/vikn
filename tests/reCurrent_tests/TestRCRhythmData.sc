@@ -114,6 +114,20 @@ TestRCRhythmData : UnitTest {
 		this.assert(out.last[0].isRest, "trailing rest fills the loop");
 	}
 
+	test_seqParamsForLoop_padding_rests_params {
+		// the silent events prMerge adds (leading gap) carry Rest() for every key, never nil
+		var st = (dur_params: [4, 1], seq_list: [[1, 1, [1], (who: [\a]), true]], other_params_key_list: [\who]);
+		var stream = RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, false).asStream;
+		var out = List.new, v;
+		RCGuard.boundedLoop(100, \test, { var x = stream.next(()); x !? { out.add(x) }; x.notNil }, {});
+		this.assertEquals(out.collect { |x| x[0].value }, [1, 1, 2], "gap, hit, tail");
+		this.assert(out[0][0].isRest and: { out[0][1].isRest }, "the leading gap rests its params");
+		this.assertEquals(out[1][1], \a, "the hit keeps its param");
+		this.assert(out[2][0].isRest and: { out[2][1].isRest }, "the tail rests its params");
+		v = RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, true).asStream.next(()).dereference;
+		this.assert(v[\dur].isRest and: { v[\who].isRest }, "dict form: the leading gap rests its params");
+	}
+
 	test_seqParamsForLoop_raw_array_subseq {
 		// a seq_list written by hand, as in WeMadeATrack: [priority, shift, durs, params, mask]
 		var st = (dur_params: [4, 1], seq_list: [[1, 0, [1, 1, 1, 1], (who: [\a, \b, \c, \d]), true], [1, 2.5, [1, 1], (who: [\e, \f])]], other_params_key_list: [\who]);
