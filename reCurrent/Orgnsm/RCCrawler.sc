@@ -25,7 +25,8 @@ RCCrawler {
 
 	initRCCrawler { |attrKeysarg, keyIsMethodarg|
 		attrKeys = if(attrKeysarg.isKindOf(String) or: { attrKeysarg.isKindOf(Collection).not }) { [attrKeysarg] } { attrKeysarg.asArray };
-		keyIsMethod = if(keyIsMethodarg.isKindOf(Boolean)) { keyIsMethodarg ! attrKeys.size } { keyIsMethodarg.asArray };
+		keyIsMethod = if(keyIsMethodarg.isKindOf(Boolean)) { keyIsMethodarg ! attrKeys.size } { (keyIsMethodarg ? []).asArray };
+		keyIsMethod = keyIsMethod ++ (false ! (attrKeys.size - keyIsMethod.size).max(0));   // one flag per key
 		state = (orgnsm: nil, val: nil, prevVal: nil);
 	}
 
@@ -58,13 +59,21 @@ RCCrawler {
 		state[\prevVal] = attrKeys.collect { |k, i| if(keyIsMethod[i]) { nil } { orgnsm.rGet(k) } };
 	}
 
-	// Apply val (defaults to the stored one) to the current orgnsm's attributes.
+	// Apply val (one value per key; defaults to the stored one) to the current
+	// orgnsm's attributes. Keys without a value are left alone: rPut(k, nil)
+	// would delete the attribute.
 	setVal { |val|
 		var o = state[\orgnsm];
 		val = val ? state[\val];
 		if(val.isNil or: { o.isNil }) { ^this };
+		if(val.isKindOf(SequenceableCollection).not) { val = [val] };
+		if(val.size < attrKeys.size) {
+			RCLog.warn(\crawler, { "setVal: % value(s) for % keys %, the others are left unchanged".format(val.size, attrKeys.size, attrKeys) });
+		};
 		attrKeys.do { |k, i|
-			if(keyIsMethod[i]) { this.prCallMethod(o, k, val[i]) } { o.rPut(k, val[i]) };
+			if(i < val.size) {
+				if(keyIsMethod[i]) { this.prCallMethod(o, k, val[i]) } { o.rPut(k, val[i]) };
+			};
 		};
 	}
 
@@ -117,7 +126,7 @@ RCCrawler {
 		var species;
 		if(o.isNil) { RCLog.error(\crawler, "makePatternOrgnsm: init the crawler on an orgnsm first"); ^nil };
 		species = ("Crawler_" ++ if(o.isOrgnsm) { o.species } { o.name }).asSymbol;
-		patternOrgnsm = RCOrgnsm(species, patternAttrs[\tribe] ? 0, 0, o.song);
+		patternOrgnsm = RCOrgnsm(species, (patternAttrs ? ())[\tribe] ? 0, 0, o.song);
 		patternOrgnsm.isCrawlerPattern = true;
 		patternOrgnsm.parentObject = this;
 		this.preparePatternOrgnsm;
@@ -147,13 +156,16 @@ RCCrawler {
 		^patternInstance
 	}
 
+	// Containers are copied, services (rhythm dicts, batches, orgnsms) shared:
+	// see RCUtil.copyTree. nextOrgnsmParams is copied too (a clone's edits
+	// used to reach the template).
 	clone {
-		var c = this.class.new(attrKeys.deepCopy, keyIsMethod.copy);
-		c.nextOrgnsmParams = nextOrgnsmParams;
+		var c = this.class.new(attrKeys.copy, keyIsMethod.copy);
+		c.nextOrgnsmParams = RCUtil.copyTree(nextOrgnsmParams);
 		c.nextOrgnsm = nextOrgnsm;
 		c.leaveVal = leaveVal;
 		c.setLeaveVal = setLeaveVal;
-		c.patternAttrs = patternAttrs.deepCopy;
+		c.patternAttrs = RCUtil.copyTree(patternAttrs);
 		c.batch = batch;
 		c.prSetState(state.copy);
 		^c

@@ -51,6 +51,22 @@ TestRCCrawler : UnitTest {
 		c.batch.free;
 	}
 
+	test_shift_move_reaches_fractional_targets {
+		var far = this.makeContext([[1, 0, "percs.kick.fourfour"]], [[1, 1.5, "percs.kick.fourfour"]]);
+		var near = this.makeContext([[1, 1, "percs.kick.fourfour"]], [[1, 1.5, "percs.kick.fourfour"]]);
+		this.assertEquals(RCCrawlerMoves.computeNext(far.crawler, far.st)[0].shift, 1, "a full step when the target is further than 1");
+		this.assertFloatEquals(RCCrawlerMoves.computeNext(near.crawler, near.st)[0].shift, 1.5, "the remaining distance when it is smaller (no oscillation)");
+		far.batch.free;
+		near.batch.free;
+	}
+
+	test_fitMask_shrinking {
+		this.assertEquals(RCCrawlerMoves.prFitMask([true, false, true, true], 2), [true, true], "the false goes first, then a trailing true");
+		this.assertEquals(RCCrawlerMoves.prFitMask([true, true, true], 2), [true, true], "no falses: trailing trues dropped");
+		this.assertEquals(RCCrawlerMoves.prFitMask([true, false, false, true], 2), [true, true], "as many falses as needed");
+		this.assertEquals(RCCrawlerMoves.prFitMask([true, false], 4).size, 4, "growing inserts falses");
+	}
+
 	test_change_subseq_move {
 		var c = this.makeContext([[1, 0, "percs.kick.fourfour"]], [[1, 0, "percs.hh.short"]]);
 		var res = RCCrawlerMoves.computeNext(c.crawler, c.st);
@@ -162,6 +178,44 @@ TestRCCrawler : UnitTest {
 		c.init(fake, [3]);
 		this.assertEquals(fake.width, 3, "method key calls the camelCase method");
 		this.assertEquals(RCUtil.camelCase("set_rotation_matrix"), \setRotationMatrix, "camelCase helper");
+	}
+
+	test_short_flags_and_values {
+		var c = RCCrawler(["set_width", "other"], [true]);
+		var fake = RCTestFakeSettable.new;
+		this.assertEquals(c.keyIsMethod, [true, false], "keyIsMethod padded with false");
+		c.init(fake, [3]);
+		this.assertEquals(fake.width, 3, "the value given is applied");
+		this.assert(this.logHas("left unchanged"), "missing values reported");
+		c.init(fake, 4);
+		this.assertEquals(fake.width, 4, "a bare value counts as one value");
+	}
+
+	test_clone_copies_params_and_shares_services {
+		var c = RCCrawler(["width"]);
+		var d;
+		c.nextOrgnsmParams = (a: [1, 2]);
+		c.patternAttrs = (static_attrs: (rhythm_dict_target: rd));
+		d = c.clone;
+		d.nextOrgnsmParams[\a][0] = 9;
+		d.patternAttrs[\static_attrs][\extra] = 1;
+		this.assertEquals(c.nextOrgnsmParams[\a][0], 1, "nextOrgnsmParams copied");
+		this.assertEquals(c.patternAttrs[\static_attrs][\extra], nil, "patternAttrs containers copied");
+		this.assert(d.patternAttrs[\static_attrs][\rhythm_dict_target] === rd, "the rhythm dict is shared, not snapshotted");
+	}
+
+	test_createPattern_without_patternAttrs {
+		var tpl = RCOrgnsm(\np, 0, 0, song);
+		var batch, crawler;
+		tpl.addStaticAttrs((seed: 1, quant: [1, 0], width: 0));
+		tpl.attrDictBase = [type: \rest, dur_flex: 1];
+		batch = RCBatch(\np, tpl, layerKey: \core);
+		batch.addCreate(0, start: true);
+		crawler = RCCrawler(["width"]);
+		crawler.initFromBatch(batch, 0);
+		this.assert(crawler.createPattern(layerKey: \core).notNil, "a pattern without patternAttrs is created");
+		crawler.free;
+		batch.free;
 	}
 }
 

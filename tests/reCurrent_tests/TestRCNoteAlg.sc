@@ -67,6 +67,38 @@ TestRCNoteAlg : UnitTest {
 		this.assert(res[0].abs.sum <= 1 and: { res[0][0] == 0 }, "temperature moves only in the masked dimensions");
 	}
 
+	logHas { |text| ^RCLog.history.any { |e| e[2].contains(text) } }
+
+	test_fireflyTonnetz_far_centre_of_mass {
+		var alg = RCNoteAlg.fireflyTonnetz(false);
+		var st = this.stattrsTonnetz;
+		var field = { |prev, move, proba, mask| proba };
+		var res;
+		st.tonnetz_mult_factors = [2, 3/2, 5/4, 7/4, 11/8, 13/8];
+		st.tonnetz_mult_factors_mask = [1, 1, 1, 1, 1, 1];
+		st.notealg_start_tpos_func = { 0 ! 6 };
+		res = alg.([0 ! 6, 1], [[10 ! 6, 1, 1]], field, st);
+		this.assert(this.logHas("exceed the cap").not, "a far centre of mass does not blow up the candidate box");
+		this.assert(res[0].abs.sum <= 1, "still one step at most");
+	}
+
+	test_missing_functions_and_empty_scales {
+		var tonnetz = RCNoteAlg.fireflyTonnetz(false);
+		var walk = RCNoteAlg.fireflyNote1d;
+		var st = this.stattrsTonnetz;
+		var st1 = this.stattrs1d;
+		st.notealg_start_tpos_func = nil;
+		this.assertEquals(tonnetz.(nil, [], { 1 }, st), [[0, 0, 0], 1], "no start function → origin");
+		this.assert(this.logHas("no notealg_start_tpos_func"), "warned");
+		st1.notealg_startnotefunc = nil;
+		this.assertEquals(walk.(nil, [], \random, st1), 0, "no start note function → 0");
+		st1.scale = [];
+		this.assertEquals(walk.(60, [62], \others, st1), 60, "empty scale on the others branch → prev");
+		this.assert(this.logHas("empty scale"), "warned");
+		this.assertEquals(RCNoteAlg.tonnetzPositions([3/2], [1, 3/2]), [[0, 0]], "an octave factor of 1 is refused");
+		this.assert(this.logHas("must be > 1"), "reported");
+	}
+
 	test_tonnetzPositions {
 		var tmf = [2, 3/2, 5/4, 7/4, 11/8, 13/8];
 		var pos = RCNoteAlg.tonnetzPositions([1, 3/2, 5/4, 9/8, 16/9, 7/4], tmf);

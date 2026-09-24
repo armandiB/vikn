@@ -23,8 +23,12 @@ RCNoteAlg {
 			var maxRandomJump = stattrs.notealg_maxrandomjump ? 0;
 			var maxOthersJump = stattrs.notealg_maxothersjump;
 			if(prev.isNil) {
-				RCUtil.attrFunc(stattrs, \notealg_startnotefunc).value(ppo, aroh, avaroh)
+				var start = RCUtil.attrFunc(stattrs, \notealg_startnotefunc).value(ppo, aroh, avaroh);
+				if(start.isNumber.not) { RCLog.warn(\fireflyNote1d, "no notealg_startnotefunc, starting at 0"); start = 0 };
+				start
 			} {
+				// no ^ in here: this closure outlives the method that built it
+				if(ppo == 0) { RCLog.warn(\fireflyNote1d, "empty scale, staying"); prev } {
 				switch(origin,
 					\same, { prev },
 					\random, {
@@ -64,6 +68,7 @@ RCNoteAlg {
 					},
 					{ prev }
 				)
+				}
 			}
 		}
 	}
@@ -80,6 +85,10 @@ RCNoteAlg {
 			var resTpos;
 			if(prev.isNil) {
 				resTpos = RCUtil.attrFunc(stattrs, \notealg_start_tpos_func).value;
+				if(resTpos.isKindOf(SequenceableCollection).not) {
+					RCLog.warn(\fireflyTonnetz, "no notealg_start_tpos_func, starting at the origin");
+					resTpos = 0 ! tmf.size;
+				};
 			} {
 				var prevTpos = prev[0], prevFreqm = prev[1];
 				var mask = stattrs.tonnetz_mult_factors_mask;
@@ -116,8 +125,12 @@ RCNoteAlg {
 					dirMove = if(count > 0) { centerOfMass = centerOfMass / count; ((centerOfMass - prevTpos) * mask).ceil.asInteger } { 0 ! tmf.size };
 				};
 
-				// candidate moves: the L1 box between 0 and dirMove, bounded by maxVel
-				ranges = dirMove.collect { |xi| if(xi >= 0) { (0..xi) } { (xi..0) } };
+				// candidate moves: the L1 box between 0 and dirMove, bounded by maxVel.
+				// Each component is clipped to ±maxVel first: no move past that
+				// survives the filter below, and the unclipped box grows as the
+				// product of the distances (46 656 arrays for six dimensions five
+				// steps away, then the cap of cartesianProduct freezes the walk).
+				ranges = dirMove.collect { |xi| xi = xi.clip(maxVel.neg, maxVel); if(xi >= 0) { (0..xi) } { (xi..0) } };
 				RCUtil.cartesianProduct(ranges).do { |move|
 					var dist = move.abs.sum;
 					if(dist <= maxVel) {
@@ -174,7 +187,12 @@ RCNoteAlg {
 	*tonnetzPositions { |ratios, tonnetzMultFactors, maxDenominator = 65536|
 		var fractions = tonnetzMultFactors.collect { |x| x.asFraction(maxDenominator) };
 		var octave = fractions[0][0].div(fractions[0][1]);
-		var primes = fractions.collect { |f|
+		var primes;
+		if(octave <= 1) {
+			RCLog.error(\tonnetz, "the first mult factor is the octave and must be > 1 (got %)".format(tonnetzMultFactors[0]));
+			^ratios.collect { 0 ! tonnetzMultFactors.size }
+		};
+		primes = fractions.collect { |f|
 			var num = f[0].factors.reject { |n| n == octave };
 			var den = f[1].factors.reject { |n| n == octave };
 			(if(num.size == 0) { 1 } { num.product }) div: (if(den.size == 0) { 1 } { den.product })

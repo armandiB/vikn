@@ -82,17 +82,21 @@ RCCrawlerMoves {
 
 	//////// moves
 
+	// One step of at most 1 towards the target shift, and exactly the remaining
+	// distance when it is smaller: resolved shifts are scaled by timeMult and
+	// often fractional, a fixed ±1 would oscillate around them forever.
 	*shift { |ctx|
 		var pair = this.prRemainingDict(ctx, { |s| [s.name, s.shift] }, { |s| s.name });
 		var dict = pair[0], idxs = pair[1];
 		idxs.do { |idx|
 			var current = ctx[\current][idx];
-			var acceptable = (dict[current.name] ? []).select { |t| (t.shift != current.shift) and: { ctx[\priorityOk].(t.priority, current.priority) } };
+			var acceptable = (dict[current.name] ? []).select { |t| ((t.shift - current.shift).abs > 1e-6) and: { ctx[\priorityOk].(t.priority, current.priority) } };
 			if(acceptable.size > 0) {
 				var chosen = acceptable.choose;
 				var diff = chosen.shift - current.shift;
-				var step = if(ctx[\errShift].coin) { diff.sign.neg } { diff.sign };
+				var step = min(diff.abs, 1) * diff.sign;
 				var modified = current.deepCopy;
+				if(ctx[\errShift].coin) { step = step.neg };
 				modified.shift = modified.shift + step;
 				^this.prReplace(ctx[\current], idx, modified)
 			};
@@ -127,7 +131,8 @@ RCCrawlerMoves {
 		^nil
 	}
 
-	// Resize a mask to `size`: extra falses inserted at random, or falses removed first.
+	// Resize a mask to `size`: extra falses inserted at random; when shrinking,
+	// falses go first (at random), then trailing trues.
 	*prFitMask { |mask, size|
 		var diff = size - mask.size;
 		var res = mask.copy;
@@ -135,7 +140,7 @@ RCCrawlerMoves {
 		if(diff < 0) {
 			var falseIdx = res.selectIndices(_.not);
 			if(falseIdx.size <= diff.neg) {
-				res = true ! size;
+				res = res.reject(_.not).keep(size);
 			} {
 				var remove = falseIdx.scramble[..(diff.neg - 1)];
 				res = res.reject { |x, i| remove.includes(i) };
