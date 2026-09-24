@@ -132,6 +132,23 @@ TestRCSession : UnitTest {
 		this.assertEquals(song.sampleLibrary, nil, "sample library dropped");
 	}
 
+	test_named_out_slots {
+		var song = RCSong(\o, 1);
+		var bus = Bus.audio(Server.default, 4);
+		song.outArray = #[2, 4, 6];
+		this.assertEquals(song.registerOut(\ambi, bus), 3, "appended after the hardware outs");
+		this.assertEquals(song.registerOut(\arps, 40), 4, "an index registers too");
+		this.assertEquals(song.outArray, [2, 4, 6, bus.index, 40], "outArray follows");
+		this.assertEquals(song.outIndex(\arps), 4, "lookup by name");
+		this.assertEquals(song.registerOut(\ambi, 9), 3, "re-registering keeps the slot");
+		this.assertEquals(song.outArray[3], 9, "and updates the bus");
+		this.assertEquals(song.outIndex(\nope), nil, "unknown name → nil + error");
+		song.outArray = [0];
+		this.assertEquals(song.outIndex(\arps), nil, "setting outArray forgets the names");
+		this.assertEquals(song.registerOut(\x, nil), nil, "no bus → nil + error");
+		bus.free;
+	}
+
 	test_layer_history_is_bounded {
 		var layer = RCSong(\h, 1).layer(\core);
 		var saved = RCLayer.historySize;

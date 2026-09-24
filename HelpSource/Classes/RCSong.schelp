@@ -37,6 +37,15 @@ METHOD:: fobjectOutArray
 METHOD:: fobjectGroupArray
 Arrays indexed by code::orgnsm_out_idx::, code::orgnsm_group_idx::, loop buffer input index and fobject create() indices. An index outside the array is reported and falls back (out 0, default group).
 
+METHOD:: registerOut
+argument:: key
+argument:: bus
+A link::Classes/Bus:: or an index. Appends a named slot to code::outArray:: (or updates the slot of that name) and returns its index: batches read code::orgnsm_out_idx: song.outIndex(\arps):: instead of a literal position that depends on which block ran last.
+METHOD:: outIndex
+argument:: key
+The slot index of a registered name, or nil (with an error). Setting code::outArray:: forgets the names.
+METHOD:: outNames
+
 METHOD:: makeGroups
 Standard node tree: code::\in:: → code::\sounds:: { code::\orgnsms:: (ParGroup), code::\fobjects:: (ParGroup) } → code::\background:: → code::\outputDecode::. Sets code::groupArray:: and code::fobjectGroupArray::. Needs a running server.
 METHOD:: group

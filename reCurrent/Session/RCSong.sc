@@ -10,7 +10,7 @@
 
 RCSong {
 	var <name, <seed, <session, <layers, <groups;
-	var <groupArray, <outArray, <inChanArray, <fobjectGroupArray, <fobjectOutArray;
+	var <groupArray, <outArray, <outNames, <inChanArray, <fobjectGroupArray, <fobjectOutArray;
 	var <loopBuffers, <>sampleLibrary;
 	var <osc, <midi, <keyboard, <registry;
 	var <outputs, <recorders, <replays;
@@ -89,7 +89,35 @@ RCSong {
 	//////// server topology
 
 	groupArray_ { |array| groupArray = array.asArray }
-	outArray_ { |array| outArray = array.asArray }
+	outArray_ { |array| outArray = array.asArray; outNames = nil ! outArray.size }
+
+	// Named out slots: registerOut(\arps, bus) appends a slot (or updates the
+	// slot of that name) and returns its index; batches read it with
+	// outIndex(\arps) instead of a literal position that depends on which
+	// block ran last. bus: a Bus or an index.
+	registerOut { |key, bus|
+		var index = if(bus.isKindOf(Bus)) { bus.index } { bus };
+		var i;
+		key = key.asSymbol;
+		if(index.isNil) { RCLog.error(\song, "% registerOut %: no bus".format(name, key)); ^nil };
+		outNames = outNames ? (nil ! outArray.size);
+		i = outNames.indexOf(key);
+		if(i.isNil) {
+			outArray = outArray ++ [index];
+			outNames = outNames ++ [key];
+			i = outArray.size - 1;
+		} {
+			outArray = outArray.copy.put(i, index);
+		};
+		^i
+	}
+
+	outIndex { |key|
+		^(outNames ? []).indexOf(key.asSymbol) ?? {
+			RCLog.error(\song, "% no out registered as % (registerOut first)".format(name, key));
+			nil
+		}
+	}
 	inChanArray_ { |array| inChanArray = array.asArray }
 	fobjectGroupArray_ { |array| fobjectGroupArray = array.asArray }
 	fobjectOutArray_ { |array| fobjectOutArray = array.asArray }
