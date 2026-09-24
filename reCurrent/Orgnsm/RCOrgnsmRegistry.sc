@@ -25,11 +25,14 @@ RCOrgnsmRegistry {
 		^orgnsms[species][tribe]
 	}
 
-	// Returns the number the orgnsm ends up with.
+	// Returns the number the orgnsm ends up with. Registering an orgnsm that
+	// is already in drops its previous entry first.
 	register { |orgnsm, pickNewNumber = true|
 		var species = orgnsm.species, tribe = orgnsm.tribe;
-		var dict = this.prTribeDict(species, tribe);
-		var number = orgnsm.number;
+		var dict, number;
+		if(orgnsm.isRegistered) { this.remove(orgnsm) };
+		dict = this.prTribeDict(species, tribe);
+		number = orgnsm.number;
 		if(pickNewNumber or: { number.isNil }) {
 			number = maxNumbers[species][tribe] + 1;
 		} {

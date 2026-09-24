@@ -166,12 +166,21 @@ RCOrgnsm {
 		serverResources[\buffer] = nil;
 	}
 
+	// Both forget what they freed: a second call frees nothing twice.
 	freeAllServerResources {
 		freeFunctions.do { |f| RCGuard.call(\orgnsm, nil) { f.value(this) } };
+		freeFunctions.clear;
+		freeFunctionsAlways.clear;
+		serverResources.clear;
 	}
 
 	freeAlwaysServerResources {
-		freeFunctionsAlways.do { |f| RCGuard.call(\orgnsm, nil) { f.value(this) } };
+		freeFunctionsAlways.keysValuesDo { |key, f|
+			RCGuard.call(\orgnsm, nil) { f.value(this) };
+			freeFunctions.removeAt(key);
+			serverResources.removeAt(key);
+		};
+		freeFunctionsAlways.clear;
 	}
 
 	//////// pattern material
@@ -213,8 +222,7 @@ RCOrgnsm {
 				var sorted, budget = 0, current = 0, next = 0, idx = 0;
 				var keptBuses = List.new, keptTransparencies = List.new;
 				fobjects.do { |fobject|
-					var t = RCGuard.call(\transparency, 0) { fobject.transparency(ev[\zpos], ev[\pos]) };
-					if(t.isNumber.not or: { t.isNaN }) { t = 0 };
+					var t = fobject.transparency(ev[\zpos], ev[\pos]);   // guarded and sanitised there
 					if((t > 0) and: { ignore.includes(fobject.name).not }) { stats.add([fobject.inBus, fobject.priority, t]) };
 				};
 				sorted = stats.sort { |a, b| a[1] < b[1] };
@@ -239,12 +247,16 @@ RCOrgnsm {
 	// A bare instance of the same class (subclasses with other constructors override this).
 	prNewLike { ^this.class.new(species, tribe, number, song, addSongInName) }
 
+	// Attribute containers are copied down to the leaves (nested Events too),
+	// leaves are shared (see RCUtil.copyTree). A clone shares the template's
+	// server resources but never its "always free" duties: a shared Buffer is
+	// freed by the template, not by the first clone to go.
 	clone {
 		var c = this.prNewLike;
-		c.staticAttrs_(staticAttrs.copy);
-		c.attrDictBase_(attrDictBase.deepCopy);
-		c.addFirstArrayBase_(addFirstArrayBase.deepCopy);
-		c.prCopyResources(serverResources.copy, freeFunctions.copy, freeFunctionsAlways.copy);
+		c.staticAttrs_(RCUtil.copyTree(staticAttrs));
+		c.attrDictBase_(RCUtil.copyTree(attrDictBase));
+		c.addFirstArrayBase_(RCUtil.copyTree(addFirstArrayBase));
+		c.prCopyResources(serverResources.copy, freeFunctions.copy, ());
 		c.layerKey = layerKey;
 		c.terminationKey = terminationKey;
 		c.chan = chan;

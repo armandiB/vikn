@@ -43,6 +43,23 @@ TestRCUtil : UnitTest {
 		RCLog.rateLimit = savedRateLimit;
 	}
 
+	test_copyTree {
+		var leaf = RCTestFakeBeat(\leaf);
+		var f = { 1 };
+		var src = (a: [1, [2, 3]], b: (c: 4, d: leaf), e: f, s: "str", p: Pseq([1]));
+		var c = RCUtil.copyTree(src);
+		c[\a][1][0] = 9;
+		c[\b][\c] = 5;
+		this.assertEquals(src[\a][1][0], 2, "nested arrays copied");
+		this.assertEquals(src[\b][\c], 4, "nested events copied");
+		this.assert(c[\b][\d] === leaf, "objects shared");
+		this.assert(c[\e] === f, "functions shared");
+		this.assert(c[\p] === src[\p], "patterns shared");
+		this.assert(c[\s] === src[\s], "strings shared");
+		this.assertEquals(RCUtil.copyTree([\k, 1, \l, [2]]), [\k, 1, \l, [2]], "kv arrays copied");
+		this.assertEquals(RCUtil.copyTree(nil), nil, "nil passes");
+	}
+
 	test_rPut_rGet {
 		var d = (x: (y: (z: 1)));
 		this.assertEquals(RCUtil.rGet(d, [\x, \y, \z]), 1, "rGet nested");

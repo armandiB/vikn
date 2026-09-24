@@ -115,6 +115,25 @@ RCUtil {
 		^obj.asPairs
 	}
 
+	//////// copying attribute trees
+
+	// Arrays, Lists, Dictionaries and Events are copied recursively (an Event
+	// keeps its know/proto/parent); everything else (Functions, Patterns,
+	// Refs, Buffers, Buses, Nodes, RC objects) is shared by reference. Unlike
+	// deepCopy this never duplicates a server handle or a service object.
+	*copyTree { |obj, depth = 0|
+		if(depth > 32 or: { obj.isKindOf(RawArray) }) { ^obj };
+		if(obj.isKindOf(Dictionary)) {
+			var res = obj.copy;
+			res.keysValuesDo { |k, v| res[k] = this.copyTree(v, depth + 1) };
+			^res
+		};
+		if(obj.isKindOf(SequenceableCollection)) {
+			^obj.collect { |el| this.copyTree(el, depth + 1) }
+		};
+		^obj
+	}
+
 	//////// static vs. streamable values
 
 	// True when a value can be used as-is in a pattern without being streamed.

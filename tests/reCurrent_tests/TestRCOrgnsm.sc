@@ -70,6 +70,46 @@ TestRCOrgnsm : UnitTest {
 		this.assertEquals(RCUtil.kvAt(t.addFirstArrayBase, \marker), 1, "template addFirstArrayBase untouched (deep copy)");
 	}
 
+	test_clone_nested_attrs_and_shared_resources {
+		var t = this.template;
+		var buf = RCTestFakeBeat(\buffer);
+		var c1, c2;
+		t.rPut("static_attrs.nested", (a: 1));
+		t.setBuffer(buf, alwaysFreeAtDelete: true);
+		c1 = t.clone;
+		c2 = t.clone;
+		c1.rPut("nested.a", 5);
+		this.assertEquals(t.staticAttrs.nested.a, 1, "nested static attrs are copied, not shared");
+		this.assertEquals(c2.staticAttrs.nested.a, 1, "sibling clone untouched");
+		this.assert(c1.serverResources[\buffer] === buf, "server resources shared");
+		c1.free;
+		c2.free;
+		this.assert(buf.freed.not, "clones do not free the template's buffer");
+		t.freeAlwaysServerResources;
+		this.assertEquals(buf.freeCount, 1, "the template frees it");
+		t.freeAlwaysServerResources;
+		t.freeAllServerResources;
+		this.assertEquals(buf.freeCount, 1, "never twice");
+	}
+
+	test_registry_reregister_and_batch_guards {
+		var t = this.template;
+		var o = t.create(layerKey: \core);
+		var b = RCBatch(\g, t, layerKey: \core);
+		o.register;
+		this.assertEquals(song.registry.size, 1, "re-registering keeps one entry");
+		this.assertEquals(o.number, 1, "with a fresh number");
+		b.addCreate(0, start: true);
+		b.addCreate(1);
+		b.store;
+		b.deleteBeats({ nil.explode }, true);
+		this.assert(this.logHas("explode"), "a throwing condition on prepared orgnsms is reported");
+		this.assertEquals(b.size + b.prepared.size, 2, "and deletes nothing");
+		b.deleteBeats(nil, true);
+		this.assertEquals(b.recall.values.flatten.size, 0, "recall drops orgnsms freed since store");
+		o.free;
+	}
+
 	test_registry_numbering {
 		var t = this.template;
 		var a = t.create(layerKey: \core);

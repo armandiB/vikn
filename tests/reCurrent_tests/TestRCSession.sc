@@ -1,8 +1,8 @@
 // Minimal stand-in for a beat, so the session layer can be tested without RCBeat.
 RCTestFakeBeat {
-	var <name, <freed = false, <paused = false;
+	var <name, <freed = false, <paused = false, <freeCount = 0;
 	*new { |name| ^super.newCopyArgs(name.asSymbol) }
-	free { freed = true }
+	free { freed = true; freeCount = freeCount + 1 }
 	pause { paused = true }
 	resume { paused = false }
 	lastValue { |key, default| ^if(key == \known) { 42 } { default.value } }

@@ -81,7 +81,11 @@ RCBatch {
 	size { ^lists.values.sum { |l| l.count(_.isFreed.not) } }
 
 	store { storage = this.allOrgnsms }
-	recall { ^storage }
+
+	// The stored snapshot without the orgnsms freed since.
+	recall {
+		^storage !? { |dict| dict.collect { |list| list.reject(_.isFreed) } }
+	}
 
 	// key → list of func.(orgnsm, i, list, key)
 	collectAll { |func|
@@ -92,10 +96,11 @@ RCBatch {
 		^res
 	}
 
-	// Apply func to the live orgnsms selected by cond (all by default).
+	// Apply func to the live orgnsms selected by cond (all by default). A
+	// throwing cond or func is reported and skips that orgnsm.
 	apply { |func, cond|
 		^this.collectAll { |o, i, list, key|
-			if(o.isFreed.not and: { cond.isNil or: { cond.value(o, i, list, key) } }) {
+			if(o.isFreed.not and: { cond.isNil or: { RCGuard.call(name, false) { cond.value(o, i, list, key) } } }) {
 				RCGuard.call(name, o) { func.value(o, i, list, key) }
 			} { o }
 		}
@@ -113,7 +118,9 @@ RCBatch {
 	deleteBeats { |cond, cleanup = false|
 		var res = this.apply({ |o| o.free; nil }, cond);
 		prepared.keysValuesDo { |key, list|
-			list.do { |o, i| if(cond.isNil or: { cond.value(o, i, list, key) }) { o.free } };
+			list.do { |o, i|
+				if(cond.isNil or: { RCGuard.call(name, false) { cond.value(o, i, list, key) } }) { o.free };
+			};
 		};
 		if(cleanup) {
 			[lists, prepared].do { |dict|

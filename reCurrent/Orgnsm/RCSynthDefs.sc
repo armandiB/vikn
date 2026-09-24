@@ -5,7 +5,9 @@
 // output stage and registers one SynthDef per possible number of outputs
 // (name__1_out ... name__<maxNumOuts>_out) so that a note can be spread over
 // several fobject buses (\outs / \outamps) chosen per event. SynthDefs are
-// added with .add so that patterns know their control names.
+// added with .add so that patterns know their control names. The sound
+// function is evaluated once per variant (maxNumOuts times): keep it pure
+// (no Buffer allocation or registration inside it).
 
 RCSynthDefs {
 	classvar <>maxNumOuts = 8;   // superimposing fobjects, minus one; keep small (graph size)
