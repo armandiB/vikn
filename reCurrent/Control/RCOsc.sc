@@ -40,7 +40,8 @@ RCOsc {
 		if(inEnvir) { func = func.inEnvir };
 		guarded = RCGuard.wrap(key, nil, func);
 		defs[key] !? (_.free);
-		defs[key] = OSCdef(key, guarded, path, song.session.localAddr);
+		// permanent: Cmd-Period must not take the control surface down (free/freeAll do)
+		defs[key] = OSCdef(key, guarded, path, song.session.localAddr).permanent_(true);
 		if(print) { RCLog.post(\osc, "% at %".format(key, path)) };
 		^guarded
 	}

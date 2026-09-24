@@ -35,6 +35,7 @@ TestRCControl : UnitTest {
 		f.value;
 		this.assertEquals(hits, 1, "returned handler runs the function");
 		this.assert(OSCdef('ctl_scene_init').notNil, "OSCdef registered under the proto-library key");
+		this.assert(OSCdef('ctl_scene_init').permanent, "permanent: Cmd-Period keeps it");
 		g.value;
 		this.assert(this.logHas("explode"), "error in a handler is reported, not thrown");
 		song.osc.free(\scene, \init);
@@ -70,15 +71,18 @@ TestRCControl : UnitTest {
 
 	test_midi_control_and_fine {
 		var got = nil;
-		var names = song.midi.control(\knob, 5, 0, "No Such Device", { |x| x * 2 }, { |v, raw| got = [v, raw] }, fine: true);
-		this.assertEquals(names, [\knob, \rc_knob_lsb], "msb and lsb defs");
-		MIDIdef(\rc_knob_lsb).func.value(127, 37, 0, nil);
-		MIDIdef(\knob).func.value(10, 5, 0, nil);
-		this.assertEquals(got, [22, 11], "fine value adds lsb/127");
+		var keys = song.midi.control(\knob, 5, 0, "No Such Device", { |x| x * 2 }, { |v, raw| got = [v, raw] }, fine: true);
+		this.assertEquals(keys, [\rc_ctl_knob, \rc_ctl_knob_lsb], "msb and lsb defs, namespaced by song");
+		this.assert(MIDIdef.all[\rc_ctl_knob].permanent, "permanent: Cmd-Period keeps it");
+		MIDIdef(\rc_ctl_knob_lsb).func.value(127, 37, 0, nil);
+		MIDIdef(\rc_ctl_knob).func.value(10, 5, 0, nil);
+		this.assertFloatEquals(got[1], 10 + (127 / 128), "fine value adds lsb/128 (never reaches the next msb step)");
+		this.assertFloatEquals(got[0], 2 * (10 + (127 / 128)), "valFunc applied");
 		song.midi.free(\knob);
-		this.assertEquals(MIDIdef.all[\knob], nil, "defs freed by name");
-		this.assertEquals(MIDIdef.all[\rc_knob_lsb], nil, "lsb def freed too");
+		this.assertEquals(MIDIdef.all[\rc_ctl_knob], nil, "defs freed by name");
+		this.assertEquals(MIDIdef.all[\rc_ctl_knob_lsb], nil, "lsb def freed too");
 		this.assertEquals(song.midi.defs.size, 0, "mapping forgotten");
+		this.assertEquals(RCMidi.fineValue(nil, 0, 5, \rc_ctl_knob), nil, "fine value forgotten");
 	}
 
 	test_midi_controlAttribute_and_guard {
@@ -87,14 +91,32 @@ TestRCControl : UnitTest {
 		song.midi.controlAttribute(target, \x, { |v| v / 127 }, 1, 0, "No Such Device", name: \tx);
 		song.midi.controlAttribute(swing, \amount, { |v| v / 127 }, 2, 0, "No Such Device", name: \tsw);
 		song.midi.control(\bad, 3, 0, "No Such Device", { |v| nil.explode }, { }, false);
-		MIDIdef(\tx).func.value(127, 1, 0, nil);
-		MIDIdef(\tsw).func.value(63.5, 2, 0, nil);
-		MIDIdef(\bad).func.value(1, 3, 0, nil);
+		MIDIdef(\rc_ctl_tx).func.value(127, 1, 0, nil);
+		MIDIdef(\rc_ctl_tsw).func.value(63.5, 2, 0, nil);
+		MIDIdef(\rc_ctl_bad).func.value(1, 3, 0, nil);
 		this.assertEquals(target.x, 1.0, "dictionary target");
 		this.assertFloatEquals(swing.amount, 0.5, "setter target");
 		this.assert(this.logHas("explode"), "error in a mapping is reported");
 		song.midi.freeAll;
-		this.assertEquals(MIDIdef.all[\bad], nil, "freeAll");
+		this.assertEquals(MIDIdef.all[\rc_ctl_bad], nil, "freeAll");
+	}
+
+	test_midi_function_target_prefix_and_cc_helpers {
+		var node = RCTestFakeSettable.new;
+		var other = RCTestFakeSettable.new;
+		var current = node;
+		song.midi.controlSynth({ current }, \set_width, { |v| v }, 7, 0, "No Such Device", name: \bass_w);
+		MIDIdef(\rc_ctl_bass_w).func.value(3, 7, 0, nil);
+		current = other;
+		MIDIdef(\rc_ctl_bass_w).func.value(4, 7, 0, nil);
+		this.assertEquals([node.width, other.width], [3, 4], "a Function target is resolved per message");
+		song.midi.control(\bass_x, 8, 0, "No Such Device", { |v| v }, { });
+		song.midi.control(\lead, 8, 0, "No Such Device", { |v| v }, { });
+		this.assert(this.logHas("already listens to cc 8 chan 0"), "a second mapping on one (cc, chan) is warned about");
+		this.assertEquals(song.midi.freeMatching("bass_").sort, [\bass_w, \bass_x], "freeMatching frees by prefix");
+		this.assertEquals(song.midi.defs.keys.asArray, [\lead], "the others stay");
+		this.assertEquals(song.midi.freeCC(8, 0), [\lead], "freeCC frees the mappings on a controller");
+		this.assertEquals(song.midi.defs.size, 0, "all gone");
 	}
 
 	//////// keyboard
@@ -119,6 +141,9 @@ TestRCControl : UnitTest {
 		this.assertEquals(kb.size, 0, "all released");
 		kb.noteOff(0, 1, 9);
 		this.assert(this.logHas("no state"), "noteOff without state warned");
+		kb.bend(0, 3);
+		this.assertEquals(kb.held(3), nil, "bend without a note does not make the channel held");
+		this.assertEquals(kb.size, 0, "nor counted");
 		kb.free;
 	}
 

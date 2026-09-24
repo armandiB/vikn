@@ -222,6 +222,7 @@ TestRCCrawler : UnitTest {
 RCTestFakeSettable {
 	var <width;
 	setWidth { |w| width = w }
+	set { |attr, val| width = val }   // Node-style set, for the MIDI tests
 	rGet { |key| ^nil }
 	rPut { |key, val| }
 	isOrgnsm { ^false }

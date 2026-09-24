@@ -27,18 +27,21 @@ RCKeyboardState {
 		if(deviceName.notNil) { this.listen };
 	}
 
-	// Install the MIDIdefs (noteOn, noteOff, bend, touch, control) for the device.
+	// Install the MIDIdefs (noteOn, noteOff, bend, touch, control) for the
+	// device: permanent (Cmd-Period keeps them) and guarded (a failing
+	// handler is reported, the MIDI dispatcher never sees the error).
 	listen {
 		var srcID = RCMidi.findSrcId(deviceName);
 		var prefix = "rc_kbd_" ++ (song !? (_.name) ? "x") ++ "_";
+		var guard = { |func| RCGuard.wrap(\keyboard, nil, func) };
 		this.stopListening;
 		defs = [
-			MIDIdef.noteOn((prefix ++ "noteOn").asSymbol, { |vel, note, chan| this.noteOn(vel, note, chan) }, nil, nil, srcID),
-			MIDIdef.noteOff((prefix ++ "noteOff").asSymbol, { |vel, note, chan| this.noteOff(vel, note, chan) }, nil, nil, srcID),
-			MIDIdef.bend((prefix ++ "bend").asSymbol, { |val, chan| this.bend(val, chan) }, nil, srcID),
-			MIDIdef.touch((prefix ++ "touch").asSymbol, { |val, chan| this.touch(val, chan) }, nil, srcID),
-			MIDIdef.cc((prefix ++ "control").asSymbol, { |val, num, chan| this.cc(val, num, chan) }, nil, nil, srcID)
-		];
+			MIDIdef.noteOn((prefix ++ "noteOn").asSymbol, guard.({ |vel, note, chan| this.noteOn(vel, note, chan) }), nil, nil, srcID),
+			MIDIdef.noteOff((prefix ++ "noteOff").asSymbol, guard.({ |vel, note, chan| this.noteOff(vel, note, chan) }), nil, nil, srcID),
+			MIDIdef.bend((prefix ++ "bend").asSymbol, guard.({ |val, chan| this.bend(val, chan) }), nil, srcID),
+			MIDIdef.touch((prefix ++ "touch").asSymbol, guard.({ |val, chan| this.touch(val, chan) }), nil, srcID),
+			MIDIdef.cc((prefix ++ "control").asSymbol, guard.({ |val, num, chan| this.cc(val, num, chan) }), nil, nil, srcID)
+		].collect(_.permanent_(true));
 	}
 
 	stopListening {
@@ -111,8 +114,14 @@ RCKeyboardState {
 		};
 	}
 
-	// Channel state, or nil.
-	held { |chan| this.prDropStale; ^state[chan] }
+	// Channel state while a note is held, else nil (bend or pressure arriving
+	// before the noteOn creates the state, but does not make the channel held).
+	held { |chan|
+		var e;
+		this.prDropStale;
+		e = state[chan];
+		^if(e.notNil and: { e[\note].notNil }) { e } { nil }
+	}
 
 	// Channel states that hold a note, sorted by note.
 	heldChans {

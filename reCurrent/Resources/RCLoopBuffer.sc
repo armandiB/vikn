@@ -11,10 +11,13 @@
 //   ~lb.free
 // If the tempo later drops by more than maxTempoDrop×, the loop no longer
 // fits the buffer: a warning is posted once and the recording is truncated.
+// The writer starts once the allocation is confirmed (server.sync), on the
+// next loop grid; its retriggers are bundled with server.latency like the
+// pattern events, so the loop boundary lines up with the beats.
 
 RCLoopBuffer {
 	var <song, <key, <loopBeats, <inChanIdx, <numChannels, <layerKey, <maxTempoDrop;
-	var <buffer, <synth, <routine, <server, <clock, <chanIn, <allocBeatDur;
+	var <buffer, <synth, <routine, <server, <clock, <chanIn, <allocBeatDur, <sampleRate;
 	var <isFreed = false, warnedTruncation = false;
 
 	*new { |song, key, loopBeats = 4, inChanIdx = 0, numChannels = 1, layerKey = \core, maxTempoDrop = 4|
@@ -55,24 +58,30 @@ RCLoopBuffer {
 			^this
 		};
 		allocBeatDur = clock.beatDur;
-		buffer = Buffer.alloc(server, this.class.framesFor(server.sampleRate, allocBeatDur, loopBeats, maxTempoDrop), numChannels);
+		sampleRate = server.sampleRate;
+		buffer = Buffer.alloc(server, this.class.framesFor(sampleRate, allocBeatDur, loopBeats, maxTempoDrop), numChannels);
 		trigLen = min(0.1, loopBeats * 0.5);
 		routine = Routine {
 			synth = Synth(("write_buffer_" ++ numChannels ++ "chan").asSymbol, [\bufnum, buffer, \chan_in, chanIn]);
 			loop {
-				synth.set(\trigger, 1.0);
+				server.makeBundle(server.latency, { synth.set(\trigger, 1.0) });
 				trigLen.yield;
-				synth.set(\trigger, -1.0);
+				server.makeBundle(server.latency, { synth.set(\trigger, -1.0) });
 				this.prCheckTempo;
 				(loopBeats - trigLen).yield;
 			};
-		}.play(clock, [loopBeats, 0]);
+		};
 		song.registerLoopBuffer(key, this);
+		// the writer must not reach the server before the buffer exists
+		Routine {
+			server.sync;
+			if(isFreed.not) { routine.play(clock, [loopBeats, 0]) };
+		}.play(SystemClock);
 		RCLog.post(\loopBuffer, "% : % beats × % margin, % frames on input %".format(key, loopBeats, maxTempoDrop, buffer.numFrames, chanIn));
 	}
 
-	// frames one loop occupies at the current tempo
-	numFramesPerLoop { ^(clock.beatDur * loopBeats * (server.sampleRate ? 48000)).asInteger }
+	// frames one loop occupies at the current tempo (at the allocation sample rate)
+	numFramesPerLoop { ^(clock.beatDur * loopBeats * sampleRate).asInteger }
 
 	fits { ^buffer.notNil and: { this.numFramesPerLoop <= buffer.numFrames } }
 
