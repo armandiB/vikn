@@ -43,6 +43,29 @@ TestRCLog : UnitTest {
 		RCLog.historySize = saved;
 	}
 
+	test_lazy_message_formatted_only_when_emitted {
+		var calls = 0;
+		var msg = { calls = calls + 1; "built" };
+		this.assert(RCLog.post(\lazy, msg), "first message emitted");
+		this.assertEquals(calls, 1, "function message evaluated once");
+		this.assert(RCLog.post(\lazy, msg).not, "second message rate-limited");
+		this.assertEquals(calls, 1, "rate-limited message not evaluated");
+		this.assert(RCLog.history.last[2].contains("built"), "evaluated text in the line");
+	}
+
+	test_limiter_prunes_silent_tags {
+		var saved = RCLog.maxTags;
+		RCLog.maxTags = 4;
+		4.do { |i| RCLog.post(("tag" ++ i).asSymbol, i) };
+		now = now + 120;
+		RCLog.post(\fresh, "later");
+		this.assert(RCLog.lastTimes.size <= 4, "tags silent for a minute pruned once maxTags is reached");
+		this.assert(RCLog.lastTimes[\fresh].notNil, "the live tag kept");
+		RCLog.post("string tag", "a");
+		this.assert(RCLog.lastTimes['string tag'].notNil, "String tags keyed as Symbols");
+		RCLog.maxTags = saved;
+	}
+
 	test_info_respects_verbose {
 		var saved = RCLog.verbose;
 		RCLog.verbose = false;

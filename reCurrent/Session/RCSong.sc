@@ -11,7 +11,7 @@
 RCSong {
 	var <name, <seed, <session, <layers, <groups;
 	var <groupArray, <outArray, <inChanArray, <fobjectGroupArray, <fobjectOutArray;
-	var <loopBuffers, <>sampleLibrary, <history;
+	var <loopBuffers, <>sampleLibrary;
 	var <osc, <midi, <keyboard, <registry;
 	var server, clock;
 
@@ -29,7 +29,6 @@ RCSong {
 		layers = IdentityDictionary.new;
 		groups = IdentityDictionary.new;
 		loopBuffers = IdentityDictionary.new;
-		history = List.new;
 		groupArray = [];
 		outArray = [0];
 		inChanArray = [0];
@@ -112,11 +111,15 @@ RCSong {
 		^groups
 	}
 
+	// The group arrays are emptied too: an event resolving orgnsm_group_idx
+	// afterwards reports the missing group instead of targeting a dead node.
 	freeGroups {
 		[\in, \sounds, \background, \outputDecode].do { |k|
 			groups[k] !? { |g| RCGuard.call(\song, nil) { g.free } };
 		};
 		groups.clear;
+		groupArray = [];
+		fobjectGroupArray = [];
 	}
 
 	// Clean panic: release every gated synth in a group (default: all sounds).
@@ -147,9 +150,12 @@ RCSong {
 		if(loopBuffers[key.asSymbol] === loopBuffer) { loopBuffers.removeAt(key.asSymbol) };
 	}
 
+	// One guard per buffer: a bad entry does not keep the others allocated.
 	freeSampleLibrary {
 		sampleLibrary !? { |lib|
-			RCGuard.call(\song, nil) { lib.leafDo { |keys, buffer| buffer.free } };
+			RCGuard.call(\song, nil) {
+				lib.leafDo { |keys, buffer| RCGuard.call(\song, nil) { buffer.free } };
+			};
 		};
 		sampleLibrary = nil;
 	}

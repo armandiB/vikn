@@ -96,9 +96,16 @@ RCUtil {
 	}
 
 	// Anything (Event, Dictionary, kv array, array of associations) → kv array.
-	*asKV { |obj|
+	// A Dictionary yields hash order: when the order matters (pattern keys),
+	// pass warnTag and the caller is told to use a kv Array instead.
+	*asKV { |obj, warnTag|
 		if(obj.isNil) { ^[] };
-		if(obj.isKindOf(Dictionary)) { ^obj.asPairs };
+		if(obj.isKindOf(Dictionary)) {
+			if(warnTag.notNil and: { obj.size > 1 }) {
+				RCLog.warn(warnTag, "attributes given as a % (hash order): key order is not kept, use a kv Array [key, value, ...]".format(obj.class));
+			};
+			^obj.asPairs
+		};
 		if(obj.isKindOf(SequenceableCollection)) {
 			if(obj.size > 0 and: { obj[0].isKindOf(Association) }) {
 				^obj.collect { |assoc| [assoc.key, assoc.value] }.flatten(1)
@@ -180,7 +187,9 @@ RCUtil {
 		^res.asArray
 	}
 
+	// The first `digits` digits of the fractional part of x in the given base.
 	*digitsInBase { |x, base, digits|
+		if(digits.isNil or: { digits < 1 }) { ^[] };
 		^(0..(digits - 1)).inject([x.frac, []], { |state|
 			var newX = state[0] * base;
 			[newX.frac, state[1] ++ [newX.floor]]

@@ -11,11 +11,18 @@
 //   RCLog.warn(\dur, "clamped");
 //   RCLog.error(\osc, "no handler");
 //   RCLog.exception(\crawler, err, "next_val");   // formats an Exception
+//   RCLog.warn(\dur, { "dur % clamped".format(x) });   // formatted only when emitted
+//
+// A message may be a Function: it is evaluated only when the line gets
+// through, so a per-event call site pays nothing while rate-limited.
+// The limiter is keyed by tag then level (no Symbol is interned per call)
+// and forgets tags silent for more than a minute once it holds maxTags.
 
 RCLog {
 	classvar <>verbose = true;        // RCLog.info is silent when false
 	classvar <>rateLimit = 1.0;       // seconds, per tag
 	classvar <>historySize = 200;     // number of emitted lines kept in `history`
+	classvar <>maxTags = 512;         // limiter entries kept before pruning
 	classvar <>timeFunc;              // { seconds } — replaceable for tests
 	classvar <lastTimes, <suppressedCounts, <history;
 
@@ -58,17 +65,20 @@ RCLog {
 	// Returns true if the line was emitted, false if rate-limited.
 	// The limit is per (tag, level): a flood of warnings never hides an error.
 	*prEmit { |tag, msg, level, force = false|
-		var key = (tag.asString ++ "/" ++ level).asSymbol;
 		var now = timeFunc.value;
-		var last = lastTimes[key];
-		var text, suppressed;
+		var perTag, last, text, suppressed, counts;
+		if(tag.isKindOf(String)) { tag = tag.asSymbol };   // identity keys below
+		perTag = lastTimes[tag] ?? { var d = IdentityDictionary.new; lastTimes[tag] = d; d };
+		last = perTag[level];
 		if(force.not and: { last.notNil } and: { (now - last) < rateLimit }) {
-			suppressedCounts[key] = (suppressedCounts[key] ? 0) + 1;
+			counts = suppressedCounts[tag] ?? { var d = IdentityDictionary.new; suppressedCounts[tag] = d; d };
+			counts[level] = (counts[level] ? 0) + 1;
 			^false
 		};
-		lastTimes[key] = now;
-		suppressed = suppressedCounts.removeAt(key);
-		text = this.format(tag, msg);
+		perTag[level] = now;
+		if(lastTimes.size > maxTags) { this.prPrune(now) };
+		suppressed = suppressedCounts[tag] !? { |d| d.removeAt(level) };
+		text = this.format(tag, msg.value);
 		if(suppressed.notNil and: { suppressed > 0 }) {
 			text = text ++ " (+% suppressed)".format(suppressed)
 		};
@@ -80,5 +90,21 @@ RCLog {
 			{ text.postln }
 		);
 		^true
+	}
+
+	// Drop the limiter entries of tags silent for more than a minute; if that
+	// is not enough, start over (worst case: one extra line per tag).
+	*prPrune { |now|
+		lastTimes.keys.copy.do { |tag|
+			var times = lastTimes[tag];
+			if(times.isEmpty or: { times.values.maxItem < (now - 60) }) {
+				lastTimes.removeAt(tag);
+				suppressedCounts.removeAt(tag);
+			};
+		};
+		if(lastTimes.size > maxTags) {
+			lastTimes.clear;
+			suppressedCounts.clear;
+		};
 	}
 }

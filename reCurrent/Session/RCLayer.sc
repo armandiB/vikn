@@ -1,10 +1,11 @@
 // reCurrent — a layer of beats inside a song (BlockBeats' beat_env).
 //
 // Holds the clock, server, swing and MIDI outputs shared by its beats, the
-// live beats by name, and the history of every beat name ever created.
+// live beats by name, and the names of the last historySize beats created.
 // Beats register themselves (see RCBeat); addBeat is defined with RCBeat.
 
 RCLayer {
+	classvar <>historySize = 64;
 	var <song, <key, <swing, <>midiOut, <>addMidiOuts, <beats, <history;
 	var clock, server;
 
@@ -54,6 +55,7 @@ RCLayer {
 		beats[name] !? { |old| if(old !== beat) { old.free } };
 		beats[name] = beat;
 		history.add(name);
+		while { history.size > historySize } { history.removeAt(0) };
 	}
 
 	unregisterBeat { |beat|

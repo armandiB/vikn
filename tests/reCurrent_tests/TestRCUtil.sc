@@ -29,6 +29,20 @@ TestRCUtil : UnitTest {
 		this.assertEquals(RCUtil.asKV((a: 1)).size, 2, "Event → pairs");
 	}
 
+	test_asKV_warns_for_unordered_dictionaries {
+		var savedRateLimit = RCLog.rateLimit;
+		RCLog.rateLimit = 0;
+		RCLog.reset;
+		RCUtil.asKV((a: 1, b: 2), \t);
+		this.assert(RCLog.history.any { |e| e[2].contains("hash order") }, "a multi-key Event with a warnTag warns");
+		RCLog.reset;
+		RCUtil.asKV((a: 1), \t);
+		RCUtil.asKV([\a, 1, \b, 2], \t);
+		RCUtil.asKV((a: 1, b: 2));
+		this.assertEquals(RCLog.history.size, 0, "single key, kv arrays and calls without a tag stay silent");
+		RCLog.rateLimit = savedRateLimit;
+	}
+
 	test_rPut_rGet {
 		var d = (x: (y: (z: 1)));
 		this.assertEquals(RCUtil.rGet(d, [\x, \y, \z]), 1, "rGet nested");
@@ -83,6 +97,8 @@ TestRCUtil : UnitTest {
 	test_digitsInBase {
 		this.assertEquals(RCUtil.digitsInBase(0.5, 2, 3), [1, 0, 0], "0.5 in base 2");
 		this.assertEquals(RCUtil.digitsInBase(0.75, 2, 2), [1, 1], "0.75 in base 2");
+		this.assertEquals(RCUtil.digitsInBase(0.75, 2, 0), [], "zero digits → empty, not two");
+		this.assertEquals(RCUtil.digitsInBase(0.75, 2, nil), [], "nil digits → empty");
 	}
 
 	test_reservedKeys {

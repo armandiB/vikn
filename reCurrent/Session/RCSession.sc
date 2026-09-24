@@ -5,11 +5,15 @@
 // which is idempotent: a running clock is never re-created, an already open
 // port is fine, MIDI is initialized once. Tests use
 //   RCSession.boot(Server.default, TempoClock.new, oscPort: nil, initMidi: false)
+//
+// The LinkClock the session creates is permanent and outlives the session by
+// design (beats, Chataigne and Link peers keep following it). Stop it only on
+// purpose with stopClock, after killAll.
 
 RCSession {
 	classvar <default;
 	var <server, <clock, <oscPort, <localAddr, <songs;
-	var <midiInitialized = false, <booted = false;
+	var <midiInitialized = false, <booted = false, <ownsClock = false;
 
 	*boot { |server, clock, oscPort = 32345, initMidi = true|
 		default = default ?? { super.new.initRCSession };
@@ -30,16 +34,21 @@ RCSession {
 	prBoot { |serverarg, clockarg, oscPortarg, initMidi|
 		server = serverarg ? server ? Server.default;
 		if(clockarg.notNil) {
+			if(ownsClock and: { clock !== clockarg } and: { clock.isRunning }) {
+				RCLog.warn(\session, "replacing the session's LinkClock by %: the old clock keeps running (stopClock first to stop it)".format(clockarg));
+			};
 			clock = clockarg;
+			ownsClock = false;
 		} {
 			if(clock.isNil or: { clock.isRunning.not }) {
 				clock = LinkClock(nil, queueSize: 4096).latency_(server.latency).permanent_(true);
+				ownsClock = true;
 				RCLog.post(\session, "created LinkClock (tempo %)".format(clock.tempo));
 			} {
 				RCLog.info(\session, "keeping the running clock");
 			};
 		};
-		oscPort = oscPortarg;
+		oscPort = oscPortarg ? oscPort;   // a re-boot without a port keeps the open one
 		if(oscPort.notNil) {
 			if(thisProcess.openUDPPort(oscPort)) {
 				RCLog.post(\session, "OSC port % open".format(oscPort));
@@ -84,6 +93,23 @@ RCSession {
 	killAll {
 		songs.do(_.killAllBeats);
 		RCLog.post(\session, "killed all beats in % song(s)".format(songs.size));
+	}
+
+	// Stop the clock this session created (never one it was given). Kills
+	// every beat first: a stopped clock drops its queue. Returns true when
+	// a clock was stopped.
+	stopClock {
+		if(ownsClock.not or: { clock.isNil }) {
+			RCLog.warn(\session, "stopClock: the session does not own its clock, nothing stopped");
+			^false
+		};
+		this.killAll;
+		clock.clear;
+		clock.stop;
+		RCLog.post(\session, "stopped the session clock");
+		clock = nil;
+		ownsClock = false;
+		^true
 	}
 
 	free {
