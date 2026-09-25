@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# pre-push hook: refuse any push that would update a protected branch on the
+# remote. git runs it with <remote name> <remote url> as arguments and one
+# line per ref on stdin: <local ref> <local sha> <remote ref> <remote sha>.
+# git resolves the refs before calling the hook, so a bare `git push` while
+# on master is caught, as are `git push origin HEAD:master` and deleting the
+# branch. Works with the bash 3.2 that ships with macOS.
+#
+# Enable once per clone:   git config core.hooksPath scripts/githooks
+# Deliberate push:         ALLOW_PROTECTED_PUSH=1 git push ...
+#
+# Keep the branch list in step with .claude/hooks/branch-guard.sh.
+set -uo pipefail
+
+REMOTE="${1:-origin}"
+ZERO="0000000000000000000000000000000000000000"
+
+is_protected() {
+  case "$1" in
+    refs/heads/master|refs/heads/live|refs/heads/performance) return 0 ;;
+  esac
+  return 1
+}
+
+blocked=""
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "${remote_ref:-}" ] && continue
+  is_protected "$remote_ref" || continue
+  name="${remote_ref#refs/heads/}"
+  [ "${local_sha:-}" = "$ZERO" ] && name="delete:$name"
+  blocked="${blocked}${blocked:+, }${name}"
+done
+
+[ -z "$blocked" ] && exit 0
+
+if [ "${ALLOW_PROTECTED_PUSH:-0}" = "1" ]; then
+  echo "pre-push: ALLOW_PROTECTED_PUSH=1 set, allowing push to protected branch(es) on '$REMOTE': $blocked" >&2
+  exit 0
+fi
+
+echo "pre-push: refusing to push to protected branch(es) on '$REMOTE': $blocked" >&2
+echo "pre-push: push a feature branch instead, or run  ALLOW_PROTECTED_PUSH=1 git push ...  for a deliberate push." >&2
+exit 1
