@@ -25,7 +25,10 @@ fobjects, loop buffers, OSC/MIDI control surfaces. Every class is prefixed
 - `reCurrent/Resources`: RCLoopBuffer
 
 Tests live in `tests/reCurrent_tests/` (UnitTest, no server needed) and run with
-`~/Music/Supercollider/HomewareSC/scripts/test.sh`.
+`~/Music/Supercollider/HomewareSC/scripts/test.sh` (`scripts/test.sh vikn` for
+this suite alone). `TestRCPiece*` hold the idioms of HomewareSC's Biomusic clones
+(rhythm-dict progressions, batches and crawlers, the spatial rig) as contracts on
+the library, with fixtures shaped like the pieces.
 
 ### reAmbi and reCording
 Two small modules the songs hold by name (`~song.ambi`, `~song.recorder(\k)`):
