@@ -123,10 +123,13 @@ RCKeyboardState {
 		^if(e.notNil and: { e[\note].notNil }) { e } { nil }
 	}
 
-	// Channel states that hold a note, sorted by note.
+	// Channel states that hold a note, sorted by note, equal notes by channel
+	// (a sort with a strict < would reverse equal items).
 	heldChans {
+		var chans;
 		this.prDropStale;
-		^state.values.select { |e| e[\note].notNil }.sort { |a, b| a[\note] < b[\note] }
+		chans = state.keys.asArray.sort.select { |chan| state[chan][\note].notNil };
+		^chans.collect { |chan| state[chan] }.sort { |a, b| a[\note] <= b[\note] }
 	}
 
 	notes { ^this.heldChans.collect { |e| e[\note] } }

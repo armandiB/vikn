@@ -130,7 +130,7 @@ RCPathControl : RCOrgnsm {
 	otherParamsKeyList { |seqsInfo|
 		var res = List.new;
 		(seqsInfo ? []).do { |subseq|
-			(subseq[3] ? ()).keys.asArray.sort { |a, b| a.asString < b.asString }.do { |key|
+			(subseq[3] ? ()).keys.asArray.sort { |a, b| a.asString <= b.asString }.do { |key|
 				if(res.includes(key).not) { res.add(key) };
 			};
 		};

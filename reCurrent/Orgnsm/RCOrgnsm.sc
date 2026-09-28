@@ -230,7 +230,7 @@ RCOrgnsm {
 					var t = fobject.transparency(ev[\zpos], ev[\pos]);   // guarded and sanitised there
 					if((t > 0) and: { ignore.includes(fobject.name).not }) { stats.add([fobject.inBus, fobject.priority, t]) };
 				};
-				sorted = stats.sort { |a, b| a[1] < b[1] };
+				sorted = stats.sort { |a, b| a[1] <= b[1] };   // <=: equal priorities keep the registry order (a strict < reverses them)
 				while { ((budget < 1) or: { next == current }) and: { idx < sorted.size } } {
 					budget = budget + sorted[idx][2];
 					keptBuses.add(sorted[idx][0]);
