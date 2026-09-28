@@ -26,6 +26,7 @@ Key/value array (order matters) or Event.
 METHOD:: addFirstArrayBase
 METHOD:: rPut
 argument:: key
+A key path (see above). A bare key, as a Symbol or a String without a dot, is the fast path every code::editAttr:: and path-control write takes.
 argument:: val
 METHOD:: rGet
 

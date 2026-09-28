@@ -10,8 +10,10 @@ CLASSMETHODS::
 METHOD:: fireflyNote1d
 1-D raga walk: code::(prev, othersNotes, origin, stattrs) → note::. Uses code::scale::, code::aroh::, code::avaroh::, code::octaves::, code::notealg_maxrandomjump::, code::notealg_maxothersjump::, code::notealg_startnotefunc::.
 METHOD:: fireflyTonnetz
-Flocking walk on a discrete tonnetz: code::(prev = [tpos, freqMult], others = [[tpos, freqMult, weight]...], forceField, stattrs) → [tpos, freqMult]::.
+Flocking walk on a discrete tonnetz: code::(prev = [tpos, freqMult], others = [[tpos, freqMult, weight]...], forceField, stattrs) → [tpos, freqMult]::. code::temperature:: adds random moves in the masked dimensions; it is clamped to link::#*maxTemperature:: with a warning.
 argument:: centerOfMassFromStaticAttrs
+METHOD:: maxTemperature
+The largest code::temperature:: the tonnetz walk accepts (default 8): the random candidates number about code::(2t)^dims:: per note, each with a force-field call, so a raw CC value (0..127) would stall the interpreter for seconds.
 METHOD:: tonnetzPositions
 Tonnetz coordinates of ratios (floats are turned into fractions with code::asFraction::).
 METHOD:: scaleForceField

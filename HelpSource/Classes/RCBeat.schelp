@@ -4,13 +4,13 @@ categories:: Libraries>reCurrent
 related:: Guides/reCurrent, Classes/RCLayer, Classes/RCBeatSpec, Classes/RCDurList
 
 DESCRIPTION::
-The successor of the proto-library's beat env + PLbindef. The pattern is a code::PbindProxy:: whose pairs are, in order: code::[\rc_beat, beat] ++ addFirst ++ [\dur_unadj, realDur, \dur, pipeline] ++ [\midiout, \chan] ++ attrDict ++ [\rc_finish]::, wrapped in a guarding code::Prout::.
+The successor of the proto-library's beat env + PLbindef. The pattern is an link::Classes/RCPbindProxy:: (an link::Classes/RCKeyProxy:: per key) whose pairs are, in order: code::[\rc_beat, beat] ++ addFirst ++ [\dur_unadj, realDur, \dur, pipeline] ++ [\midiout, \chan] ++ attrDict ++ [\rc_finish]::, wrapped in a guarding code::Prout::. A static value is read as it is; every other key has one Routine of its own, seeded per key, instead of the two to four per key of code::PbindProxy::, with the same seeded output.
 
 The dur pipeline computes code::dur = dur_unadj + swing(timeTrack) - previous swing offset::, clamps non-positive values to link::#*minDur:: (zero-length rests pass) and stops the beat after link::#*maxClampedInARow:: clamped events in a row. The last pair clamps negative code::legato:: / code::sustain::.
 
 Errors raised by any key stream are caught: with the default policy code::\restart:: the stream is rebuilt after code::restartDelay:: beats, up to code::maxRestarts:: consecutive failures; with code::\stop:: the beat stops at the first error. Other beats are never affected.
 
-Every non-static value is mirrored: link::#-lastValue:: returns the last value a key produced, link::#-thread:: / link::#-randData:: its stream thread (a separate thread per key when seeded).
+Every non-static value is mirrored: link::#-lastValue:: returns the last value a key produced, link::#-thread:: its Routine and link::#-randData:: its random state (settable, to replay the key).
 
 CLASSMETHODS::
 
@@ -24,6 +24,30 @@ METHOD:: defaultMaxRestarts
 METHOD:: defaultRestartDelay
 METHOD:: minDur
 METHOD:: maxClampedInARow
+
+SUBSECTION:: Lag monitor
+
+How far behind logical time the interpreter runs when an event is about to play (code::Main.elapsedTime - thisThread.seconds::, measured in the last key). scsynth prints strong::late:: once this exceeds code::server.latency::. Opt-in: it costs one subtraction per event.
+
+code::
+RCBeat.lagReset; RCBeat.lagMonitor = true;   // before a section
+RCBeat.lagReport;                            // after it: "lag: max 12.3 ms (beat hl3/rhythm_t1/orgnsm_percs_path_t1_4), mean 0.8 ms, 0 of 2304 events over 0.8 of the latency"
+::
+
+METHOD:: lagMonitor
+When true, every event records its lag (default false).
+METHOD:: lagWarnRatio
+Above code::lagWarnRatio * server.latency:: a rate-limited warning names the beat (default 0.8).
+METHOD:: lagReset
+Clear the counters.
+METHOD:: lagReport
+One line: the worst event and its beat, the mean, how many events crossed the ratio.
+METHOD:: lagMax
+METHOD:: lagMaxTag
+METHOD:: lagCount
+METHOD:: lagLateCount
+METHOD:: lagByTag
+code::IdentityDictionary:: beat tag → worst lag in seconds.
 
 METHOD:: auxPattern
 A pattern spawning a fresh, self-terminating beat at every event (the proto-library's code::make_aux_beat::).
@@ -81,9 +105,13 @@ METHOD:: lastValue
 argument:: key
 argument:: default
 METHOD:: thread
+The Routine of a non-static key.
 METHOD:: randData
+The random state of a key's Routine, settable.
 METHOD:: keyProxy
-The code::PatternProxy:: of a key.
+The link::Classes/RCKeyProxy:: of a key.
+METHOD:: lastValues
+METHOD:: threads
 
 METHOD:: layer
 METHOD:: name

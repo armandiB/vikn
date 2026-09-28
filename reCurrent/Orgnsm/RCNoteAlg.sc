@@ -11,6 +11,7 @@
 
 RCNoteAlg {
 	classvar <>maxWalk = 4096;   // iteration cap of the 1-D scale walk
+	classvar <>maxTemperature = 8;   // fireflyTonnetz clamps temperature here (candidates grow as (2t)^dims per note)
 
 	// 1-D raga walk over scale degrees (aroh going up, avaroh going down).
 	// stattrs: scale (size = degrees per octave), aroh, avaroh, octaves (or nil),
@@ -143,10 +144,17 @@ RCNoteAlg {
 						};
 					};
 				};
-				// temperature: random moves in the masked dimensions
+				// temperature: random moves in the masked dimensions. The candidates
+				// number about (2t)^dims, each with a force-field call, per note:
+				// a raw CC value (0..127) as temperature stalls the interpreter for
+				// seconds, hence the clamp.
 				if(temp > 0) {
 					var tempWeight = stattrs.temperature_weight ? 1;
 					var tempMask = mask.collect { |v| if(v != 0) { 1 } { 0 } };
+					if(temp > maxTemperature) {
+						RCLog.warn(\fireflyTonnetz, { "temperature % clamped to RCNoteAlg.maxTemperature (%)".format(temp, maxTemperature) });
+						temp = maxTemperature;
+					};
 					RCUtil.l1Vectors(tempMask.sum, temp.ceil.asInteger + 1).do { |moveMasked|
 						var idx = -1;
 						var move = tempMask.collect { |b| if(b == 1) { idx = idx + 1; moveMasked[idx] } { 0 } };

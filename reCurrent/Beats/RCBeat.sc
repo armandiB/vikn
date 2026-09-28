@@ -1,8 +1,8 @@
 // reCurrent — a beat: one pattern voice with a live-editable attribute set.
 //
 // Replaces BlockBeats' make_beat_pattern_new / make_beat_from_dict /
-// set_attr_to_beat_env / delete_beat and the beat env. The pattern is a
-// PbindProxy whose pairs are, in order:
+// set_attr_to_beat_env / delete_beat and the beat env. The pattern is an
+// RCPbindProxy (an RCKeyProxy per key, see there) whose pairs are, in order:
 //   [\rc_beat, this] ++ addFirst ++ [\dur_unadj, realDur, \dur, pipeline]
 //   ++ [\midiout, ...] ++ [\chan, ...] ++ attrDict ++ [\rc_finish, clamps]
 // wrapped in a guarding Prout that applies the error policy.
@@ -14,9 +14,9 @@
 //     editable RCDurList, a Function becomes Pn(Plazy(func)), anything else
 //     is streamed as is. Dur edits always land at the next event.
 // Every non-static value is mirrored: lastValue(key) is the last value the
-// key produced, thread(key)/randData(key) its stream thread (per key when
-// seeded). A Function value is called per event (wrapped in Pfunc); a key
-// given twice keeps its later definition (warned).
+// key produced, thread(key) / randData(key) its Routine and random state (one
+// Routine per key, seeded per key). A Function value is called per event; a
+// key given twice keeps its later definition (warned).
 
 RCBeat {
 	classvar <>defaultEditQuant = 1;
@@ -29,10 +29,19 @@ RCBeat {
 	classvar <hiddenKeys;
 	classvar auxCounter = 0;
 
+	// Lag monitor (opt-in): how far behind logical time the interpreter runs
+	// when an event is about to play, Main.elapsedTime - thisThread.seconds,
+	// measured in the last key (rc_finish). scsynth prints "late" once this
+	// exceeds server.latency; above lagWarnRatio * latency a rate-limited
+	// warning names the beat. lagReset before a section, lagReport after.
+	classvar <>lagMonitor = false;
+	classvar <>lagWarnRatio = 0.8;
+	classvar <lagMax = 0, <lagMaxTag, <lagCount = 0, <lagLateCount = 0, <lagSum = 0, <lagByTag;
+
 	var <layer, <name, <chan, <midiOut, <terminationKey;
 	var <pbindProxy, <pattern, <player, <playQuant, <editQuant;
 	var <durList, <>seqOffset = 0, <realDur, realDurProxy;
-	var <lastValues, <threads, <keyOrder;
+	var <keyOrder;
 	var <timeTrack = 0, <lastSwingAdd = 0;
 	var <errorPolicy, <>maxRestarts, <>restartDelay, <restartCount = 0;
 	var <isFreed = false, <tag;
@@ -41,6 +50,7 @@ RCBeat {
 	*initClass {
 		Class.initClassTree(Event);
 		hiddenKeys = IdentitySet[\rc_beat, \dur_unadj, \dur, \rc_finish, \midiout];
+		lagByTag = IdentityDictionary.new;
 		Event.addEventType(\midiOnCtl, { |server|
 			var original = currentEnvironment.copy.put(\type, \midi);
 			~midicmd.do { |cmd| original.copy.put(\midicmd, cmd).play };
@@ -71,8 +81,6 @@ RCBeat {
 		errorPolicy = defaultErrorPolicy;
 		maxRestarts = defaultMaxRestarts;
 		restartDelay = defaultRestartDelay;
-		lastValues = IdentityDictionary.new;
-		threads = IdentityDictionary.new;
 		keyOrder = List.new;
 
 		attrKV = RCUtil.asKV(attrDictarg, tag);
@@ -105,39 +113,33 @@ RCBeat {
 		};
 		// backwards compatibility: a MIDI out + channel without a type is a \midi beat
 		if(midiOut.notNil and: { chan.notNil } and: { type.isNil }) {
-			extraFirst = extraFirst ++ [\type, if(midiOnCtl) { \midiOnCtl } { \midi }];
-			extraFirstSeeds = extraFirstSeeds ++ [nil];
+			extraFirst = extraFirst ++ [\type, this.prProxy(\type, if(midiOnCtl) { \midiOnCtl } { \midi })];
 		};
 
-		// addFirst: overrides, group/out resolution, termination
+		// addFirst: overrides, group/out resolution, termination; every value becomes an RCKeyProxy
 		addFirstKV = addFirstKV.collect { |el, i|
 			var key;
 			if(i.odd) {
 				key = addFirstKV[i - 1];
 				if(overrides.includesKey(key)) { el = overrides[key] };
 				if(key == \orgnsm_group_idx) {
-					extraFirst = extraFirst ++ [\group, this.prResolveGroup(el)];
-					extraFirstSeeds = extraFirstSeeds ++ [nil];
+					extraFirst = extraFirst ++ [\group, this.prProxy(\group, this.prResolveGroup(el))];
 				};
 				if(key == \orgnsm_out_idx) {
-					extraFirst = extraFirst ++ [\out, this.prResolveOut(el)];
-					extraFirstSeeds = extraFirstSeeds ++ [nil];
+					extraFirst = extraFirst ++ [\out, this.prProxy(\out, this.prResolveOut(el))];
 				};
-				this.prPrepareValue(key, el, this.prSeedAt(addFirstSeedsarg, (i - 1) div: 2, addFirstKV.size div: 2))
+				this.prProxy(key, this.prPrepareValue(key, el), this.prSeedAt(addFirstSeedsarg, (i - 1) div: 2, addFirstKV.size div: 2))
 			} { el }
 		};
 		addFirstKV = extraFirst ++ addFirstKV;
 
-		// the pattern pairs, in order
-		pairs = [\rc_beat, this] ++ addFirstKV;
-		realDurProxy = PatternProxy.new;
-		realDurProxy.quant = nil;
-		realDurProxy.clock = layer.clock;
+		// the pattern pairs, in order; the beat's own keys are neither mirrored nor seeded
+		pairs = [\rc_beat, this.prProxy(\rc_beat, this, nil, false)] ++ addFirstKV;
 		initialDur = playQuant[0];                                  // BlockBeats: env[real_dur] = quant[0]
-		realDurProxy.setSource(if(initialDur <= 0) { 1 } { initialDur });   // quant 0 ("now") still needs a positive dur
-		pairs = pairs ++ [\dur_unadj, realDurProxy, \dur, this.prDurPipeline];
-		if(midiOut.notNil) { pairs = pairs ++ [\midiout, midiOut] };
-		if(chan.notNil) { pairs = pairs ++ [\chan, chan] };
+		realDurProxy = RCKeyProxy(\real_dur, if(initialDur <= 0) { 1 } { initialDur }, nil, layer.clock);   // quant 0 ("now") still needs a positive dur
+		pairs = pairs ++ [\dur_unadj, realDurProxy, \dur, this.prProxy(\dur, this.prDurPipeline, nil, false)];
+		if(midiOut.notNil) { pairs = pairs ++ [\midiout, this.prProxy(\midiout, midiOut, nil, false)] };
+		if(chan.notNil) { pairs = pairs ++ [\chan, this.prProxy(\chan, chan, nil, false)] };
 
 		// attrDict, in order; midiOnCtl overrides replace or extend it unless addFirst already carries the key
 		overrides.keysValuesDo { |key, val|
@@ -151,17 +153,16 @@ RCBeat {
 				pairs = pairs ++ this.prInitialPairs(key, val, seed);
 			};
 		};
-		pairs = this.prDedupePairs(pairs ++ [\rc_finish, this.prFinishPfunc]);
+		pairs = this.prDedupePairs(pairs ++ [\rc_finish, this.prProxy(\rc_finish, this.prFinishPfunc, nil, false)]);
 
-		pbindProxy = PbindProxy(*pairs);
-		pbindProxy.pairs.pairsDo { |key, proxy|
-			proxy.clock = layer.clock;
-			proxy.quant = nil;
-			if(hiddenKeys.includes(key).not and: { key != \chan }) { keyOrder.add(key) };
-		};
-		pbindProxy.source.quant = editQuant;
-		pbindProxy.source.clock = layer.clock;   // JITLib defers key changes on this clock, never TempoClock.default
+		// key additions and removals are deferred on the layer's clock, never TempoClock.default
+		pbindProxy = RCPbindProxy(pairs, \rc_finish, layer.clock, editQuant);
+		pbindProxy.keys.do { |key| if(hiddenKeys.includes(key).not and: { key != \chan }) { keyOrder.add(key) } };
 		pattern = this.prGuardedPattern;
+	}
+
+	prProxy { |key, val, seed, mirror = true|
+		^RCKeyProxy(key, val, seed, layer.clock, mirror)
 	}
 
 	//////// identity
@@ -192,27 +193,16 @@ RCBeat {
 		^kept.reverse.flatten(1)
 	}
 
-	// Wrap a user value: termination, mirroring of streamed values, seeding.
-	// A Function is called per event (a bare Function would reach the synth).
-	prPrepareValue { |key, val, seed|
+	// Prepare a user value: nil stays nil (the key is skipped), a termination
+	// key gets its ending. Streaming, mirroring and seeding are RCKeyProxy's
+	// (a Function is called per event; a bare Function would reach the synth).
+	prPrepareValue { |key, val|
 		if(val.isNil) { ^nil };
-		if(val.isKindOf(Function)) { val = Pfunc(val) };
 		if(terminationKey.notNil and: { key == terminationKey }) {
+			if(val.isKindOf(Function)) { val = Pfunc(val) };
 			val = Pseq([val, Pfunc { this.prScheduleFree; nil }]);
 		};
-		if(RCUtil.isStatic(val).not) {
-			val = this.prMirror(key, val);
-			if(seed.notNil) { val = Pseed(Pn(seed, 1), val) };
-		};
 		^val
-	}
-
-	prMirror { |key, pat|
-		^Pcollect({ |v|
-			lastValues[key] = v;
-			threads[key] = thisThread;
-			v
-		}, pat)
 	}
 
 	// Pairs to declare at creation for one attribute (dur keys go to realDur).
@@ -231,10 +221,10 @@ RCBeat {
 		};
 		RCUtil.warnIfReservedKey(key, tag);
 		if(key == \orgnsm_group_idx) {
-			^this.prResolveGroup(val) !? { |g| [\group, g, key, val] } ?? { [key, val] }
+			^this.prResolveGroup(val) !? { |g| [\group, this.prProxy(\group, g), key, this.prProxy(key, val)] } ?? { [key, this.prProxy(key, val)] }
 		};
-		if(key == \orgnsm_out_idx) { ^[\out, this.prResolveOut(val), key, val] };
-		^[key, this.prPrepareValue(key, val, seed)]
+		if(key == \orgnsm_out_idx) { ^[\out, this.prProxy(\out, this.prResolveOut(val)), key, this.prProxy(key, val)] };
+		^[key, this.prProxy(key, this.prPrepareValue(key, val), seed)]
 	}
 
 	prSetDur { |key, val, seed|
@@ -242,11 +232,11 @@ RCBeat {
 			case
 			{ val.isKindOf(Function) } { this.realDur_(this.prLoopPattern(val)) }
 			{ val.isKindOf(SequenceableCollection) and: { val.isKindOf(RawArray).not } } { this.durList_(val, seed) }
-			{ this.realDur_(this.prPrepareValue(\real_dur, val, seed)) };
+			{ this.realDur_(this.prPrepareValue(\real_dur, val), seed) };
 			^this
 		};
 		if(key == \dur_list) { ^this.durList_(val, seed) };
-		^this.realDur_(this.prPrepareValue(\real_dur, val, seed))
+		^this.realDur_(this.prPrepareValue(\real_dur, val), seed)
 	}
 
 	prResolveGroup { |idx|
@@ -338,8 +328,42 @@ RCBeat {
 					ev[k] = 0;
 				};
 			};
+			if(lagMonitor) { this.prRecordLag };
 			\rc
 		}
+	}
+
+	//////// lag monitor
+
+	*lagReset {
+		lagMax = 0;
+		lagMaxTag = nil;
+		lagCount = 0;
+		lagLateCount = 0;
+		lagSum = 0;
+		lagByTag = IdentityDictionary.new;
+	}
+
+	// One line: the worst event and its beat, the mean, how many events crossed
+	// lagWarnRatio of the server latency.
+	*lagReport {
+		var mean = if(lagCount > 0) { lagSum / lagCount } { 0 };
+		^"lag: max % ms (%), mean % ms, % of % events over % of the latency".format(
+			(lagMax * 1000).round(0.1), lagMaxTag, (mean * 1000).round(0.01), lagLateCount, lagCount, lagWarnRatio)
+	}
+
+	// Seconds the interpreter runs behind this event's logical time.
+	prRecordLag {
+		var lag = Main.elapsedTime - thisThread.seconds;
+		var latency = layer.server.latency;
+		lagCount = lagCount + 1;
+		lagSum = lagSum + lag;
+		if(lag > lagMax) { lagMax = lag; lagMaxTag = tag };
+		if(lag > (lagByTag[tag] ? 0)) { lagByTag[tag] = lag };
+		if(latency.notNil and: { lag > (lagWarnRatio * latency) }) {
+			lagLateCount = lagLateCount + 1;
+			RCLog.warn(\lag, { "% runs % ms behind its logical time (latency % ms)".format(tag, (lag * 1000).round(0.1), (latency * 1000).round(0.1)) });
+		};
 	}
 
 	//////// error policy
@@ -429,64 +453,48 @@ RCBeat {
 		if(key == \orgnsm_group_idx) { this.prResolveGroup(val) !? { |g| this.prSetKey(\group, g, quant) } };
 		if(key == \orgnsm_out_idx) { this.prSetKey(\out, this.prResolveOut(val), quant) };
 		RCUtil.warnIfReservedKey(key, tag);
-		^this.prSetKey(key, this.prPrepareValue(key, val, seed), quant)
+		^this.prSetKey(key, this.prPrepareValue(key, val), quant, seed)
 	}
 
 	setAll { |pairs, seeds, quant = \default|
 		RCUtil.asKV(pairs).pairsDo { |key, val, i| this.set(key, val, this.prSeedFor(seeds, key, i div: 2), quant) };
 	}
 
-	prSetKey { |key, val, quant|
+	// An existing key edits itself (RCKeyProxy.setSource, on `quant`); adding or
+	// removing one rebuilds the pattern once (RCPbindProxy, rc_finish kept last).
+	prSetKey { |key, val, quant, seed|
 		var proxy = pbindProxy.at(key);
 		if(proxy.notNil) {
 			if(val.isNil) {
-				pbindProxy.source.quant = quant;
-				pbindProxy.set(key, nil);
+				pbindProxy.remove(key, quant);
 				keyOrder.remove(key);
-				RCLog.info(tag, "removed key %: the pattern restarts".format(key));
+				RCLog.info(tag, { "removed key %: the pattern restarts".format(key) });
 			} {
 				proxy.clock = layer.clock;
-				proxy.quant = quant;
-				proxy.setSource(val);
+				proxy.setSource(val, quant, seed);
 			};
 			^this
 		};
 		if(val.isNil) { ^this };
-		pbindProxy.source.quant = quant;
-		pbindProxy.set(key, val);
-		pbindProxy.at(key).clock_(layer.clock).quant_(nil);
-		this.prMoveFinishLast;
+		pbindProxy.add(key, this.prProxy(key, val, seed), quant);
 		keyOrder.add(key);
 		if(this.isPlaying) {
-			RCLog.info(tag, "added key % to a running beat: the pattern restarts (use reserveKeys to avoid this)".format(key));
+			RCLog.info(tag, { "added key % to a running beat: the pattern restarts (use reserveKeys to avoid this)".format(key) });
 		} {
-			RCLog.info(tag, "added key %".format(key));
+			RCLog.info(tag, { "added key %".format(key) });
 		};
-	}
-
-	// PbindProxy.set appends: keep the sustain/legato clamp (\rc_finish) last.
-	prMoveFinishLast {
-		var pairs = pbindProxy.pairs;
-		var i = pbindProxy.find(\rc_finish);
-		var finish;
-		if(i.isNil or: { i == (pairs.size - 2) }) { ^this };
-		pairs = pairs.copy;
-		finish = pairs[i + 1];
-		pairs.removeAt(i);
-		pairs.removeAt(i);
-		pairs = pairs ++ [\rc_finish, finish];
-		pbindProxy.pairs = pairs;
-		pbindProxy.source.source = Pbind(*pairs);   // same rebuild as set, on the same quant
 	}
 
 	// Declare keys up front so that later sets never rebuild the pattern. The
 	// placeholder is the key's numeric Event default (\db → -20, \legato → 0.8),
-	// else 0: a plain synth argument, never a Symbol reaching the server.
+	// else 0: a plain synth argument, never a Symbol reaching the server. One
+	// rebuild for all the keys.
 	reserveKeys { |keys|
-		keys.do { |key|
-			key = key.asSymbol;
-			if(pbindProxy.at(key).isNil) { this.prSetKey(key, this.class.reservedValue(key), nil) };
-		};
+		var missing = keys.collect(_.asSymbol).reject { |key| pbindProxy.includesKey(key) };
+		if(missing.isEmpty) { ^this };
+		pbindProxy.addAll(missing.collect { |key| [key, this.prProxy(key, this.class.reservedValue(key))] }.flatten(1), nil);
+		missing.do { |key| keyOrder.add(key) };
+		RCLog.info(tag, { "reserved keys %".format(missing) });
 	}
 
 	*reservedValue { |key|
@@ -494,29 +502,26 @@ RCBeat {
 		^if(default.isNumber) { default } { 0 }
 	}
 
-	editQuant_ { |q| editQuant = q; pbindProxy.source.quant = q }
+	editQuant_ { |q| editQuant = q; pbindProxy.quant = q }
 	errorPolicy_ { |p| errorPolicy = p }
 
 	durList_ { |array, seed|
-		var pat;
 		durList = RCDurList(array);
 		seqOffset = 0;
-		pat = this.prLoopPattern {
+		^this.realDur_(this.prLoopPattern {
 			if(durList.size == 0) {
 				RCLog.warn(tag, "empty dur list, resting 1 beat");
 				Pseq([Rest(1)], 1)
 			} {
 				Pseq(durList.array, 1, seqOffset)
 			}
-		};
-		pat = this.prMirror(\real_dur, pat);
-		if(seed.notNil) { pat = Pseed(Pn(seed, 1), pat) };
-		^this.realDur_(pat)
+		}, seed)
 	}
 
-	realDur_ { |pat|
+	// The dur source, landing at the next event (mirrored under \real_dur).
+	realDur_ { |pat, seed|
 		realDur = pat;
-		realDurProxy.setSource(pat);
+		realDurProxy.setSource(pat, nil, seed);
 	}
 
 	//////// transport
@@ -555,11 +560,29 @@ RCBeat {
 
 	//////// introspection
 
-	lastValue { |key, default| ^lastValues[key.asSymbol] ?? { default.value } }
-	thread { |key| ^threads[key.asSymbol] }
-	randData { |key| ^threads[key.asSymbol] !? (_.randData) }
-	randData_ { |key, data| threads[key.asSymbol] !? { |t| t.randData = data } }
+	lastValue { |key, default| ^this.prProxyFor(key) !? (_.lastValue) ?? { default.value } }
+	thread { |key| ^this.prProxyFor(key) !? (_.thread) }
+	randData { |key| ^this.prProxyFor(key) !? (_.randData) }
+	randData_ { |key, data| this.prProxyFor(key) !? (_.randData_(data)) }
 	keyProxy { |key| ^pbindProxy.at(key.asSymbol) }
+
+	// key → last value of every mirrored key; key → thread of every Pattern key.
+	lastValues {
+		var res = pbindProxy.lastValues;
+		realDurProxy.lastValue !? { |v| res[\real_dur] = v };
+		^res
+	}
+
+	threads {
+		var res = pbindProxy.threads;
+		realDurProxy.thread !? { |t| res[\real_dur] = t };
+		^res
+	}
+
+	prProxyFor { |key|
+		key = key.asSymbol;
+		^if(key == \real_dur) { realDurProxy } { pbindProxy.at(key) }
+	}
 
 	// Pfunc reading another beat's last value (BlockBeats' access_beat_value).
 	*valuePattern { |layer, beatName, key, default, overrideNil = false|

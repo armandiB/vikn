@@ -104,6 +104,7 @@ TestRCUtil : UnitTest {
 		this.assert(res.every { |v| brute.includesEqual(v) } and: { brute.every { |v| res.includesEqual(v) } }, "matches brute force");
 		this.assertEquals(RCUtil.l1Vectors(3, 0), [], "t = 0 → none");
 		this.assertEquals(RCUtil.l1Vectors(1, 1), [[0]], "1-D, t = 1 → origin only");
+		this.assert(RCUtil.l1Vectors(2, 2) === res, "cached: the same Array for the same (n, t)");
 	}
 
 	test_bagDifference {
@@ -126,5 +127,8 @@ TestRCUtil : UnitTest {
 		this.assert(RCUtil.isReservedKey(\decay).not, "decay is free");
 		this.assert(RCUtil.isReservedKey(\dur_params).not, "dur_params is free");
 		this.assert(RCUtil.isReservedKey(\delta).not, "delta is whitelisted");
+		this.assertEquals(RCUtil.reservedKeyCache[\dur_params], false, "a free key is cached");
+		this.assertEquals(RCUtil.reservedKeyCache[\release], true, "a reserved key is cached");
+		this.assertEquals(RCUtil.reservedKeyCache[\delta], nil, "the whitelist is checked before the cache");
 	}
 }

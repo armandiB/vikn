@@ -22,6 +22,7 @@ METHOD:: cartesianProduct
 Capped by link::#*maxProductSize::.
 METHOD:: cartesianProductProducts
 METHOD:: l1Vectors
+The code::n::-dimensional integer vectors of L1 norm below code::t::, cached per code::(n, t):: and shared: iterate the result, never mutate it.
 METHOD:: bagDifference
 METHOD:: digitsInBase
 METHOD:: fileTree
@@ -30,6 +31,8 @@ METHOD:: attrFunc
 A function-valued Event entry written code::{ }:: or code::{{ }}::.
 METHOD:: camelCase
 METHOD:: isReservedKey
-True when code::ev.key:: would call a method instead of reading the key.
+True when code::ev.key:: would call a method instead of reading the key. The answer is cached per key (link::#*reservedKeyCache::): the scan of Event's method tables costs about 80 µs and is asked for every key of every beat created and at every attribute write.
+METHOD:: reservedKeyCache
+code::IdentityDictionary:: key → Boolean, reset by a class-library recompile.
 METHOD:: warnIfReservedKey
 METHOD:: maxProductSize

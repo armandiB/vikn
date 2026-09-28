@@ -99,8 +99,15 @@ RCOrgnsm {
 	}
 
 	// "a.b.c" or [\a, \b, \c] → [slot, keys...]; a bare key defaults to staticAttrs.
+	// A Symbol, or a String without a dot, is the common case (every editAttr,
+	// every path-control write): resolved without a split or a copy.
 	convertKey { |key|
 		var keys, slot;
+		if(key.isKindOf(Symbol) or: { key.isKindOf(String) and: { key.includes($.).not } }) {
+			key = key.asSymbol;
+			slot = slotAliases[key];
+			^if(slot.isNil) { [\staticAttrs, key] } { [slot] }
+		};
 		if(key.isKindOf(String)) { keys = key.split($.).collect(_.asSymbol) } {
 			if(key.isKindOf(SequenceableCollection)) { keys = key.collect(_.asSymbol) } { keys = [key.asSymbol] };
 		};
@@ -112,7 +119,9 @@ RCOrgnsm {
 	rPut { |key, val|
 		var keys = this.convertKey(key);
 		var slot = keys[0];
-		var rest = keys[1..];
+		var rest;
+		if(keys.size == 2 and: { slot == \staticAttrs }) { ^this.prPutStaticAttr(keys[1], val) };
+		rest = keys[1..];
 		if(rest.size == 0) {
 			if(slot == \staticAttrs) { RCLog.error(\orgnsm, "rPut: cannot replace staticAttrs itself"); ^this };
 			this.perform(slot.asSetter, val);
@@ -130,23 +139,28 @@ RCOrgnsm {
 			};
 			^this
 		};
-		if(slot == \staticAttrs and: { rest.size == 1 }) {
-			// identity keys live in ivars too
-			switch(rest[0],
-				\tribe, { ^this.tribe_(val) },
-				\orgnsm, { ^this.number_(val) },
-				\o_species, { ^this.species_(val) }
-			);
-			RCUtil.warnIfReservedKey(rest[0], \orgnsm);
-		};
 		RCUtil.rPut(this.perform(slot), rest, val);
+	}
+
+	// One static attribute: the identity keys live in ivars too.
+	prPutStaticAttr { |attr, val|
+		switch(attr,
+			\tribe, { ^this.tribe_(val) },
+			\orgnsm, { ^this.number_(val) },
+			\o_species, { ^this.species_(val) }
+		);
+		RCUtil.warnIfReservedKey(attr, \orgnsm);
+		staticAttrs[attr] = val;
+		^this
 	}
 
 	rGet { |key|
 		var keys = this.convertKey(key);
 		var slot = keys[0];
-		var rest = keys[1..];
-		var base = this.perform(slot);
+		var rest, base;
+		if(keys.size == 2 and: { slot == \staticAttrs }) { ^staticAttrs[keys[1]] };
+		rest = keys[1..];
+		base = this.perform(slot);
 		if(rest.size == 0) { ^base };
 		if(slot == \attrDictBase or: { slot == \addFirstArrayBase }) {
 			if(base.isKindOf(Dictionary)) { ^base[rest[0]] };

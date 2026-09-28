@@ -36,6 +36,8 @@ TestRCOrgnsm : UnitTest {
 		this.assertEquals(t.convertKey("attrDictBase.amp"), [\attrDictBase, \amp], "camelCase slot");
 		this.assertEquals(t.convertKey("server_ressources.buffer"), [\serverResources, \buffer], "proto spelling of resources");
 		this.assertEquals(t.convertKey([\static_attrs, \x, \y]), [\staticAttrs, \x, \y], "array path");
+		this.assertEquals(t.convertKey(\amp_unadj), [\staticAttrs, \amp_unadj], "Symbol key → staticAttrs");
+		this.assertEquals(t.convertKey(\attrDictBase), [\attrDictBase], "a slot alone");
 	}
 
 	test_rPut_rGet {
@@ -43,6 +45,10 @@ TestRCOrgnsm : UnitTest {
 		t.rPut("amp_unadj", 0.5);
 		this.assertEquals(t.staticAttrs.amp_unadj, 0.5, "static attr set");
 		this.assertEquals(t.rGet("amp_unadj"), 0.5, "static attr read");
+		t.rPut(\amp_unadj, 0.25);
+		this.assertEquals(t.rGet(\amp_unadj), 0.25, "Symbol key");
+		t.rPut("tribe", 3);
+		this.assertEquals([t.tribe, t.staticAttrs.tribe], [3, 3], "an identity key through the bare path sets the ivar too");
 		t.rPut("attr_dict_base.amp", 9);
 		this.assertEquals(RCUtil.kvAt(t.attrDictBase, \amp), 9, "attrDictBase entry replaced in place");
 		t.rPut("attrDictBase.fresh", 1);
@@ -204,6 +210,8 @@ TestRCOrgnsm : UnitTest {
 		var desc = SynthDescLib.global[RCSynthDefs.outputSuffix(\rc_test_sd, 2)];
 		this.assertEquals(names.size, RCSynthDefs.maxNumOuts, "one variant per output count");
 		this.assertEquals(RCSynthDefs.outputSuffix(\x, 3), 'x__3_out', "suffix");
+		this.assertEquals(RCSynthDefs.outputSuffix("x", 3), 'x__3_out', "a String name gives the same Symbol");
+		this.assertEquals(RCSynthDefs.outputSuffix(\x, RCSynthDefs.maxNumOuts + 5), ('x__' ++ (RCSynthDefs.maxNumOuts + 5) ++ '_out').asSymbol, "a count past the cache is computed");
 		this.assert(desc.notNil, "desc registered");
 		this.assert(desc.controlNames.includes(\outs) and: { desc.controlNames.includes(\outamps) } and: { desc.controlNames.includes(\freq) }, "controls");
 		this.assertEquals(RCSynthDefs.addForOrgnsms(\rc_bad_sd, { nil.explode }).size, 0, "failing sound function reported, nothing added");

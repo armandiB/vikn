@@ -90,6 +90,39 @@ RCSession {
 
 	song { |name| ^songs[name.asSymbol] }
 
+	//////// latency
+
+	// The scheduling latency of the rig, in seconds: the server's, and with it
+	// the LinkClock's (Link peers and Chataigne follow the audio) and that of
+	// every MIDIOut held by the songs' layers (IAC follows the audio). A piece
+	// that raised ~server.latency alone left the clock and MIDI at the boot
+	// value. Changing it while beats play shifts the following events once by
+	// the delta; immediate messages (Synth.new, .set) are unaffected.
+	latency { ^server.latency }
+
+	latency_ { |seconds|
+		var outs = this.midiOuts;
+		server.latency = seconds;
+		if(seconds.notNil and: { clock.notNil } and: { clock.respondsTo(\latency_) }) { clock.latency = seconds };
+		outs.do { |out| out.latency = seconds };
+		RCLog.post(\session, "latency % ms: server, clock, % MIDI out(s)".format(((seconds ? 0) * 1000).round(0.1), outs.size));
+	}
+
+	// The MIDIOuts of every layer of every song (midiOut and addMidiOuts), each once.
+	midiOuts {
+		var res = IdentitySet.new;
+		songs.do { |song|
+			song.layers.do { |layer|
+				layer.midiOut !? { |out| res.add(out) };
+				(layer.addMidiOuts ? []).do { |out| res.add(out) };
+			};
+		};
+		^res.asArray
+	}
+
+	*latency { ^default !? (_.latency) }
+	*latency_ { |seconds| default !? (_.latency_(seconds)) }
+
 	killAll {
 		songs.do(_.killAllBeats);
 		RCLog.post(\session, "killed all beats in % song(s)".format(songs.size));

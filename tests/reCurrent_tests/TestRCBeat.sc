@@ -292,4 +292,68 @@ TestRCBeat : UnitTest {
 		this.assert(this.logHas("asStream on a playing beat"), "warned");
 		b.free(post: false);
 	}
+
+	// The construction RCBeat gave its attribute keys before RCKeyProxy:
+	// PbindProxy's PatternProxy around Pseed around Pcollect, one seed for all.
+	test_attribute_streams_match_the_old_construction {
+		var seed = 7;
+		var oldPairs = [
+			\x, Pseed(Pn(seed, 1), Pcollect({ |v| v }, Pwhite(0, 1000, inf))),
+			\y, Pseed(Pn(seed, 1), Pcollect({ |v| v }, Pfunc { 1000.rand })),
+			\z, Pseed(Pn(seed, 1), Pcollect({ |v| v }, Pbrown(0, 100, 5, inf) + Pfunc { 10.rand }))
+		];
+		var old = PbindProxy(*oldPairs).asStream;
+		var b = RCBeat(layer, \gold, [type: \rest, dur_flex: 1, x: Pwhite(0, 1000, inf), y: { 1000.rand }, z: Pbrown(0, 100, 5, inf) + Pfunc { 10.rand }], seeds: seed);
+		var oldEvs = 64.collect { old.next(Event.default) };
+		var newEvs = this.pull(b, 64);
+		[\x, \y, \z].do { |k|
+			this.assertEquals(newEvs.collect { |e| e[k] }, oldEvs.collect { |e| e[k] }, "key % of a seeded beat gives the old sequence".format(k));
+		};
+	}
+
+	test_set_on_a_grid_lands_on_the_grid_while_playing {
+		var log = List.new, done = false, g;
+		var b = RCBeat(layer, \grid, [type: \rest, dur_flex: 1, x: 1, probe: Pfunc { |ev| log.add([thisThread.clock.beats, ev[\x]]); 0 }]);
+		Routine {
+			g = ((thisThread.beats / 4).ceil * 4) + 4;
+			(g - thisThread.beats).wait;
+			b.play([4, 0]);
+			1.5.wait;
+			b.set(\x, 2, quant: 4);
+			4.wait;
+			b.free(post: false);
+			done = true;
+		}.play(clock);
+		this.wait({ done }, "the beat played through the edit", 10);
+		this.assertEquals(log.collect { |e| [e[0] - g, e[1]] }, [[0, 1], [1, 1], [2, 1], [3, 1], [4, 2], [5, 2]], "the old value until the grid beat, the new one from it");
+	}
+
+	test_reserveKeys_rebuilds_once {
+		var b = RCBeat(layer, \rk1, [type: \rest, dur_flex: 1]);
+		var rebuilds = 0;
+		b.pbindProxy.source.addDependant({ |obj, what| if(what == \source) { rebuilds = rebuilds + 1 } });
+		b.reserveKeys([\a, \b, \c]);
+		this.assertEquals(rebuilds, 1, "three reserved keys, one rebuild");
+		this.assertEquals(b.keyOrder.asArray, [\type, \a, \b, \c], "reserved keys in the key order");
+		this.assertEquals(RCUtil.kvKeys(b.pbindProxy.pairs).last, \rc_finish, "rc_finish still last");
+		this.assertEquals(this.pull(b, 1)[0][\b], 0, "a reserved key holds its placeholder");
+	}
+
+	test_lag_monitor {
+		var saved = RCBeat.lagMonitor;
+		var b;
+		RCBeat.lagReset;
+		RCBeat.lagMonitor = true;
+		b = layer.addBeat(\lag, [type: \rest, dur_flex: 0.25], post: false);
+		this.wait({ RCBeat.lagCount >= 2 }, "events recorded on the clock", 3);
+		this.assert(RCBeat.lagCount >= 2, "every event records its lag");
+		this.assert(RCBeat.lagMax > -0.01 and: { RCBeat.lagMax < 1 }, "the lag is a small number of seconds");
+		this.assertEquals(RCBeat.lagMaxTag, b.tag, "the worst event names its beat");
+		this.assertEquals(RCBeat.lagByTag[b.tag], RCBeat.lagMax, "per-beat maximum kept");
+		this.assert(RCBeat.lagReport.beginsWith("lag: max"), "one-line report");
+		b.free(post: false);
+		RCBeat.lagMonitor = saved;
+		RCBeat.lagReset;
+		this.assertEquals(RCBeat.lagCount, 0, "reset clears the counters");
+	}
 }

@@ -1,0 +1,45 @@
+TITLE:: RCPbindProxy
+summary:: The ordered keys of a beat, an RCKeyProxy each, behind one EventPatternProxy
+categories:: Libraries>reCurrent
+related:: Classes/RCKeyProxy, Classes/RCBeat, Classes/PbindProxy
+
+DESCRIPTION::
+What code::PbindProxy:: is to code::Pbind::, with an link::Classes/RCKeyProxy:: per key instead of a code::PatternProxy::. The pairs feed a code::Pbind:: held by an code::EventPatternProxy::, so that adding or removing a key swaps the whole pattern on the proxy's quant (nil: at the next event) while editing an existing key is the key's own business (link::Classes/RCKeyProxy#-setSource::). Every add or remove rebuilds the Pbind once and keeps code::finishKey:: last.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: pairs
+code::[key, RCKeyProxy, key, RCKeyProxy, ...]::.
+argument:: finishKey
+The key kept last (link::Classes/RCBeat::'s code::\rc_finish::).
+argument:: clock
+argument:: quant
+The quant of the whole-pattern swaps.
+
+INSTANCEMETHODS::
+
+METHOD:: at
+The proxy of a key, or nil.
+METHOD:: find
+The index of a key in link::#-pairs::, or nil.
+METHOD:: includesKey
+METHOD:: keys
+METHOD:: pairs
+METHOD:: source
+The code::EventPatternProxy::.
+METHOD:: quant
+METHOD:: add
+argument:: key
+argument:: proxy
+argument:: quant
+METHOD:: addAll
+argument:: kvPairs
+argument:: quant
+METHOD:: remove
+argument:: key
+argument:: quant
+METHOD:: lastValues
+key → last value of every recorded key.
+METHOD:: threads
+key → thread of every key that has one.

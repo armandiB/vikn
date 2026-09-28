@@ -250,21 +250,25 @@ RCPathControl : RCOrgnsm {
 		^if(addPrev) { res ++ [previousOrgnsms ? noPreviousOrgnsmKey] } { res }
 	}
 
-	// Push this loop's distribution into the controlled batch.
+	// Push this loop's distribution into the controlled batch: one pass over
+	// its orgnsms (dur_params, the param keys of new beats, the key list, the
+	// seq_list), all inside this event's computation.
 	setAttrsInOrgnsms { |ev|
 		var st = staticAttrs;
 		var batch = st[\controlled_batch];
 		var keyList = ev[\other_params_key_list] ? [];
 		var defaults = st[\other_params_default_values] ? IdentityDictionary.new;
 		var seqLists = ev[\seq_list_by_orgnsm_dict] ? Dictionary.new;
+		var durParams;
 		if(batch.isNil) { RCLog.error(\pathControl, "% has no controlled_batch".format(this.name)); ^this };
 		if(st[\add_previous_orgnsms_to_other_params] ? false) { keyList = keyList ++ [st[\reserved_key_add_previous_orgnsms_to_other_params]] };
-		batch.editAttr("dur_params", st.dur_params_orgnsms);
+		durParams = st.dur_params_orgnsms;
 		// an orgnsm records only the keys installed on its beat: one without a
 		// beat yet gets them at the first loop after it starts
-		batch.apply({ |o|
+		batch.apply({ |o, i, list, key|
 			var beat = o.beat;
 			var oldKeys = o.staticAttrs[\other_params_key_list] ? [];
+			o.rPut("dur_params", durParams);
 			if(beat.notNil) {
 				keyList.difference(oldKeys).do { |key|
 					beat.set(key, Pfunc { |ev2|
@@ -280,8 +284,8 @@ RCPathControl : RCOrgnsm {
 			} {
 				o.rPut("other_params_key_list", []);
 			};
+			o.rPut("seq_list", seqLists[key] ? []);
 			o
 		});
-		batch.editAttr("seq_list", { |o, i, list, key| seqLists[key] ? [] }, nil, true);
 	}
 }

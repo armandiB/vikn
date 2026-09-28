@@ -29,10 +29,20 @@ Stop every beat of every song. Frees nothing else (emergency handle).
 METHOD:: reset
 Free all songs and forget the session (tests).
 
+METHOD:: latency
+Get or set the default session's latency (see the instance method).
+code::
+RCSession.latency = 1 * ~linkClock.beatDur;   // a section that wants a beat of headroom
+::
+
 INSTANCEMETHODS::
 
 METHOD:: server
 METHOD:: clock
+METHOD:: latency
+The scheduling latency of the rig in seconds. Setting it sets code::server.latency::, the LinkClock's latency (Link peers and Chataigne follow the audio) and the latency of every MIDIOut held by the songs' layers (IAC follows the audio): a piece that raised code::~server.latency:: alone left the clock and MIDI at the boot value. Changing it while beats play shifts the following events once by the delta; immediate messages (code::Synth.new::, code::.set::) are unaffected.
+METHOD:: midiOuts
+The MIDIOuts of every layer of every song, each once.
 METHOD:: localAddr
 The code::NetAddr:: OSC defs listen to (127.0.0.1, any port).
 METHOD:: songs

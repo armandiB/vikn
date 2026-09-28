@@ -11,6 +11,7 @@ argument:: soundFunc
 argument:: offsetOut
 argument:: oneOutputOnly
 METHOD:: outputSuffix
+code::name__<numOuts>_out:: as a Symbol, cached per name and count (the code::\instrument:: key of every orgnsm asks for it at every event).
 METHOD:: maxNumOuts
 METHOD:: addLoopBufferWriters
 code::write_buffer_<n>chan:: SynthDefs for link::Classes/RCLoopBuffer::.
