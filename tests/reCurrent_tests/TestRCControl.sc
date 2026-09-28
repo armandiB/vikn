@@ -85,6 +85,24 @@ TestRCControl : UnitTest {
 		this.assertEquals(RCMidi.fineValue(nil, 0, 5, \rc_ctl_knob), nil, "fine value forgotten");
 	}
 
+	test_midi_control_throttle {
+		var got = List.new, t0;
+		song.midi.control(\th, 9, 0, "No Such Device", { |x| x }, { |v| got.add(v) }, throttle: 0.05);
+		5.do { |i| MIDIdef(\rc_ctl_th).func.value(10 + i, 9, 0, nil) };
+		this.assertEquals(got.asArray, [10], "the first message fires at once, the burst is swallowed");
+		this.wait({ got.size >= 2 }, "the window closes", 2);
+		this.assertEquals(got.asArray, [10, 14], "the last pending value fires when the window closes");
+		t0 = Main.elapsedTime;
+		this.wait({ (Main.elapsedTime - t0) > 0.12 }, "a quiet window passes", 2);
+		MIDIdef(\rc_ctl_th).func.value(20, 9, 0, nil);
+		this.assertEquals(got.asArray, [10, 14, 20], "after a quiet window the next message fires at once");
+		MIDIdef(\rc_ctl_th).func.value(21, 9, 0, nil);
+		song.midi.free(\th);
+		t0 = Main.elapsedTime;
+		this.wait({ (Main.elapsedTime - t0) > 0.12 }, "the window would close", 2);
+		this.assertEquals(got.asArray, [10, 14, 20], "a pending value is dropped with its mapping");
+	}
+
 	test_midi_controlAttribute_and_guard {
 		var target = (x: 0);
 		var swing = song.layer(\core).swing;

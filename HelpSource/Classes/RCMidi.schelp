@@ -21,13 +21,19 @@ Maps the raw value (0..127, fractional with fine).
 argument:: action
 Receives code::(value, raw)::.
 argument:: fine
+argument:: throttle
+Seconds, nil by default (every message fires). A knob turn sends tens of messages per second, twice as many with code::fine::, and an action over a whole batch (code::batch.editAttr::) costs milliseconds each, which starves the clock: with a throttle the first message fires at once, the ones arriving within the window are swallowed and the last of them fires when the window closes, re-arming while messages keep coming. 0.02 to 0.05 s is inaudible on a knob.
 METHOD:: controlSynth
 argument:: synth
 argument:: attr
 nil sets the value itself (buses).
 argument:: setNothing
+argument:: throttle
+As for link::#-control::.
 METHOD:: controlAttribute
 code::object[key] = value:: for dictionaries, code::object.key_(value):: otherwise.
+argument:: throttle
+As for link::#-control::.
 METHOD:: free
 argument:: name
 METHOD:: freeAll

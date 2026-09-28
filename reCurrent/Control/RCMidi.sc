@@ -12,7 +12,7 @@
 RCMidi {
 	classvar fineValues;   // srcID → chan → ccNum → defKey → lsb value
 
-	var <song, <defs, <ccMap;
+	var <song, <defs, <ccMap, throttles;
 
 	*initClass {
 		fineValues = IdentityDictionary.new;
@@ -24,6 +24,7 @@ RCMidi {
 		song = songarg;
 		defs = IdentityDictionary.new;    // name → [MIDIdef keys]
 		ccMap = Dictionary.new;           // [ccNum, chan] → [names]
+		throttles = IdentityDictionary.new;   // name → throttle state of a mapping (see control)
 	}
 
 	defKey { |name| ^("rc_" ++ song.name ++ "_" ++ name).asSymbol }
@@ -52,9 +53,14 @@ RCMidi {
 
 	// Generic mapping: action.(valFunc.(cc value), raw value). Returns the MIDIdef keys.
 	// fine: the value is msb + lsb/128 (cc + 32 carries the low 7 bits).
-	control { |name, ccNum, chan, deviceName, valFunc, action, fine = false|
+	// throttle (seconds, nil = every message fires): a knob turn sends tens of
+	// messages per second, twice as many with fine, and an action over a whole
+	// batch costs milliseconds each, which starves the clock. The first message
+	// fires at once; the ones arriving within the window are swallowed and the
+	// last of them fires when it closes, re-arming while messages keep coming.
+	control { |name, ccNum, chan, deviceName, valFunc, action, fine = false, throttle|
 		var srcID = this.class.findSrcId(deviceName);
-		var key, lsbKey, keys, slot;
+		var key, lsbKey, keys, slot, fire, state;
 		name = name.asSymbol;
 		key = this.defKey(name);
 		keys = [key];
@@ -70,13 +76,40 @@ RCMidi {
 			}, ccNum + 32, chan, srcID).permanent_(true);
 			keys = keys ++ [lsbKey];
 		};
-		MIDIdef.cc(key, { |val|
-			var total = val;
-			if(fine) { total = total + ((RCMidi.fineValue(srcID, chan, ccNum, key) ? 0) / 128) };
+		fire = { |total|
 			RCGuard.call(key, nil) {
 				var v = valFunc.value(total);
 				RCLog.info(key, { "= " ++ v.asString });
 				action.value(v, total);
+			};
+		};
+		if(throttle.notNil) {
+			state = (armed: false, pending: nil);
+			throttles[name] = state;
+		};
+		MIDIdef.cc(key, { |val|
+			var total = val;
+			if(fine) { total = total + ((RCMidi.fineValue(srcID, chan, ccNum, key) ? 0) / 128) };
+			if(throttle.isNil) {
+				fire.(total);
+			} {
+				if(state[\armed]) {
+					state[\pending] = total;
+				} {
+					state[\armed] = true;
+					fire.(total);
+					SystemClock.sched(throttle, {
+						var pending = state[\pending];
+						state[\pending] = nil;
+						if(pending.notNil and: { throttles[name] === state }) {
+							fire.(pending);
+							throttle   // another window: the knob is still turning
+						} {
+							state[\armed] = false;
+							nil
+						}
+					});
+				};
 			};
 		}, ccNum, chan, srcID).permanent_(true);
 		defs[name] = keys;
@@ -87,22 +120,22 @@ RCMidi {
 	// target.set(attr, value) (or target.set(value) for buses) on each CC
 	// message. A Function target is evaluated per message ({ ~reverb }), so a
 	// node re-created at scene/init keeps its mapping.
-	controlSynth { |synth, attr, valFunc, ccNum, chan, deviceName, name, fine = false, setNothing = false|
+	controlSynth { |synth, attr, valFunc, ccNum, chan, deviceName, name, fine = false, setNothing = false, throttle|
 		name = name ?? { ("ctl_" ++ (attr ? "value") ++ "_" ++ ccNum ++ "_" ++ chan ++ "_" ++ deviceName).asSymbol };
 		^this.control(name, ccNum, chan, deviceName, valFunc, { |v|
 			var target = synth.value;
 			if(setNothing.not and: { target.notNil }) {
 				if(attr.notNil) { target.set(attr.asSymbol, v) } { target.set(v) };
 			};
-		}, fine)
+		}, fine, throttle)
 	}
 
 	// object[key] = value (dictionaries) or object.key_(value) (setters) on each CC message.
-	controlAttribute { |object, key, valFunc, ccNum, chan, deviceName, name, fine = false|
+	controlAttribute { |object, key, valFunc, ccNum, chan, deviceName, name, fine = false, throttle|
 		name = name ?? { ("attr_" ++ key ++ "_" ++ ccNum ++ "_" ++ chan ++ "_" ++ deviceName).asSymbol };
 		^this.control(name, ccNum, chan, deviceName, valFunc, { |v|
 			if(object.isKindOf(Dictionary)) { object.put(key.asSymbol, v) } { object.perform(key.asSymbol.asSetter, v) };
-		}, fine)
+		}, fine, throttle)
 	}
 
 	free { |name|
@@ -110,6 +143,7 @@ RCMidi {
 		defs[name] !? { |keys|
 			keys.do { |k| MIDIdef.all[k] !? (_.free) };   // MIDIdef(k) would re-create an empty def
 			defs.removeAt(name);
+			throttles.removeAt(name);   // a pending throttled value is dropped with its mapping
 			this.prForgetFineValues(keys);
 			ccMap.keysValuesDo { |cc, names| ccMap[cc] = names.reject { |n| n == name } };
 			ccMap.keys.copy.do { |cc| if(ccMap[cc].isEmpty) { ccMap.removeAt(cc) } };
