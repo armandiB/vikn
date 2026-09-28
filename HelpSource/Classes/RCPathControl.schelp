@@ -27,6 +27,7 @@ METHOD:: otherParamsKeyList
 METHOD:: seqListByOrgnsm
 Compile the loop and distribute its hits: batchKey → [RCSubseq].
 METHOD:: setAttrsInOrgnsms
+Push the loop's distribution into the controlled batch: code::dur_params::, the param keys of beats that lack them, code::other_params_key_list:: and code::seq_list::, in one pass over the orgnsms.
 
 EXAMPLES::
 code::

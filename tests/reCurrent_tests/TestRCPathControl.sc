@@ -130,6 +130,22 @@ TestRCPathControl : UnitTest {
 		rig.batch.free;
 	}
 
+	test_distribution_is_one_pass_over_the_batch {
+		var rig = this.makeRig;
+		var control = rig.pc.create(layerKey: \core);
+		var stream = this.controlStream(control);
+		var before, o1;
+		stream.next(Event.default);
+		before = rig.batch.applyCount;
+		stream.next(Event.default);
+		this.assertEquals(rig.batch.applyCount - before, 1, "one loop distributes with one pass over the batch");
+		o1 = rig.batch.orgnsms(1)[0];
+		this.assertEquals(o1.staticAttrs.dur_params, [4, 1], "dur_params written");
+		this.assertEquals(o1.staticAttrs.other_params_key_list, [\who], "key list written");
+		this.assert(o1.staticAttrs.seq_list.isKindOf(SequenceableCollection), "seq_list written");
+		rig.batch.free;
+	}
+
 	test_key_list_recorded_only_with_a_beat {
 		var rig = this.makeRig(2, false);
 		var control, stream, orgnsms;

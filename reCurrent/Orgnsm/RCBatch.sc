@@ -12,6 +12,7 @@
 RCBatch {
 	var <name, <template, <layerKey, <replaceAttrs, <terminationKey, <osc, <oscNames, <chan, <pickNewNumber;
 	var <lists, <prepared, <storage;
+	var <applyCount = 0;   // passes over the batch (apply, editAttr, deleteBeats): for tests and profiling
 
 	*new { |name, template, layerKey = \core, replaceAttrs, terminationKey, osc = false, oscNames, chan, pickNewNumber = true|
 		^super.new.initRCBatch(name, template, layerKey, replaceAttrs, terminationKey, osc, oscNames, chan, pickNewNumber)
@@ -99,6 +100,7 @@ RCBatch {
 	// Apply func to the live orgnsms selected by cond (all by default). A
 	// throwing cond or func is reported and skips that orgnsm.
 	apply { |func, cond|
+		applyCount = applyCount + 1;
 		^this.collectAll { |o, i, list, key|
 			if(o.isFreed.not and: { cond.isNil or: { RCGuard.call(name, false) { cond.value(o, i, list, key) } } }) {
 				RCGuard.call(name, o) { func.value(o, i, list, key) }

@@ -38,6 +38,8 @@ METHOD:: size
 METHOD:: apply
 argument:: func
 argument:: cond
+METHOD:: applyCount
+The number of passes over the batch so far (code::apply::, code::editAttr::, code::deleteBeats::), for tests and profiling: a path control makes one per loop.
 METHOD:: editAttr
 argument:: attr
 argument:: value
