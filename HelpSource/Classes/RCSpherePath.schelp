@@ -3,16 +3,50 @@ summary:: Seeded paths and disjoint triplets over a spherical design, Thue-Morse
 categories:: Libraries>reCurrent
 related:: Classes/RCPathControl
 
+DESCRIPTION::
+Paths over the triangulation of a spherical design, for the path controls of the pieces (link::Classes/RCPathControl::'s default code::path_generation_func:: is link::#*generatePath::). A design is any object answering code::size::, code::triplets:: and code::calcTriplets:: (a SphericalDesign code::TDesign::, or a test double); two points are adjacent when they share a face. Every generator is seeded (the same seed gives the same result) and bounded (none loops forever).
+
 CLASSMETHODS::
 METHOD:: generatePath
-A path of strong::pathSize:: adjacent, distinct points starting at strong::startPoint::; retried (seeded) up to strong::maxTries:: times, the longest path found is returned.
+A path of strong::pathSize:: adjacent, distinct points starting at strong::startPoint::. A seeded random self-avoiding walk over the triangulation, retried up to strong::maxTries:: times until it reaches strong::pathSize::. Where the walk reaches it (the pieces' 24-point design), the result is the walk's, unchanged from earlier versions. Where it does not (47 of 48 points on the order-4 spreadE design, 65 of 70 on the order-5 one, whatever the tries), the search of link::#*hamiltonianPath:: takes over with the same seed and its first strong::pathSize:: points are returned, so that the orgnsms at the points the walk missed are hit too. Warns only when both fall short, e.g. for a strong::pathSize:: above the design's size.
 argument:: design
 argument:: startPoint
 argument:: seed
 argument:: pathSize
+Defaults to the design's size.
 argument:: maxTries
+Tries of the walk.
+argument:: maxSteps
+Step bound of the search behind the fallback.
+returns:: An Array of point indices.
+
+METHOD:: hamiltonianPath
+A path through every point of the design, each once (a Hamiltonian path over its triangulation), starting at strong::startPoint::: a depth-first search with Warnsdorff's rule (the unvisited neighbour with the fewest onward unvisited neighbours is tried first), seeded tie-breaks (the candidates are scrambled before a stable sort), backtracking when a branch dead-ends, and at most strong::maxSteps:: steps. On the pieces' 24-, 48- and 70-point designs it finds a full path from every start in about a millisecond, without backtracking; a design whose triangulation has no such path makes it backtrack until the bound. Returns the longest path found, with a warning when it does not cover the design (or when strong::startPoint:: is on no face).
+argument:: design
+argument:: startPoint
+argument:: seed
+argument:: maxSteps
+returns:: An Array of point indices.
+
 METHOD:: disjointTriplets
-Faces sharing no point, covering as many points as found.
+Faces sharing no point, covering as many points as found in strong::maxTries:: seeded tries.
+argument:: design
+argument:: seed
+argument:: maxTries
+
 METHOD:: thueMorse
+The Thue-Morse digit sum of strong::pos:: in the given base, modulo the base.
 argument:: pos
 argument:: base
+
+EXAMPLES::
+code::
+~design = TDesign.newHoa(optimize: 'spreadE', order: 4);   // 48 points
+~design.calcTriplets;
+RCSpherePath.generatePath(~design, 0, seed: 2).size;        // 48: the walk stops at 47, the search completes it
+RCSpherePath.hamiltonianPath(~design, 17, seed: 5);         // a full path from point 17
+RCSpherePath.generatePath(~design, 0, seed: 2, pathSize: 8); // eight points, the walk alone
+
+// a path control with the search alone (no walk first)
+~path.rPut("path_generation_func", Ref({ |design, start, seed| RCSpherePath.hamiltonianPath(design, start, seed) }));
+::
