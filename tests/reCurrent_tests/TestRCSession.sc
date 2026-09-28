@@ -165,4 +165,26 @@ TestRCSession : UnitTest {
 		RCSession.killAll;
 		this.assert(b.freed, "RCSession.killAll frees beats in every song");
 	}
+
+	test_latency_follows_server_clock_and_midi_outs {
+		var saved = Server.default.latency;
+		var song = RCSong(\lat, 1);
+		var out = RCTestFakeMidiOut.new, other = RCTestFakeMidiOut.new;
+		song.layer(\core).midiOut = out;
+		song.layer(\details).midiOut = out;   // one out on two layers counts once
+		song.layer(\meta).addMidiOuts = [other];
+		RCSession.default.latency = 0.3;
+		this.assertEquals(Server.default.latency, 0.3, "server latency set");
+		this.assertEquals(RCSession.latency, 0.3, "read back through the class");
+		this.assertEquals([out.latency, other.latency], [0.3, 0.3], "every MIDI out of the layers follows");
+		this.assertEquals(RCSession.default.midiOuts.size, 2, "each out once");
+		this.assert(clock.isRunning, "a TempoClock has no latency and is left alone");
+		RCSession.latency = saved;
+		this.assertEquals(Server.default.latency, saved, "restored");
+	}
+}
+
+// A MIDIOut stand-in: only its latency matters here.
+RCTestFakeMidiOut {
+	var <>latency;
 }
