@@ -65,6 +65,10 @@ TestRCNoteAlg : UnitTest {
 		st.temperature = 1;
 		res = alg.([[0, 0, 0], 1], [], field, st);
 		this.assert(res[0].abs.sum <= 1 and: { res[0][0] == 0 }, "temperature moves only in the masked dimensions");
+		st.temperature = 127;   // a raw CC value
+		res = alg.([[0, 0, 0], 1], [], field, st);
+		this.assert(this.logHas("clamped to RCNoteAlg.maxTemperature"), "an absurd temperature is clamped and reported");
+		this.assert(res[0].abs.sum <= RCNoteAlg.maxTemperature and: { res[0][0] == 0 }, "the walk stays within the clamp");
 	}
 
 	logHas { |text| ^RCLog.history.any { |e| e[2].contains(text) } }

@@ -7,10 +7,12 @@ RCUtil {
 	classvar <>maxProductSize = 200000;   // cap for cartesianProduct / l1Vectors
 	classvar <reservedKeyWhitelist;       // Event methods that deliberately read a key
 	classvar <reservedKeyCache;           // key → Boolean, see isReservedKey
+	classvar l1VectorsCache;              // [n, t] → vectors, see l1Vectors
 
 	*initClass {
 		reservedKeyWhitelist = IdentitySet[\delta, \isRest];
 		reservedKeyCache = IdentityDictionary.new;
+		l1VectorsCache = Dictionary.new;
 	}
 
 	//////// nested dictionary access
@@ -175,15 +177,30 @@ RCUtil {
 	}
 
 	// n-dimensional integer vectors with L1 norm strictly less than t
-	// (same enumeration order as the original recursive version).
+	// (same enumeration order as the original recursive version). Cached per
+	// (n, t): the tonnetz walk asks for the same set at every note. The Array
+	// is shared, callers iterate it and never mutate it. A set over the cap is
+	// not cached (the cap is a settable classvar).
 	*l1Vectors { |n, t|
+		var key, cached;
+		if(n <= 0 or: { t <= 0 }) { ^[] };
+		key = [n, t];
+		cached = l1VectorsCache[key];
+		if(cached.isNil) {
+			cached = this.prL1Vectors(n, t);
+			if(cached.isNil) { ^[] };
+			l1VectorsCache[key] = cached;
+		};
+		^cached
+	}
+
+	*prL1Vectors { |n, t|
 		var results = List.new;
 		var recurse;
 		var estimate = ((2 * t) - 1).max(1) ** n;
-		if(n <= 0 or: { t <= 0 }) { ^[] };
 		if(estimate > maxProductSize) {
 			RCLog.error(\l1Vectors, "n=% t=% would enumerate ~% vectors, cap is %".format(n, t, estimate.asInteger, maxProductSize));
-			^[]
+			^nil
 		};
 		recurse = { |partial, remainingDim, remainingBudget|
 			if(remainingDim == 0) {

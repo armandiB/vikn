@@ -22,6 +22,7 @@ METHOD:: cartesianProduct
 Capped by link::#*maxProductSize::.
 METHOD:: cartesianProductProducts
 METHOD:: l1Vectors
+The code::n::-dimensional integer vectors of L1 norm below code::t::, cached per code::(n, t):: and shared: iterate the result, never mutate it.
 METHOD:: bagDifference
 METHOD:: digitsInBase
 METHOD:: fileTree
