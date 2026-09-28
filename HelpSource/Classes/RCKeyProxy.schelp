@@ -1,0 +1,53 @@
+TITLE:: RCKeyProxy
+summary:: One key of a beat's pattern: its source, its seed, its live edits
+categories:: Libraries>reCurrent
+related:: Classes/RCPbindProxy, Classes/RCBeat, Classes/PatternProxy, Classes/Pseed
+
+DESCRIPTION::
+Replaces the code::PatternProxy:: + code::Pseed:: + code::Pcollect:: stack that code::PbindProxy:: gave every key of an link::Classes/RCBeat::. That stack ran two to four Routines per key per event (a static value alone costs two). The stream of a proxy, code::RCKeyStream::, reads a static value with code::.next:: (a code::Ref:: dereferences, an code::Event:: composes, as under code::PatternProxy::), calls a Function or a code::Pfunc:: inline in the Pbind's thread with the key's own random state swapped in, and keeps one Routine only for a real Pattern.
+
+Seeded output is bit-identical to the old stack: a seeded Pattern runs in a Routine with code::randSeed = seed:: (Pseed's own construction); a seeded Function draws from the state code::randSeed_(seed):: produces, kept per key between calls; an unseeded key starts from a copy of the creating thread's state, what a new Routine inherits; a Stream given as a value is used as is, never re-seeded.
+
+Live edits (link::#-setSource::) land where code::PatternProxy:: landed them: with a nil quant the new source gives the next value; with a number, code::[beats, phase]:: or code::Quant:: the grid time is taken at the first pull after the edit, the old source plays until then, gets one more (discarded) pull at the switch and the new one takes over; a later edit whose grid comes first wins and drops the earlier one; an old source that ends before its grid hands over at once.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: key
+argument:: source
+A static value, a Function or code::Pfunc::, a Pattern or a Stream.
+argument:: seed
+A random seed for the source, or nil.
+argument:: clock
+The clock whose grid live edits use.
+argument:: mirror
+When true (the default), link::#-lastValue:: records every non-static value (link::Classes/RCUtil#*isStatic::).
+
+METHOD:: classify
+code::\function::, code::\stream::, code::\pattern:: or code::\static::: how a stream treats a source.
+
+INSTANCEMETHODS::
+
+METHOD:: setSource
+A live edit: every stream of this proxy switches to the new source.
+argument:: newSource
+argument:: newQuant
+nil: at the stream's next value; a number, code::[beats, phase]:: or code::Quant::: on that grid of link::#-clock::.
+argument:: newSeed
+nil leaves the new source unseeded, as link::Classes/RCBeat#-set:: does.
+
+METHOD:: lastValue
+The last value produced (nil for a static source).
+METHOD:: thread
+The Routine of a Pattern source; nil for a Function or a static, which run inline.
+METHOD:: randData
+The random state of the key: a Pattern source's thread state, or the state a Function source draws from. Settable, to replay a key.
+METHOD:: key
+METHOD:: source
+METHOD:: seed
+METHOD:: clock
+METHOD:: quant
+The quant of the latest edit.
+METHOD:: mirror
+METHOD:: version
+Incremented by every edit; streams detect it at their next pull.
