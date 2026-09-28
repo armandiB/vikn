@@ -261,6 +261,34 @@ TestRCPathControl : UnitTest {
 		rig.batch.free;
 	}
 
+	// a rhythm whose subseqs do not all carry the same params: the hits of a subseq lacking a key get
+	// nil for it in the distributed seq_list, which must not end the orgnsm's loop (a nil key value
+	// ends a Pbind); the control's other_params_default_values fill those hits
+	test_nil_param_value_keeps_the_loop_and_takes_the_default {
+		var rig = this.makeRig(1);
+		var rd = rig.pc.staticAttrs[\rhythm_dict];
+		var control, stream, ev, seq, beatStream, events = List.new, hits, time = 0;
+		rd.at(\voices)[\basic] = [[1, 0, "percs.kick.fourfour", true, (who: \k)], [1, 0.5, "percs.kick.fourfour", true, (who: \h, freqmult: 2)]];
+		rig.pc.rPut("other_params_default_values", (freqmult: 1));
+		rig.pc.rPut("orgnsm_series_pattern", { |self| Pseq([0], inf) });   // every hit → orgnsm 0
+		control = rig.pc.create(layerKey: \core);
+		stream = this.controlStream(control);
+		ev = stream.next(Event.default);
+		this.assertEquals(ev.other_params_key_list, [\who, \freqmult], "the key list is the union of the subseqs' keys");
+		seq = ev.seq_list_by_orgnsm_dict[0][0];
+		this.assertEquals(seq.params[\freqmult].collect(_.isNil), [true, false, true, false, true, false, true, false], "the hits of the subseq without the key carry nil for it");
+		beatStream = rig.batch.orgnsms(0)[0].beat.pattern.asStream;   // a fresh stream of the orgnsm's beat: one loop
+		RCGuard.boundedLoop(100, \test, { time < 4 }, {
+			var e = beatStream.next(Event.default);
+			if(e.isNil) { time = inf } { events.add(e); time = time + e.delta.value };
+		});
+		hits = events.reject { |e| e[\dur].isRest };
+		this.assertEquals(hits.collect { |e| e[\who] }, [\k, \h, \k, \h, \k, \h, \k, \h], "every hit of the loop plays (a nil param value used to end the subseq's events)");
+		this.assertEquals(hits.collect { |e| e[\freqmult] }, [1, 2, 1, 2, 1, 2, 1, 2], "the default fills the hits of the subseq without the key");
+		this.assert(RCLog.history.any { |e| e[2].contains("not found in compute_seq_params") }.not, "no missing-key warning when a default exists");
+		rig.batch.free;
+	}
+
 	test_rhythmDictKeys {
 		var rig = this.makeRig;
 		this.assertEquals(rig.pc.rhythmDictKeys, [\voices, \basic], "a path control: path name / path key");

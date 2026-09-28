@@ -153,6 +153,19 @@ TestRCRhythmData : UnitTest {
 		this.assertEquals(hits.collect { |v| v[2] }, [7, 7], "the pattern param listed in keysIgnoreOrder streams alongside");
 	}
 
+	test_seqParamsForLoop_nil_param_value_keeps_the_loop {
+		// a param array holding nil: the hits of a subseq that does not carry a key, as RCPathControl
+		// distributes them (other_params_key_list is the union of the rhythm's keys). Pbind ends at the
+		// first nil key value, which used to silence the rest of the subseq for the loop
+		var st = (dur_params: [4, 1], seq_list: [[1, 0, [1, 1, 1, 1], (who: [\a, \b, \c, \d], extra: [nil, 2, nil, 4]), true]], other_params_key_list: [\who, \extra]);
+		var out = this.pullAll(RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, false).asStream);
+		var dict = RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, true).asStream.next(()).dereference;
+		this.assertEquals(out.collect { |v| v[1] }, [\a, \b, \c, \d], "every hit of the loop plays");
+		this.assertEquals(out.collect { |v| v[2] }, [nil, 2, nil, 4], "a hit without a value for the key gives nil for it");
+		this.assertEquals(out.collect { |v| v[0].value }, [1, 1, 1, 1], "the hits keep their lengths, no rest fills in");
+		this.assert(dict[\who] == \a and: { dict[\extra].isNil }, "dict form: no value for the key on that hit, a reader's default applies");
+	}
+
 	test_seqParamsForLoop_rejects_zero_time_mult {
 		var st = (dur_params: [4, 0], seq_list: [[1, 0, [1, 1], (), true]], other_params_key_list: []);
 		var v = RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, false).asStream.next(());
