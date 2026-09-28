@@ -30,6 +30,8 @@ METHOD:: attrFunc
 A function-valued Event entry written code::{ }:: or code::{{ }}::.
 METHOD:: camelCase
 METHOD:: isReservedKey
-True when code::ev.key:: would call a method instead of reading the key.
+True when code::ev.key:: would call a method instead of reading the key. The answer is cached per key (link::#*reservedKeyCache::): the scan of Event's method tables costs about 80 µs and is asked for every key of every beat created and at every attribute write.
+METHOD:: reservedKeyCache
+code::IdentityDictionary:: key → Boolean, reset by a class-library recompile.
 METHOD:: warnIfReservedKey
 METHOD:: maxProductSize

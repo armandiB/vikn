@@ -6,9 +6,11 @@
 RCUtil {
 	classvar <>maxProductSize = 200000;   // cap for cartesianProduct / l1Vectors
 	classvar <reservedKeyWhitelist;       // Event methods that deliberately read a key
+	classvar <reservedKeyCache;           // key → Boolean, see isReservedKey
 
 	*initClass {
 		reservedKeyWhitelist = IdentitySet[\delta, \isRest];
+		reservedKeyCache = IdentityDictionary.new;
 	}
 
 	//////// nested dictionary access
@@ -256,11 +258,20 @@ RCUtil {
 	//////// attribute names
 
 	// True when `ev.key` would call a method instead of reading the key
-	// (e.g. \release, \size, \value, \copy, \next, \free, \name).
+	// (e.g. \release, \size, \value, \copy, \next, \free, \name). Cached per
+	// key: the scan of Event's method tables (some 600 methods, about 80 µs)
+	// ran for every key of every beat created and at every attribute write.
+	// Methods only change with a class-library recompile, which resets the cache.
 	*isReservedKey { |key|
+		var reserved;
 		key = key.asSymbol;
 		if(reservedKeyWhitelist.includes(key)) { ^false };
-		^Event.findRespondingMethodFor(key).notNil
+		reserved = reservedKeyCache[key];
+		if(reserved.isNil) {
+			reserved = Event.findRespondingMethodFor(key).notNil;
+			reservedKeyCache[key] = reserved;
+		};
+		^reserved
 	}
 
 	*warnIfReservedKey { |key, tag = \attr|
