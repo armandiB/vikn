@@ -171,33 +171,51 @@ RCOrgnsmPatterns {
 	// loop start keeps its length and no zero-length rest trails the loop.
 	// The silent gap and tail events are built from an empty Event, so that a
 	// param key which also exists upstream (\amp) never leaks its value into
-	// a rest. A subseq yielding zero durations cannot spin: maxEventsPerLoop.
+	// a rest. The events due at one time are read together and only the last
+	// one lasts until the next due time: the hits come last and a rest of
+	// zero length is dropped, so that a hit never loses its length to a rest
+	// starting with it (a subseq's padding rest often starts on the next
+	// subseq's first hit), while simultaneous hits stay simultaneous (delta 0
+	// for every one but the last). A subseq yielding zero durations cannot
+	// spin: maxEventsPerLoop.
 	*prMerge { |offsetsAndPatterns, loopTime|
 		^Prout { |inval|
 			var q = PriorityQueue.new;
-			var now = 0, stream, ev, nexttime, count = 0;
+			var now = 0, stream, ev, nexttime, count = 0, due, kept;
 			offsetsAndPatterns.do { |pair| q.put(pair[0], pair[1].asStream) };
 			if(q.notEmpty and: { (nexttime = q.topPriority) > 0 }) {
 				inval = Event.silentNoDefault(nexttime).yield;
 				now = nexttime;
 			};
 			while { q.notEmpty and: { count < maxEventsPerLoop } } {
-				stream = q.pop;
-				ev = stream.next(inval);
-				if(ev.isNil) {
-					nexttime = q.topPriority;
-					if(nexttime.notNil and: { nexttime > now }) {
+				// every event due now, in queue order (a stream re-queued at now
+				// is read again in this round, an exhausted one leaves the queue)
+				due = List.new;
+				while { q.notEmpty and: { q.topPriority <= now } and: { count < maxEventsPerLoop } } {
+					stream = q.pop;
+					ev = stream.next(inval);
+					if(ev.notNil) {
+						ev = ev.asEvent;
+						q.put(now + ev.delta, stream);
+						due.add(ev);
+						count = count + 1;
+					};
+				};
+				nexttime = q.topPriority ? now;   // every stream exhausted: nothing follows
+				if(due.isEmpty) {
+					if(nexttime > now) {   // a stream ended: gap until the next due one
 						inval = Event.silentNoDefault(nexttime - now).yield;
 						now = nexttime;
 					};
 				} {
-					ev = ev.asEvent;
-					q.put(now + ev.delta, stream);
-					nexttime = q.topPriority;
-					ev.put(\delta, nexttime - now);
-					inval = ev.yield;
+					kept = due.reject { |e| e[\dur].isRest };
+					if(kept.isEmpty) { kept = [due.last] };   // rests only: one of them carries the time
+					kept.do { |e, i|
+						var delta = if(i == (kept.size - 1)) { nexttime - now } { 0 };
+						e.put(\delta, delta);
+						if(delta > 0 or: { e[\dur].isRest.not }) { inval = e.yield };   // a rest of zero length is nothing
+					};
 					now = nexttime;
-					count = count + 1;
 				};
 			};
 			if(count >= maxEventsPerLoop) {
