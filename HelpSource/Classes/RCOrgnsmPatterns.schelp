@@ -14,6 +14,7 @@ true: Ref'd Dictionary per value; false: code::[dur, params...]:: arrays.
 METHOD:: seqParamsForLoop
 One loop of code::seq_list:: merged into one stream. Entries are link::Classes/RCSubseq:: objects (from link::Classes/RCRhythmDict#-subseqs::) or raw code::[priority, shift, durs, params, mask, name, keysIgnoreOrder, timeMult]:: arrays written by hand; a Boolean or missing mask means every hit.
 One loop merged from subseqs with an offset-aware scheduler: a hit at the loop start keeps its length and no zero-length rest trails the loop. Each hit lasts until the next event of any subseq; a rest starting at the same time as a hit (a subseq's padding rest on the next subseq's first hit) has no length and is dropped, so the hit keeps its length, while simultaneous hits stay simultaneous (delta 0 for every one but the last).
+A code::nil:: in a param array (a key the subseq does not carry, as when an link::Classes/RCPathControl:: distributes the union of a rhythm's keys) does not end the subseq's events: the hit plays with no value for that key (absent from the dict form, code::nil:: in the array form), and its reader falls back to a default.
 argument:: useOrgnsmStaticAttrs
 argument:: staticAttrs
 argument:: initialBegShift

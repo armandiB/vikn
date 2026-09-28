@@ -12,7 +12,9 @@
 // Configurable static attrs (as before): dur_params, path_priority,
 // start_orgnsm_series, seed_orgnsm_series, orgnsm_series_pattern (default
 // Pseq(path.mirror1, inf); Ref an Array in the series to hit several orgnsms
-// at once), add_previous_orgnsms_to_other_params, other_params_default_values,
+// at once), add_previous_orgnsms_to_other_params, other_params_default_values
+// (a key's value on the hits of a subseq that does not carry it: every key of
+// the rhythm reaches every orgnsm, a hit with no value and no default rests),
 // path_generation_func (Ref'd function (design, start, seed) → path).
 // The controlled orgnsms read the result through
 // RCOrgnsmPatterns.seqParams and Pfunc { |ev| ev.compute_seq_params.dereference[key] }.
@@ -149,7 +151,9 @@ RCPathControl : RCOrgnsm {
 	}
 
 	// Compile the loop, then distribute its hits over the orgnsm series.
-	// Returns Dictionary batchKey → [RCSubseq].
+	// Returns Dictionary batchKey → [RCSubseq]. A hit of a subseq without one
+	// of the keys carries nil for it: the orgnsm's beat falls back to
+	// other_params_default_values (setAttrsInOrgnsms) and the loop goes on.
 	seqListByOrgnsm { |ev|
 		var st = staticAttrs;
 		var addPrev = st[\add_previous_orgnsms_to_other_params] ? false;
