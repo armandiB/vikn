@@ -36,6 +36,8 @@ TestRCOrgnsm : UnitTest {
 		this.assertEquals(t.convertKey("attrDictBase.amp"), [\attrDictBase, \amp], "camelCase slot");
 		this.assertEquals(t.convertKey("server_ressources.buffer"), [\serverResources, \buffer], "proto spelling of resources");
 		this.assertEquals(t.convertKey([\static_attrs, \x, \y]), [\staticAttrs, \x, \y], "array path");
+		this.assertEquals(t.convertKey(\amp_unadj), [\staticAttrs, \amp_unadj], "Symbol key → staticAttrs");
+		this.assertEquals(t.convertKey(\attrDictBase), [\attrDictBase], "a slot alone");
 	}
 
 	test_rPut_rGet {
@@ -43,6 +45,10 @@ TestRCOrgnsm : UnitTest {
 		t.rPut("amp_unadj", 0.5);
 		this.assertEquals(t.staticAttrs.amp_unadj, 0.5, "static attr set");
 		this.assertEquals(t.rGet("amp_unadj"), 0.5, "static attr read");
+		t.rPut(\amp_unadj, 0.25);
+		this.assertEquals(t.rGet(\amp_unadj), 0.25, "Symbol key");
+		t.rPut("tribe", 3);
+		this.assertEquals([t.tribe, t.staticAttrs.tribe], [3, 3], "an identity key through the bare path sets the ivar too");
 		t.rPut("attr_dict_base.amp", 9);
 		this.assertEquals(RCUtil.kvAt(t.attrDictBase, \amp), 9, "attrDictBase entry replaced in place");
 		t.rPut("attrDictBase.fresh", 1);
