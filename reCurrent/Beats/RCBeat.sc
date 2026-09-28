@@ -29,6 +29,15 @@ RCBeat {
 	classvar <hiddenKeys;
 	classvar auxCounter = 0;
 
+	// Lag monitor (opt-in): how far behind logical time the interpreter runs
+	// when an event is about to play, Main.elapsedTime - thisThread.seconds,
+	// measured in the last key (rc_finish). scsynth prints "late" once this
+	// exceeds server.latency; above lagWarnRatio * latency a rate-limited
+	// warning names the beat. lagReset before a section, lagReport after.
+	classvar <>lagMonitor = false;
+	classvar <>lagWarnRatio = 0.8;
+	classvar <lagMax = 0, <lagMaxTag, <lagCount = 0, <lagLateCount = 0, <lagSum = 0, <lagByTag;
+
 	var <layer, <name, <chan, <midiOut, <terminationKey;
 	var <pbindProxy, <pattern, <player, <playQuant, <editQuant;
 	var <durList, <>seqOffset = 0, <realDur, realDurProxy;
@@ -41,6 +50,7 @@ RCBeat {
 	*initClass {
 		Class.initClassTree(Event);
 		hiddenKeys = IdentitySet[\rc_beat, \dur_unadj, \dur, \rc_finish, \midiout];
+		lagByTag = IdentityDictionary.new;
 		Event.addEventType(\midiOnCtl, { |server|
 			var original = currentEnvironment.copy.put(\type, \midi);
 			~midicmd.do { |cmd| original.copy.put(\midicmd, cmd).play };
@@ -338,8 +348,42 @@ RCBeat {
 					ev[k] = 0;
 				};
 			};
+			if(lagMonitor) { this.prRecordLag };
 			\rc
 		}
+	}
+
+	//////// lag monitor
+
+	*lagReset {
+		lagMax = 0;
+		lagMaxTag = nil;
+		lagCount = 0;
+		lagLateCount = 0;
+		lagSum = 0;
+		lagByTag = IdentityDictionary.new;
+	}
+
+	// One line: the worst event and its beat, the mean, how many events crossed
+	// lagWarnRatio of the server latency.
+	*lagReport {
+		var mean = if(lagCount > 0) { lagSum / lagCount } { 0 };
+		^"lag: max % ms (%), mean % ms, % of % events over % of the latency".format(
+			(lagMax * 1000).round(0.1), lagMaxTag, (mean * 1000).round(0.01), lagLateCount, lagCount, lagWarnRatio)
+	}
+
+	// Seconds the interpreter runs behind this event's logical time.
+	prRecordLag {
+		var lag = Main.elapsedTime - thisThread.seconds;
+		var latency = layer.server.latency;
+		lagCount = lagCount + 1;
+		lagSum = lagSum + lag;
+		if(lag > lagMax) { lagMax = lag; lagMaxTag = tag };
+		if(lag > (lagByTag[tag] ? 0)) { lagByTag[tag] = lag };
+		if(latency.notNil and: { lag > (lagWarnRatio * latency) }) {
+			lagLateCount = lagLateCount + 1;
+			RCLog.warn(\lag, { "% runs % ms behind its logical time (latency % ms)".format(tag, (lag * 1000).round(0.1), (latency * 1000).round(0.1)) });
+		};
 	}
 
 	//////// error policy

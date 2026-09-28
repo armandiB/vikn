@@ -292,4 +292,22 @@ TestRCBeat : UnitTest {
 		this.assert(this.logHas("asStream on a playing beat"), "warned");
 		b.free(post: false);
 	}
+
+	test_lag_monitor {
+		var saved = RCBeat.lagMonitor;
+		var b;
+		RCBeat.lagReset;
+		RCBeat.lagMonitor = true;
+		b = layer.addBeat(\lag, [type: \rest, dur_flex: 0.25], post: false);
+		this.wait({ RCBeat.lagCount >= 2 }, "events recorded on the clock", 3);
+		this.assert(RCBeat.lagCount >= 2, "every event records its lag");
+		this.assert(RCBeat.lagMax > -0.01 and: { RCBeat.lagMax < 1 }, "the lag is a small number of seconds");
+		this.assertEquals(RCBeat.lagMaxTag, b.tag, "the worst event names its beat");
+		this.assertEquals(RCBeat.lagByTag[b.tag], RCBeat.lagMax, "per-beat maximum kept");
+		this.assert(RCBeat.lagReport.beginsWith("lag: max"), "one-line report");
+		b.free(post: false);
+		RCBeat.lagMonitor = saved;
+		RCBeat.lagReset;
+		this.assertEquals(RCBeat.lagCount, 0, "reset clears the counters");
+	}
 }

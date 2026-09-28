@@ -25,6 +25,30 @@ METHOD:: defaultRestartDelay
 METHOD:: minDur
 METHOD:: maxClampedInARow
 
+SUBSECTION:: Lag monitor
+
+How far behind logical time the interpreter runs when an event is about to play (code::Main.elapsedTime - thisThread.seconds::, measured in the last key). scsynth prints strong::late:: once this exceeds code::server.latency::. Opt-in: it costs one subtraction per event.
+
+code::
+RCBeat.lagReset; RCBeat.lagMonitor = true;   // before a section
+RCBeat.lagReport;                            // after it: "lag: max 12.3 ms (beat hl3/rhythm_t1/orgnsm_percs_path_t1_4), mean 0.8 ms, 0 of 2304 events over 0.8 of the latency"
+::
+
+METHOD:: lagMonitor
+When true, every event records its lag (default false).
+METHOD:: lagWarnRatio
+Above code::lagWarnRatio * server.latency:: a rate-limited warning names the beat (default 0.8).
+METHOD:: lagReset
+Clear the counters.
+METHOD:: lagReport
+One line: the worst event and its beat, the mean, how many events crossed the ratio.
+METHOD:: lagMax
+METHOD:: lagMaxTag
+METHOD:: lagCount
+METHOD:: lagLateCount
+METHOD:: lagByTag
+code::IdentityDictionary:: beat tag → worst lag in seconds.
+
 METHOD:: auxPattern
 A pattern spawning a fresh, self-terminating beat at every event (the proto-library's code::make_aux_beat::).
 argument:: layer
