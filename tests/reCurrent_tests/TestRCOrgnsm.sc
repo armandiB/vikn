@@ -204,6 +204,8 @@ TestRCOrgnsm : UnitTest {
 		var desc = SynthDescLib.global[RCSynthDefs.outputSuffix(\rc_test_sd, 2)];
 		this.assertEquals(names.size, RCSynthDefs.maxNumOuts, "one variant per output count");
 		this.assertEquals(RCSynthDefs.outputSuffix(\x, 3), 'x__3_out', "suffix");
+		this.assertEquals(RCSynthDefs.outputSuffix("x", 3), 'x__3_out', "a String name gives the same Symbol");
+		this.assertEquals(RCSynthDefs.outputSuffix(\x, RCSynthDefs.maxNumOuts + 5), ('x__' ++ (RCSynthDefs.maxNumOuts + 5) ++ '_out').asSymbol, "a count past the cache is computed");
 		this.assert(desc.notNil, "desc registered");
 		this.assert(desc.controlNames.includes(\outs) and: { desc.controlNames.includes(\outamps) } and: { desc.controlNames.includes(\freq) }, "controls");
 		this.assertEquals(RCSynthDefs.addForOrgnsms(\rc_bad_sd, { nil.explode }).size, 0, "failing sound function reported, nothing added");

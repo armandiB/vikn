@@ -11,8 +11,31 @@
 
 RCSynthDefs {
 	classvar <>maxNumOuts = 8;   // superimposing fobjects, minus one; keep small (graph size)
+	classvar outputSuffixCache;  // name → Array of Symbols by numOuts, see outputSuffix
 
+	*initClass {
+		outputSuffixCache = IdentityDictionary.new;
+	}
+
+	// name__<numOuts>_out. Cached per name and count: the \instrument key of
+	// every orgnsm asks for it at every event, and building the String and
+	// interning the Symbol each time is what it would otherwise cost.
 	*outputSuffix { |name, numOuts|
+		var byName, cached;
+		name = name.asSymbol;
+		byName = outputSuffixCache[name] ?? { var a = Array.newClear(maxNumOuts + 1); outputSuffixCache[name] = a; a };
+		if(numOuts.isInteger and: { numOuts >= 0 } and: { numOuts < byName.size }) {
+			cached = byName[numOuts];
+			if(cached.isNil) {
+				cached = this.prOutputSuffix(name, numOuts);
+				byName[numOuts] = cached;
+			};
+			^cached
+		};
+		^this.prOutputSuffix(name, numOuts)
+	}
+
+	*prOutputSuffix { |name, numOuts|
 		^(name.asString ++ "__" ++ numOuts.asString ++ "_out").asSymbol
 	}
 
