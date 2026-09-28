@@ -30,9 +30,8 @@ TestRCKeyProxy : UnitTest {
 	}
 
 	test_classify {
-		this.assertEquals(RCKeyProxy.classify({ 1 }), \function, "a Function");
-		this.assertEquals(RCKeyProxy.classify(Pfunc { 1 }), \function, "a Pfunc without a reset function");
-		this.assertEquals(RCKeyProxy.classify(Pfunc({ 1 }, { 2 })), \pattern, "a Pfunc with a reset function stays a pattern");
+		this.assertEquals(RCKeyProxy.classify({ 1 }), \pattern, "a Function runs as a Pfunc");
+		this.assertEquals(RCKeyProxy.classify(Pfunc { 1 }), \pattern, "a Pfunc");
 		this.assertEquals(RCKeyProxy.classify(Pseq([1])), \pattern, "a Pattern");
 		this.assertEquals(RCKeyProxy.classify(Routine { 1.yield }), \stream, "a Stream");
 		this.assertEquals(RCKeyProxy.classify(5), \static, "a number");
@@ -91,8 +90,8 @@ TestRCKeyProxy : UnitTest {
 		fs.next(());
 		ps.next(());
 		this.assert(fn.lastValue.notNil and: { pat.lastValue.notNil }, "non-static values are recorded");
-		this.assertEquals(fn.thread, nil, "a Function runs inline: no thread");
-		this.assert(pat.thread.isKindOf(Routine), "a Pattern has its Routine");
+		this.assert(fn.thread.isKindOf(Routine) and: { pat.thread.isKindOf(Routine) }, "a Function and a Pattern key each have their Routine");
+		this.assert(fn.thread !== pat.thread, "one Routine per key");
 		data = fn.randData;
 		b = 5.collect { fs.next(()) };
 		fn.randData = data;
@@ -197,6 +196,18 @@ TestRCKeyProxy : UnitTest {
 			1.wait; pull.value; 0.5.wait; set.({ 2 }, 1); 0.25.wait; pull.value; 0.05.wait; set.({ 3 }, 4); 0.2.wait; pull.value; 1.wait; pull.value; 1.wait; pull.value;
 		});
 		this.assertLockstep(log, [1, 1, 2, 2, 3], "a pending quant 1 edit, then a quant 4 edit before its grid");
+	}
+
+	// An unseeded Routine shares its parents' random state up to the thread that
+	// last seeded itself: a seeded key must never touch the caller's state.
+	test_pulling_seeded_keys_leaves_the_callers_random_state_alone {
+		var s = Pbind(\k, RCKeyProxy(\k, Pfunc { 1000.rand }, 7, clock), \f, RCKeyProxy(\f, { 100.rand }, 7, clock), \p, RCKeyProxy(\p, Pwhite(0, 9, inf), 7, clock)).asStream;
+		var a, b;
+		thisThread.randSeed = 42;
+		a = thisThread.randData;
+		8.do { s.next(Event.default) };
+		b = thisThread.randData;
+		this.assertEquals(b, a, "eight events of three seeded random keys leave the pulling thread's state as it was");
 	}
 
 	test_stream_source_keeps_its_own_random_state {

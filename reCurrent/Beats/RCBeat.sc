@@ -14,10 +14,9 @@
 //     editable RCDurList, a Function becomes Pn(Plazy(func)), anything else
 //     is streamed as is. Dur edits always land at the next event.
 // Every non-static value is mirrored: lastValue(key) is the last value the
-// key produced, randData(key) its random state and thread(key) its Routine
-// when the key is a Pattern (seeded per key; a Function key runs inline with
-// its own random state). A Function value is called per event; a key given
-// twice keeps its later definition (warned).
+// key produced, thread(key) / randData(key) its Routine and random state (one
+// Routine per key, seeded per key). A Function value is called per event; a
+// key given twice keeps its later definition (warned).
 
 RCBeat {
 	classvar <>defaultEditQuant = 1;

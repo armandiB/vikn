@@ -61,6 +61,6 @@ TestRCPbindProxy : UnitTest {
 		s.next(Event.default);
 		this.assertEquals(p.lastValues.keys.asArray.sort, [\b, \c], "non-static keys are recorded");
 		this.assertEquals(p.lastValues[\c], 3, "with their values");
-		this.assertEquals(p.threads.keys.asArray, [\b], "a Pattern key has a thread, a Function key none");
+		this.assertEquals(p.threads.keys.asArray.sort, [\b, \c], "every non-static key has its Routine, a static one none");
 	}
 }

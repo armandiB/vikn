@@ -1,22 +1,24 @@
 // reCurrent — one key of a beat's pattern: its source (a static value, a
-// Function or Pfunc, a Pattern or a Stream), its seed and its live edits.
+// Function, a Pattern or a Stream), its seed and its live edits.
 //
 // Replaces the PatternProxy + Pseed + Pcollect stack that PbindProxy gave
 // every key of an RCBeat. That stack ran two to four Routines per key per
 // event (a static value alone costs two: Object.streamArg wraps it in a
-// Routine and PatternProxy in another). RCKeyStream, the stream of a proxy,
-// reads a static value with .next (a Ref dereferences, an Event composes, as
-// under PatternProxy), calls a Function or a Pfunc inline in the Pbind's thread
-// with the key's own random state swapped in, and keeps one Routine only for a
-// real Pattern. Seeded output is bit-identical to the old stack (TestRCKeyProxy
-// holds goldens built from it):
-//   - a seeded Pattern runs in Routine { |inval| pattern.embedInStream(inval) }
-//     with randSeed = seed, Pseed's own construction;
-//   - a seeded Function draws from the state randSeed_(seed) produces, the
-//     state Pseed's thread had, kept per key between calls;
-//   - an unseeded key starts from a copy of the creating thread's state, what
-//     a new Routine inherits;
-//   - a Stream given as a value is used as is, never re-seeded.
+// Routine and PatternProxy in another) and a closure per value. RCKeyStream,
+// the stream of a proxy, reads a static value with .next (a Ref dereferences,
+// an Event composes, as under PatternProxy) and runs every other source in
+// one Routine of its own: Routine { |inval| source.embedInStream(inval) }
+// with randSeed = seed when the key is seeded (Pseed's own construction),
+// sharing the creating thread's random state otherwise, as any new Routine
+// does. Seeded output is bit-identical to the old stack (TestRCKeyProxy holds
+// goldens built from it). A Stream given as a value is used as is.
+//
+// Why a Routine and not an inline call with the key's random state swapped
+// in: a Routine that never seeded itself shares its parents' random state
+// (one array up to the thread that last called randSeed_), so writing a
+// state into the Pbind's thread reaches the main thread and everything
+// drawing there. A Routine resumes in a tenth of a microsecond.
+//
 // Live edits: setSource(source, quant, seed). quant nil: the new source gives
 // the next value. A number, [beats, phase] or Quant: the grid time is taken at
 // the first pull after the edit, the old source plays until then, gets one
@@ -61,19 +63,16 @@ RCKeyProxy : Pattern {
 		^inval
 	}
 
-	// How a stream treats a source: \function (a Function, or a Pfunc without a
-	// reset function, called inline), \stream (used as is), \pattern (one
-	// Routine), \static (read with .next).
+	// How a stream treats a source: \stream (used as is), \pattern (a Pattern,
+	// or a Function called per event: one Routine), \static (read with .next).
 	*classify { |value|
-		if(value.isKindOf(Function)) { ^\function };
-		if(value.isKindOf(Pfunc) and: { value.resetFunc.isNil }) { ^\function };
 		if(value.isKindOf(Stream)) { ^\stream };
-		if(value.isKindOf(Pattern)) { ^\pattern };
+		if(value.isKindOf(Pattern) or: { value.isKindOf(Function) }) { ^\pattern };
 		^\static
 	}
 
-	// The thread of the stream that last produced a value: a Pattern source's
-	// Routine, nil for a Function or a static (they run inline).
+	// The thread of the stream that last produced a value: the Routine of a
+	// Pattern or Function source, nil for a static.
 	thread { ^activeStream !? (_.thread) }
 	randData { ^activeStream !? (_.randData) }
 	randData_ { |data| activeStream !? (_.randData_(data)) }
@@ -90,7 +89,7 @@ RCKeyProxy : Pattern {
 // The stream of an RCKeyProxy (see there), pulled from the Pbind's thread.
 RCKeyStream : Stream {
 	var proxy, seenVersion;
-	var kind, staticSource, func, envir, randState, inner, thread, recording;
+	var kind, staticSource, inner, thread, recording;
 	var pending;   // edits detected at earlier pulls, oldest first: [source, seed, grid beat or nil]
 
 	*new { |proxy| ^super.new.initRCKeyStream(proxy) }
@@ -103,32 +102,31 @@ RCKeyStream : Stream {
 	}
 
 	prInstall { |source, seed|
-		var routine;
 		kind = RCKeyProxy.classify(source);
 		recording = proxy.mirror and: { RCUtil.isStatic(source).not };
-		staticSource = nil; func = nil; envir = nil; randState = nil; inner = nil; thread = nil;
+		staticSource = nil; inner = nil; thread = nil;
 		switch(kind,
-			\function, {
-				func = if(source.isKindOf(Pfunc)) { source.nextFunc } { source };
-				envir = currentEnvironment;
-				if(seed.notNil) {
-					routine = Routine { };
-					routine.randSeed = seed;
-					randState = routine.randData;
-				} {
-					randState = thisThread.randData;
-				};
-			},
 			\pattern, {
-				if(seed.notNil) {
-					inner = Routine { |inval| source.embedInStream(inval) };
-					inner.randSeed = seed;
-				} {
-					inner = source.asStream;
-					// a stream that is no thread (a Pfunc with a reset function) would
-					// draw from this thread's state: give it its own copy, as a Routine has
-					if(inner.isKindOf(Thread).not) { inner = Routine { |inval| source.embedInStream(inval) } };
+				var func;
+				if(source.isKindOf(Function)) { func = source } {
+					if(source.isKindOf(Pfunc) and: { source.resetFunc.isNil }) { func = source.nextFunc };
 				};
+				if(func.notNil) {
+					// a Function or a Pfunc, called per event in its own Routine until it
+					// returns nil, as FuncStream.embedInStream does, minus FuncStream's
+					// environment switch (a Routine already runs in its creation environment)
+					inner = Routine { |inval| var val; while { (val = func.value(inval)).notNil } { inval = val.yield } };
+				} {
+					if(seed.notNil) {
+						inner = Routine { |inval| source.embedInStream(inval) };
+					} {
+						inner = source.asStream;
+						// a stream that is no thread would run in the Pbind's thread: give it
+						// a Routine, as PatternProxy's stack did
+						if(inner.isKindOf(Thread).not) { inner = Routine { |inval| source.embedInStream(inval) } };
+					};
+				};
+				if(seed.notNil) { inner.randSeed = seed };
 				thread = inner;
 			},
 			\stream, {
@@ -186,17 +184,8 @@ RCKeyStream : Stream {
 	}
 
 	prPull { |inval|
-		var value;
-		switch(kind,
-			\function, {
-				thisThread.randData = randState;
-				value = if(currentEnvironment === envir) { func.value(inval) } { envir.use { func.value(inval) } };
-				randState = thisThread.randData;
-			},
-			\static, { value = staticSource.next(inval) },
-			{ value = inner.next(inval) }
-		);
-		^value
+		if(kind == \static) { ^staticSource.next(inval) };
+		^inner.next(inval)
 	}
 
 	prRecord { |value|
@@ -205,15 +194,7 @@ RCKeyStream : Stream {
 	}
 
 	thread { ^thread }
-
-	randData {
-		if(kind == \function) { ^randState };
-		^thread !? (_.randData)
-	}
-
-	randData_ { |data|
-		if(kind == \function) { randState = data } { thread !? { |t| t.randData = data } };
-	}
-
+	randData { ^thread !? (_.randData) }
+	randData_ { |data| thread !? { |t| t.randData = data } }
 	reset { inner !? (_.reset) }
 }

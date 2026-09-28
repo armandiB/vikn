@@ -4,13 +4,13 @@ categories:: Libraries>reCurrent
 related:: Guides/reCurrent, Classes/RCLayer, Classes/RCBeatSpec, Classes/RCDurList
 
 DESCRIPTION::
-The successor of the proto-library's beat env + PLbindef. The pattern is an link::Classes/RCPbindProxy:: (an link::Classes/RCKeyProxy:: per key) whose pairs are, in order: code::[\rc_beat, beat] ++ addFirst ++ [\dur_unadj, realDur, \dur, pipeline] ++ [\midiout, \chan] ++ attrDict ++ [\rc_finish]::, wrapped in a guarding code::Prout::. A static value is read as it is, a Function or code::Pfunc:: is called inline with the key's own random state, a Pattern has one Routine: no Routine per key per event as under code::PbindProxy::, with the same seeded output.
+The successor of the proto-library's beat env + PLbindef. The pattern is an link::Classes/RCPbindProxy:: (an link::Classes/RCKeyProxy:: per key) whose pairs are, in order: code::[\rc_beat, beat] ++ addFirst ++ [\dur_unadj, realDur, \dur, pipeline] ++ [\midiout, \chan] ++ attrDict ++ [\rc_finish]::, wrapped in a guarding code::Prout::. A static value is read as it is; every other key has one Routine of its own, seeded per key, instead of the two to four per key of code::PbindProxy::, with the same seeded output.
 
 The dur pipeline computes code::dur = dur_unadj + swing(timeTrack) - previous swing offset::, clamps non-positive values to link::#*minDur:: (zero-length rests pass) and stops the beat after link::#*maxClampedInARow:: clamped events in a row. The last pair clamps negative code::legato:: / code::sustain::.
 
 Errors raised by any key stream are caught: with the default policy code::\restart:: the stream is rebuilt after code::restartDelay:: beats, up to code::maxRestarts:: consecutive failures; with code::\stop:: the beat stops at the first error. Other beats are never affected.
 
-Every non-static value is mirrored: link::#-lastValue:: returns the last value a key produced, link::#-randData:: its random state (settable, to replay the key) and link::#-thread:: its Routine when the key is a Pattern (nil for a Function key, which runs inline).
+Every non-static value is mirrored: link::#-lastValue:: returns the last value a key produced, link::#-thread:: its Routine and link::#-randData:: its random state (settable, to replay the key).
 
 CLASSMETHODS::
 
@@ -105,9 +105,9 @@ METHOD:: lastValue
 argument:: key
 argument:: default
 METHOD:: thread
-The Routine of a Pattern key, nil for a Function or a static key.
+The Routine of a non-static key.
 METHOD:: randData
-The random state of a key (a Pattern key's thread state, or what a Function key draws from), settable.
+The random state of a key's Routine, settable.
 METHOD:: keyProxy
 The link::Classes/RCKeyProxy:: of a key.
 METHOD:: lastValues
