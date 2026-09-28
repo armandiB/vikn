@@ -2,8 +2,11 @@
 // (BlockOrgnsm's ~crawler_pattern_lib[\next_val_rhythm_change]).
 //
 // At each step the crawler holds the seq_list of its current orgnsm and a
-// target seq_list from staticAttrs.rhythm_dict_target (batch name / key of
-// that orgnsm). One elementary move is tried per step, in order:
+// target seq_list from staticAttrs.rhythm_dict_target, looked up at the
+// orgnsm's rhythmDictKeys (batch name / key; path_name / path_key for an
+// RCPathControl, whose held seqs_info is then the attribute to crawl) or at
+// the crawler's rhythm_dict_target_keys. One elementary move is tried per
+// step, in order:
 //   shift            a subseq of the same name moves one step towards the target shift
 //   changeSubseq     a subseq whose name is not in the target is swapped for a
 //                    close enough target (matching_distance_func on onsets)
@@ -33,14 +36,18 @@ RCCrawlerMoves {
 			?? { this.decreaseMask(ctx) } ?? { this.switchOtherParams(ctx) } ?? { ctx[\current] }
 	}
 
+	// The target is looked up in rhythm_dict_target at the crawler's
+	// rhythm_dict_target_keys static attr ([name, key]) when set, else at the
+	// orgnsm's rhythmDictKeys: batch name / batch key for an orgnsm of a
+	// batch, path_name / path_key for an RCPathControl.
 	*prContext { |crawler, st|
 		var orgnsm = crawler.orgnsm;
-		var batch, current, targets, ctx;
+		var keys, current, targets, ctx;
 		if(orgnsm.isNil) { RCLog.error(\crawlerMoves, "crawler has no orgnsm"); ^nil };
-		batch = orgnsm.batch;
-		if(batch.isNil) { RCLog.error(\crawlerMoves, "% is not in a batch".format(orgnsm.name)); ^nil };
+		keys = st[\rhythm_dict_target_keys] ?? { if(orgnsm.respondsTo(\rhythmDictKeys)) { orgnsm.rhythmDictKeys } };
+		if(keys.isNil) { RCLog.error(\crawlerMoves, "% has no rhythm dict keys (not in a batch, no rhythm_dict_target_keys)".format(orgnsm.name)); ^nil };
 		current = crawler.prevVal[0] ? [];
-		targets = RCGuard.call(\crawlerMoves, []) { st[\rhythm_dict_target].subseqs(batch.name, orgnsm.batchKey) };
+		targets = RCGuard.call(\crawlerMoves, []) { st[\rhythm_dict_target].subseqs(keys[0], keys[1]) };
 		ctx = (
 			current: current, targets: targets, orgnsm: orgnsm, st: st,
 			priorityOk: RCUtil.attrFunc(st, \priority_matching_func) ? { true },

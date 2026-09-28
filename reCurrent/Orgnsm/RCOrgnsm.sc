@@ -78,6 +78,11 @@ RCOrgnsm {
 	isCrawler { ^isCrawlerPattern }
 	seed { ^staticAttrs[\seed] }
 
+	// Where a crawler looks this orgnsm's target rhythm up in its
+	// rhythm_dict_target: [batch name, batch key], nil outside a batch
+	// (RCPathControl answers its path_name / path_key instead).
+	rhythmDictKeys { ^batch !? { [batch.name, batchKey] } }
+
 	// snake_case aliases for pattern code ported from the proto-library
 	static_attrs { ^staticAttrs }
 	server_ressources { ^serverResources }

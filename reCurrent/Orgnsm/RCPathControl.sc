@@ -89,10 +89,41 @@ RCPathControl : RCOrgnsm {
 		^st[\zZZZ_series_cache]
 	}
 
-	// The subseqs of this loop, fresh from the rhythm dict.
+	// The rhythm of the coming loop, held in staticAttrs.seqs_info. It is
+	// (re)loaded from rhythm_dict.subseqs(path_name, path_key) when nothing is
+	// held yet or when rhythm_dict / path_name / path_key changed since the
+	// last load (staticAttrs.zZZZ_seqs_info_key remembers them, as
+	// cachedSeries does for the path). Between loads, what an agent writes
+	// into seqs_info is what the next loop distributes: an RCCrawler on
+	// "static_attrs.seqs_info" fades the rhythm towards its rhythm_dict_target,
+	// while a path_key edit still switches it at once. A missing entry is
+	// reported by subseqs and never held, so one added later is picked up.
 	seqsInfo {
 		var st = staticAttrs;
-		^RCGuard.call(\pathControl, []) { st[\rhythm_dict].subseqs(st[\path_name], st[\path_key]) }
+		var dict = st[\rhythm_dict];
+		var key = [dict, st[\path_name], st[\path_key]];
+		if(st[\seqs_info].isNil or: { st[\zZZZ_seqs_info_key] != key }) {
+			if(dict.isNil or: { dict.includes(st[\path_name], st[\path_key]).not }) {
+				^RCGuard.call(\pathControl, []) { dict.subseqs(st[\path_name], st[\path_key]) }
+			};
+			st[\seqs_info] = RCGuard.call(\pathControl, []) { dict.subseqs(st[\path_name], st[\path_key]) };
+			st[\zZZZ_seqs_info_key] = key;
+		};
+		^st[\seqs_info]
+	}
+
+	// Where a crawler looks this orgnsm's target rhythm up in its
+	// rhythm_dict_target: a path control holds the rhythm named by
+	// path_name / path_key (its batch key only names the controlled batch).
+	rhythmDictKeys { ^[staticAttrs[\path_name], staticAttrs[\path_key]] }
+
+	// A started path control holds its rhythm at once, so that an agent
+	// attached right after (RCCrawler.initFromBatch only finds started
+	// orgnsms) reads it instead of nil.
+	start { |quant|
+		var b = super.start(quant);
+		if(b.notNil) { this.seqsInfo };
+		^b
 	}
 
 	// Union of the param keys of the subseqs, in a stable (sorted) order.
@@ -130,9 +161,13 @@ RCPathControl : RCOrgnsm {
 		var previousOrgnsms;
 		var seqListByOrgnsm;
 
-		seqsInfo.do { |subseq, i|
-			if(subseq[3].isNil) { subseq[3] = () };
-			subseq[3][subseqIndexKey] = Pn(i);
+		// working copies carry the index marker: the held seqs_info (or an
+		// override's subseqs) must not accumulate it
+		seqsInfo = seqsInfo.collect { |subseq, i|
+			var s = if(subseq.isKindOf(RCSubseq)) { subseq.copy } { RCSubseq.fromArray(subseq) };
+			s.params = (s.params ? ()).copy;
+			s.params[subseqIndexKey] = Pn(i);
+			s
 		};
 		seriesStream = st.orgnsm_series_pattern.asStream;   // Event-style access evaluates the function
 		computeStream = RCOrgnsmPatterns.seqParamsForLoop(false, (
