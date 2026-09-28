@@ -79,7 +79,9 @@ RCRhythm {
 		};
 		if(loopTime.notNil) {
 			cumdur = cumdur.collect { |pair| [pair[0] % loopTime, pair[1]] };
-			cumdur = cumdur.sort { |a, b| a[0].value < b[0].value };
+			// <= keeps the subseq order at equal onsets (a zero-length hit and the
+			// rest after it): sort with a strict < reverses equal items
+			cumdur = cumdur.sort { |a, b| a[0].value <= b[0].value };
 		};
 		if(cumdur.size == 0) { ^[[], [], nil] };
 		cumdur = cumdur.flop;
