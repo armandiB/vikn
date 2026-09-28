@@ -8,6 +8,8 @@ Port of the Assemblage files' code::~orgnsm_path_control::. Once per loop it rea
 
 Configurable static attributes: code::dur_params::, code::path_priority::, code::start_orgnsm_series::, code::seed_orgnsm_series::, code::orgnsm_series_pattern:: (default code::Pseq(path.mirror1, inf)::; Ref an Array in the series to hit several orgnsms at once), code::add_previous_orgnsms_to_other_params::, code::other_params_default_values::, code::path_generation_func:: (Ref'd function code::(design, start, seed)::).
 
+The rhythm of the coming loop is held in code::staticAttrs.seqs_info:: (link::#-seqsInfo::): it is loaded from code::rhythm_dict.subseqs(path_name, path_key):: when nothing is held yet or when code::rhythm_dict::, code::path_name:: or code::path_key:: changed since the last load, and kept otherwise. What an agent writes into it between loads is what the next loop distributes: an link::Classes/RCCrawler:: on code::"static_attrs.seqs_info":: with link::Classes/RCCrawlerMoves#*nextValRhythmChange:: fades the rhythm towards its code::rhythm_dict_target:: (looked up at the same code::path_name:: / code::path_key::, see link::#-rhythmDictKeys::), while a code::path_key:: edit still switches it at once. A missing entry is reported and never held. A started control holds its rhythm right away (link::#-start::).
+
 CLASSMETHODS::
 METHOD:: new
 argument:: song

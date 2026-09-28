@@ -39,3 +39,20 @@ METHOD:: val
 METHOD:: prevVal
 METHOD:: clone
 METHOD:: free
+
+EXAMPLES::
+code::
+// fade the rhythm a path control distributes towards the same path name / key of another dict
+(
+~crawler = RCCrawler(["static_attrs.seqs_info"]);
+~crawler.nextOrgnsm = { |c| c.orgnsm };   // stays on its path control
+~crawler.setLeaveVal = false;
+~crawler.patternAttrs = (
+	static_attrs: (quant: [16, 1], rhythm_dict_target: ~rhythmDict2, tolerance_change_subseq: 2),
+	attr_dict_base: [dur_flex: [4], next_val: RCCrawlerMoves.nextValRhythmChange]
+);
+~crawler.initFromBatch(~pathBatch, ~batch.name).createPattern(layerKey: \meta);
+)
+~crawler.patternAttrs.static_attrs.rhythm_dict_target = ~rhythmDict3;   // retarget live
+~crawler.free;
+::

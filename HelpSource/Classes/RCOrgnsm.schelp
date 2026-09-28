@@ -57,6 +57,8 @@ METHOD:: layer
 METHOD:: clone
 METHOD:: register
 METHOD:: tribeDict
+METHOD:: rhythmDictKeys
+code::[batch name, batch key]:: where a crawler looks this orgnsm's target rhythm up (link::Classes/RCCrawlerMoves::); nil outside a batch. link::Classes/RCPathControl:: answers its code::path_name:: / code::path_key::.
 
 METHOD:: setBuffer
 argument:: buffer

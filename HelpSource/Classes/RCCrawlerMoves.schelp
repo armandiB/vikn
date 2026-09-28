@@ -4,7 +4,7 @@ categories:: Libraries>reCurrent
 related:: Classes/RCCrawler, Classes/RCRhythmDict
 
 DESCRIPTION::
-At each step the crawler holds the code::seq_list:: of its current orgnsm and a target from code::staticAttrs.rhythm_dict_target::. One elementary move is tried per step, in order: shift, changeSubseq, convergeMask, decreaseMask, switchOtherParams; each can take a wrong turn with its code::error_probability_*:: attribute. Only array-based subseqs can be morphed.
+At each step the crawler holds the code::seq_list:: of its current orgnsm and a target from code::staticAttrs.rhythm_dict_target::, looked up at the orgnsm's code::rhythmDictKeys:: (batch name / batch key; code::path_name:: / code::path_key:: for an link::Classes/RCPathControl::, whose held code::seqs_info:: is then the attribute to crawl) or at the crawler's code::rhythm_dict_target_keys:: static attribute (code::[name, key]::). One elementary move is tried per step, in order: shift, changeSubseq, convergeMask, decreaseMask, switchOtherParams; each can take a wrong turn with its code::error_probability_*:: attribute. Only array-based subseqs can be morphed, and a Pattern-valued param never compares equal to the target's (such an entry is never "matched": keep dict params numbers, Symbols or arrays).
 
 CLASSMETHODS::
 METHOD:: nextValRhythmChange
