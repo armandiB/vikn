@@ -33,6 +33,16 @@ TestRCRhythm : UnitTest {
 		this.assertEquals(RCRhythm.cumdurFromSubseq([1, 0, Pseq([1]), nil, [true]]), [[], [], nil], "pattern durations refused, no crash");
 	}
 
+	test_cumdur_keeps_the_order_at_equal_onsets {
+		// a zero-length hit and the rest after it share their onset: the hit stays first
+		// (a sort with a strict < reversed them, so the hit took the rest's length)
+		var res = RCRhythm.cumdurFromSubseq([1, 4, [0, Rest(3), 1], nil, [true, true, true]], loopTime: 16);
+		this.assertEquals(res[1], [0, 1, 2], "indices in subseq order");
+		this.assertEquals(res[0].collect(_.value), [4, 4, 7], "onsets");
+		this.assert(res[0][0].isRest.not and: { res[0][1].isRest }, "the hit's onset comes before the rest's");
+		this.assertEquals(RCRhythm.durFromCumdur(res[0], res[2])[0].collect(_.value), [0, 3, 1], "durations back in subseq order");
+	}
+
 	test_durFromCumdur {
 		this.assertEquals(RCRhythm.durFromCumdur([1, 4], 1), [[3, 1], 1], "durations and shift");
 		this.assertEquals(RCRhythm.durFromCumdur([0, 2]), [[2], 0], "without last duration");
