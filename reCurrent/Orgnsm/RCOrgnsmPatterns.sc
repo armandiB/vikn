@@ -144,7 +144,10 @@ RCOrgnsmPatterns {
 					this.prMerge(patArray, loopTime).collect { |e|
 						var dur = if(e[\dur].isRest) { Rest(e[\delta]) } { e[\delta] };
 						// the silent events prMerge adds (leading gap, loop tail) carry no params:
-						// rest them like prRestValue does, a missing key only matters on a hit
+						// rest them like prRestValue does, a missing key only matters on a hit.
+						// \nil is prSubseqPattern's marker for an empty param array or a nil item:
+						// a hit without a value for the key gives nil (the key is absent from the
+						// dict form) and its reader falls back, e.g. to a path control's defaults
 						var missing = if(dur.isRest) { Rest() };
 						var valueFor = { |key| var v = e[key]; if(v.isNil or: { v == \nil }) { missing } { v } };
 						if(returnDict) {
@@ -266,6 +269,11 @@ RCOrgnsmPatterns {
 			combined = Ptuple([timeMult * durInfo, mask]);
 			patternDur = combined.collect { |pair| if(pair[1] ? true) { pair[0] } { Rest(pair[0]) } };
 		};
+		// a nil in a param array (a key this subseq does not carry: RCPathControl distributes the
+		// union of the rhythm's keys) becomes the \nil marker, like an empty array: Pbind ends at
+		// the first nil key value, which silenced the rest of the loop; seqParamsForLoop reads the
+		// marker as "no value"
+		params = params.collect { |seq| if(seq.isKindOf(SequenceableCollection)) { seq.collect { |v| v ?? { \nil } } } { seq } };
 		eventPat = params.asEvent.copy;
 		eventPat[\dur] = patternDur;
 		eventPat = eventPat.collect { |seq, key|
