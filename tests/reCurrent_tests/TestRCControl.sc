@@ -129,6 +129,12 @@ TestRCControl : UnitTest {
 		kb.cc(90, 74, 1);
 		kb.noteOn(80, 64, 2);
 		this.assertEquals(kb.notes, [60, 64], "notes sorted");
+		kb.noteOn(90, 60, 5);
+		kb.noteOn(110, 60, 3);
+		this.assertEquals(kb.notes, [60, 60, 60, 64], "the same note on several channels");
+		this.assertEquals(kb.heldChans.collect { |e| e[\velocity] }, [100, 110, 90, 80], "equal notes ordered by channel (1, 3, 5), then note 64");
+		kb.noteOff(0, 60, 5);
+		kb.noteOff(0, 60, 3);
 		this.assertEquals(kb.held(1)[\touch], 50, "aftertouch stored");
 		this.assertFloatEquals(kb.held(1)[\bend], 0.5, "bend scaled to -1..1");
 		this.assertEquals(kb.held(1)[\control][74], 90, "cc stored");

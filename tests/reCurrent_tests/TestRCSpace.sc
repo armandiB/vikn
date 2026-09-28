@@ -161,4 +161,22 @@ TestRCSpace : UnitTest {
 		ev = RCBeat(song.layer(\core), o.name, o.attrDict, addFirst: o.addFirstArray).asStream.next(Event.default);
 		this.assertEquals(ev.outs, [7], "ignored fobject skipped (fc is transparent 0)");
 	}
+
+	test_fobject_routing_equal_priorities_keep_registry_order {
+		var tpl = RCOrgnsm(\r, 0, 0, song);
+		var f1 = RCFObject(song, \fa, 2, nil, { 0.3 }, priority: 1).clone;
+		var f2 = RCFObject(song, \fb, 2, nil, { 0.3 }, priority: 1).clone;
+		var f3 = RCFObject(song, \fc, 2, nil, { 0.5 }, priority: 0).clone;
+		var o, ev;
+		f1.register(\fa); f1.prSetBuses(10, 0);
+		f2.register(\fb); f2.prSetBuses(11, 0);
+		f3.register(\fc); f3.prSetBuses(12, 0);
+		song.outArray = [7];
+		tpl.addStaticAttrs((seed: 1, quant: [1, 0]));
+		tpl.attrDictBase = [type: \note, dur_flex: 1, instrument_flex: \Kalimba, orgnsm_out_idx: 0, zpos: [0], pos: [0, 0]];
+		o = tpl.create(layerKey: \core);
+		ev = RCBeat(song.layer(\core), o.name, o.attrDict, addFirst: o.addFirstArray).asStream.next(Event.default);
+		this.assertEquals(ev.outs, [12, 10, 11], "priority 0 first, then the two of priority 1 in registry order (a strict < sort reversed them)");
+		this.assert(this.closeTo(ev.outamps, [0.5, 0.3, 0.3] / 1.1), "weights follow the buses");
+	}
 }
