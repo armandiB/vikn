@@ -171,6 +171,39 @@ TestRCRhythmData : UnitTest {
 		RCOrgnsmPatterns.maxEventsPerLoop = saved;
 	}
 
+	test_prMerge_rest_boundary_keeps_the_hit {
+		// subseq a: hits at 1 and 3 (2 beats each), then its padding rest from 5 to the loop end;
+		// subseq b: hits at 5 and 7. The padding rest of a starts exactly where the first hit of b
+		// starts: that hit keeps its length (it used to get delta 0, followed by a 2-beat rest)
+		var st = (dur_params: [8, 1], seq_list: [[1, 1, [2, 2], (who: [\a1, \a2]), true], [1, 5, [2, 1], (who: [\b1, \b2]), true]], other_params_key_list: [\who]);
+		var out = this.pullAll(RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, false).asStream);
+		var hits = out.reject { |v| v[0].isRest };
+		this.assert(out.every { |v| v[0].value > 0 }, "no zero-length event (%)".format(out.collect { |v| v[0] }));
+		this.assertEquals(hits.collect { |v| v[1] }, [\a1, \a2, \b1, \b2], "every hit once, in time order");
+		this.assertEquals(hits.collect { |v| v[0] }, [2, 2, 2, 1], "each hit lasts until the next hit");
+		this.assertEquals(out.collect { |v| v[0].value }, [1, 2, 2, 2, 1], "the leading gap, then hits fill the loop: no rest where b plays");
+	}
+
+	test_prMerge_simultaneous_hits_stay_simultaneous {
+		// two subseqs hitting together at 0 (deltas 0 then 1), and both padding rests starting at 3:
+		// one rest of zero length is dropped, the other carries the time to the loop end
+		var st = (dur_params: [4, 1], seq_list: [[1, 0, [2, 1], (who: [\a1, \a2]), true], [1, 0, [1, 2], (who: [\b1, \b2]), true]], other_params_key_list: [\who]);
+		var out = this.pullAll(RCOrgnsmPatterns.seqParamsForLoop(false, st, 0, false).asStream);
+		this.assertEquals(out.collect { |v| v[1] }[..3], [\a1, \b1, \b2, \a2], "hits in queue order, a before b at the same time");
+		this.assertEquals(out.collect { |v| v[0].value }, [0, 1, 1, 1, 1], "the first of two simultaneous hits has delta 0, one tail rest");
+		this.assert(out[0][0].isRest.not and: { out[1][0].isRest.not }, "both simultaneous events are hits");
+		this.assert(out.size == 5 and: { out.last[0].isRest }, "the zero-length rest is dropped, the tail rest stays");
+	}
+
+	test_prMerge_streams_ending_on_zero_length_events {
+		// nothing is queued after them: the hit keeps delta 0, the rest is dropped, the tail fills the loop
+		var stream = RCOrgnsmPatterns.prMerge([[1, Pbind(\dur, Pseq([0], 1), \who, \a)], [1, Pbind(\dur, Pseq([Rest(0)], 1))]], 4).asStream;
+		var out = this.pullAll(stream);
+		this.assertEquals(out.collect { |e| e[\delta] }, [1, 0, 3], "leading gap, the zero-length hit, the tail");
+		this.assertEquals(out[1][\who], \a, "the hit is kept");
+		this.assert(out[0][\dur].isRest and: { out[2][\dur].isRest }, "gap and tail are rests");
+	}
+
 	test_rhythmDict_reports_param_length_mismatch {
 		var rd = RCRhythmDict(this.library);
 		rd.at(\d)[\bad] = [[1, 0, "percs.kick.fourfour", true, (acc: [1, 2])]];
