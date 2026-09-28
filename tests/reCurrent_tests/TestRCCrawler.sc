@@ -217,6 +217,20 @@ TestRCCrawler : UnitTest {
 		crawler.free;
 		batch.free;
 	}
+
+	// the target rhythm is looked up at the orgnsm's rhythmDictKeys, or at rhythm_dict_target_keys
+	test_target_keys {
+		var c = this.makeContext([[1, 0, "percs.kick.fourfour"]], [[1, 0, "percs.kick.fourfour"]]);
+		var res;
+		this.assertEquals(c.crawler.orgnsm.rhythmDictKeys, [\b, \k], "batch name and key by default");
+		c.st[\rhythm_dict_target].at(\b)[\other] = [[1, 0.5, "percs.kick.fourfour"]];
+		res = RCCrawlerMoves.computeNext(c.crawler, c.st);
+		this.assertEquals(res, c.crawler.prevVal[0], "the default keys find the matching entry: unchanged");
+		c.st[\rhythm_dict_target_keys] = [\b, \other];
+		res = RCCrawlerMoves.computeNext(c.crawler, c.st);
+		this.assertFloatEquals(res[0].shift, 0.5, "rhythm_dict_target_keys picks the other entry");
+		c.batch.free;
+	}
 }
 
 RCTestFakeSettable {

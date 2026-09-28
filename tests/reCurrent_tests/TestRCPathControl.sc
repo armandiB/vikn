@@ -170,4 +170,102 @@ TestRCPathControl : UnitTest {
 		this.assertEquals(ev.seqs_info, [], "missing rhythm → no subseqs");
 		this.assert(RCLog.history.any { |e| e[2].contains("no controlled_batch") }, "missing batch reported");
 	}
+
+	// the rhythm read from the dict is held in the static attrs until its origin changes
+	test_seqs_info_held_between_loops {
+		var rig = this.makeRig;
+		var control = rig.pc.create(layerKey: \core);
+		var stream = this.controlStream(control);
+		var ev = stream.next(Event.default);
+		var held = control.staticAttrs[\seqs_info];
+		this.assert(held.notNil and: { held.size == 1 }, "the first loop holds the rhythm in the static attrs");
+		this.assert(ev.seqs_info === held, "the event carries the held rhythm");
+		ev = stream.next(Event.default);
+		this.assert(control.staticAttrs[\seqs_info] === held, "the second loop keeps the same rhythm object");
+		this.assert(ev.seqs_info === held, "and distributes it");
+		this.assertEquals(held[0].params.keys.asArray, [\who], "the held params never receive the index marker");
+		this.assertEquals(ev.other_params_key_list, [\who], "param keys at the second loop");
+		rig.batch.free;
+	}
+
+	test_seqs_info_reloaded_on_path_key_change {
+		var rig = this.makeRig;
+		var rd = rig.pc.staticAttrs[\rhythm_dict];
+		var control, stream, held;
+		rd.at(\voices)[\other] = [[1, 2, "percs.kick.fourfour", true, (who: \o)]];
+		control = rig.pc.create(layerKey: \core);
+		stream = this.controlStream(control);
+		stream.next(Event.default);
+		held = control.staticAttrs[\seqs_info];
+		control.rPut("path_key", \other);
+		stream.next(Event.default);
+		this.assert(control.staticAttrs[\seqs_info] !== held, "a new path_key reloads the rhythm");
+		this.assertEquals(control.staticAttrs[\seqs_info][0].shift, 2, "from the new entry");
+		this.assertEquals(control.staticAttrs[\zZZZ_seqs_info_key][2], \other, "the origin is remembered");
+		rig.batch.free;
+	}
+
+	test_seqs_info_missing_entry_not_cached {
+		var rig = this.makeRig;
+		var rd = rig.pc.staticAttrs[\rhythm_dict];
+		var control, stream, ev, key;
+		control = rig.pc.create(layerKey: \core);
+		stream = this.controlStream(control);
+		stream.next(Event.default);
+		key = control.staticAttrs[\zZZZ_seqs_info_key];
+		control.rPut("path_key", \nope);
+		ev = stream.next(Event.default);
+		this.assertEquals(ev.seqs_info, [], "a missing entry gives no subseqs");
+		this.assert(control.staticAttrs[\zZZZ_seqs_info_key] === key, "and is not held");
+		rd.at(\voices)[\nope] = [[1, 1, "percs.kick.fourfour", true, (who: \n)]];
+		ev = stream.next(Event.default);
+		this.assertEquals(ev.seqs_info.size, 1, "an entry added afterwards is picked up");
+		this.assertEquals(ev.seqs_info[0].shift, 1, "with its own shift");
+		rig.batch.free;
+	}
+
+	test_start_primes_seqs_info {
+		var rig = this.makeRig;
+		var control = rig.pc.create(layerKey: \core);
+		this.assert(control.staticAttrs[\seqs_info].isNil, "nothing held before the start");
+		control.start;
+		this.assert(control.staticAttrs[\seqs_info].notNil, "a started control holds its rhythm at once");
+		control.free;
+		rig.batch.free;
+	}
+
+	// a crawler on "static_attrs.seqs_info" morphs what the control distributes next
+	test_crawler_morphs_the_held_rhythm {
+		var rig = this.makeRig;
+		var control, stream, crawler, target, st, res, ev, seqs;
+		control = rig.pc.create(layerKey: \core);
+		stream = this.controlStream(control);
+		stream.next(Event.default);
+		target = RCRhythmDict(rig.pc.staticAttrs[\rhythm_dict].library);
+		target.at(\voices)[\basic] = [[1, 0.5, "percs.kick.fourfour", true, (who: \k)]];
+		crawler = RCCrawler(["static_attrs.seqs_info"]);
+		crawler.init(control);
+		st = (rhythm_dict_target: target, tolerance_change_subseq: 10, matching_distance_func: { |a, b| (a.size - b.size).abs },
+			priority_matching_func: { |t, c| true }, error_probability_shift_converge: 0, error_probability_mask_converge: 0,
+			error_probability_mask_decrease: 0, keep_other_params_not_in_new_seq: false);
+		this.assertEquals(control.rhythmDictKeys, [\voices, \basic], "a path control is looked up by path name / key");
+		res = RCCrawlerMoves.computeNext(crawler, st);
+		this.assertFloatEquals(res[0].shift, 0.5, "one move towards the target shift");
+		crawler.setNextVal([res]);
+		this.assert(control.staticAttrs[\seqs_info] === res, "the crawler's value is the held rhythm");
+		ev = stream.next(Event.default);
+		this.assert(ev.seqs_info === res, "the next loop distributes the morphed rhythm");
+		seqs = ev.seq_list_by_orgnsm_dict;
+		this.assertFloatEquals(seqs[0][0].shift, 0.5, "orgnsm 0 now starts half a beat later");
+		this.assertEquals(res[0].params.keys.asArray, [\who], "the distribution leaves the held params alone");
+		rig.batch.free;
+	}
+
+	test_rhythmDictKeys {
+		var rig = this.makeRig;
+		this.assertEquals(rig.pc.rhythmDictKeys, [\voices, \basic], "a path control: path name / path key");
+		this.assertEquals(rig.batch.orgnsms(0)[0].rhythmDictKeys, [\voices, 0], "an orgnsm of a batch: batch name / batch key");
+		this.assert(RCOrgnsm(\lone, 0, 0, song).rhythmDictKeys.isNil, "nil outside a batch");
+		rig.batch.free;
+	}
 }
