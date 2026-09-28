@@ -45,7 +45,7 @@ RCLayer {
 		b = RCBeat(this, name, attrDict, chan, midiOut, seeds, addFirst, addFirstSeeds, terminationKey, logTag);
 		this.registerBeat(b);
 		b.play(quant);
-		if(post) { RCLog.post(\layer, "started beat %/%/%".format(this.songName, key, name)) };
+		if(post) { RCLog.post(\layer, { "started beat %/%/%".format(this.songName, key, name) }) };
 		^b
 	}
 

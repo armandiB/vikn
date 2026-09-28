@@ -487,7 +487,7 @@ RCBeat {
 				pbindProxy.source.quant = quant;
 				pbindProxy.set(key, nil);
 				keyOrder.remove(key);
-				RCLog.info(tag, "removed key %: the pattern restarts".format(key));
+				RCLog.info(tag, { "removed key %: the pattern restarts".format(key) });
 			} {
 				proxy.clock = layer.clock;
 				proxy.quant = quant;
@@ -502,9 +502,9 @@ RCBeat {
 		this.prMoveFinishLast;
 		keyOrder.add(key);
 		if(this.isPlaying) {
-			RCLog.info(tag, "added key % to a running beat: the pattern restarts (use reserveKeys to avoid this)".format(key));
+			RCLog.info(tag, { "added key % to a running beat: the pattern restarts (use reserveKeys to avoid this)".format(key) });
 		} {
-			RCLog.info(tag, "added key %".format(key));
+			RCLog.info(tag, { "added key %".format(key) });
 		};
 	}
 
