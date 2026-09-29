@@ -1,0 +1,84 @@
+TITLE:: RCVisuals
+summary:: sound data from a song to HomewareVisuals
+categories:: Libraries>reCurrent
+related:: Classes/RCOrgnsm, Classes/RCOsc, Classes/SendReply
+
+DESCRIPTION::
+The link between a reCurrent song and HomewareVisuals (SuperCollider → OSC/UDP 57121 → bridge → WebSocket → a page). One address, sends that land when the sound does, and the two hooks a rig needs to describe its sounds: a per-event key for orgnsm templates and a relay of server replies (link::Classes/SendReply::) to the page.
+
+code::
+RCVisuals.send('/orgnsm/gone', 12);                                   // now
+RCVisuals.sendForEvent(ev, '/orgnsm/note', [12, 440, 0.1]);           // when the event's sound starts
+tpl.attrDictBase = tpl.attrDictBase ++ [viz: RCVisuals.notePfunc('/orgnsm/note', { |ev| [ev.freq, ev.amp] })];
+RCVisuals.relay(\plankton, '/plankton/viz', '/orgnsm/state', ~server);   // [replyID, values...] forwarded
+::
+
+A delayed send goes on SystemClock from the calling thread's logical time: a Pfunc evaluated at an event's logical time sends at that time plus the server latency, when the sound starts. code::enabled = false:: sends nothing (a gig without visuals); code::sink:: replaces the network by a Function code::{ |path, args| }:: (tests, offline checks).
+
+CLASSMETHODS::
+
+METHOD:: setAddr
+The bridge address (default 127.0.0.1:57121).
+argument:: hostarg
+argument:: portarg
+returns:: the link::Classes/NetAddr::
+
+METHOD:: addr
+The NetAddr messages go to.
+
+METHOD:: send
+Send now.
+argument:: path
+argument::  ... args
+returns:: true when a message went out (or into the sink)
+
+METHOD:: sendArgs
+code::send:: with the args as one Array.
+
+METHOD:: sendIn
+Send in code::delay:: seconds of the calling thread's logical time (SystemClock); at once when the delay is nil or not positive.
+argument:: delay
+argument:: path
+argument:: args
+
+METHOD:: sendForEvent
+Send when the event's sound starts: after code::eventDelay(ev)::.
+argument:: ev
+argument:: path
+argument:: args
+
+METHOD:: eventDelay
+Seconds between an event's logical time and its sound: the server latency (the event's own code::\latency:: when set), its code::\lag::, its code::\timingOffset:: (beats of the beat's clock). The server is the beat's layer's, else the event's, else the default.
+argument:: ev
+
+METHOD:: notePfunc
+A value for an orgnsm's attrDict: at every non-rest event, code::func.(ev):: gives the args sent to code::path:: when the sound starts (nil: nothing). Put it after the keys it reads (code::freq::, code::amp::...): keys are computed in order. The key's own value is 0 and never reaches a synth (only a def's control names are sent). A failing function is reported under the code::\visuals:: tag, not thrown.
+argument:: path
+argument:: func
+
+METHOD:: relay
+Server replies (link::Classes/SendReply::, link::Classes/SendTrig::: code::[cmd, nodeID, replyID, values...]::) arriving on code::replyPath:: are forwarded to code::outPath:: as code::argFunc.(msg):: (default code::[replyID, values...]::; nil sends nothing). One relay per key; permanent (Cmd-. keeps it).
+argument:: key
+argument:: replyPath
+argument:: outPath
+argument:: server
+argument:: argFunc
+returns:: the link::Classes/OSCFunc::
+
+METHOD:: unrelay
+returns:: true when a relay of that key was freed
+
+METHOD:: freeRelays
+
+METHOD:: relayKeys
+
+METHOD:: enabled
+false: nothing is sent (default true).
+
+METHOD:: sink
+A Function code::{ |path, args| }:: that replaces the network (tests, offline checks); nil sends over UDP.
+
+METHOD:: sent
+Messages sent (or sunk) since code::resetCount::.
+
+METHOD:: resetCount
