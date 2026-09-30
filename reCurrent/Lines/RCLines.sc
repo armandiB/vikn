@@ -206,6 +206,7 @@ RCLines {
 			if(keep) {
 				line = this.between(frame.project(x0), frame.project(x1), minDur, i);
 				line[\sample] = uv;
+				line[\ends] = [x0, x1];   // the segment in R^m, for a picture of the surface
 				switch(timeMode,
 					\window, { if(cycle.notNil) { keep = (line[\onset] >= 0) and: { line[\onset] < cycle } } },
 					\wrap, { if(cycle.notNil) { line[\onset] = line[\onset] % cycle } },
