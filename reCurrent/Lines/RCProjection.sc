@@ -85,9 +85,18 @@ RCProjection {
 		time = time + beats;
 	}
 
+	// Back to the frame as constructed, or as last marked.
 	reset {
 		origin = origin0.copy;
 		axes = axes0.collect(_.copy);
+		time = 0;
+	}
+
+	// The frame as it is now becomes what reset returns to (a rotation or a translation that
+	// belongs to the setup, before the motion).
+	mark {
+		origin0 = origin.copy;
+		axes0 = axes.collect(_.copy);
 		time = 0;
 	}
 

@@ -32,7 +32,9 @@ An Array of code::[i, j, radiansPerBeat]::.
 METHOD:: drift
 A vector per beat, or nil.
 METHOD:: reset
-Back to the frame as constructed, time 0.
+Back to the frame as constructed (or as last marked), time 0.
+METHOD:: mark
+The frame as it is now becomes what link::#-reset:: returns to: for a rotation or a translation that belongs to the setup, before the motion.
 METHOD:: orthonormalize
 Gram-Schmidt over the rows; a dependent row is reported and replaced.
 METHOD:: scales
