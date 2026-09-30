@@ -19,6 +19,7 @@ Ambisonic order (3 → 16 channels).
 argument:: name
 argument:: decode
 code::\ambix:: (link::Classes/HoaMatrixDecoder::), code::\binaural:: (link::Classes/HOABinaural::, IRs loaded per order with a completion callback) or code::\raw:: (identity, for conversion rigs).
+The binaural decoder plays left then right: link::Classes/HOABinaural:: returns the right ear first, so the chain reverses its two channels.
 argument:: outBus
 argument:: play
 Whether the decoder is played on outBus.

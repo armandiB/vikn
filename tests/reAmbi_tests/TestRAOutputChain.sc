@@ -99,6 +99,23 @@ TestRAOutputChain : UnitTest {
 		this.assertEquals(c.stageNames, [\signal, \transformer, \decoder], "clear drops inserted stages");
 	}
 
+	// HOABinaural.ar returns [mid - side, mid + side], the right ear first (an NRT render of a
+	// source at az +90 deg was 5 dB louder on its channel 1). Offline there is no sound to
+	// measure, so the graph is checked: channel 0 must be mid + side, the left ear.
+	test_binaural_left_ear_first {
+		var saved = HOABinaural.binauralIRs, def, outs;
+		var c = this.chain(\binaural, order: 3);
+		{
+			HOABinaural.binauralIRs = nil ! 7;
+			HOABinaural.binauralIRs[2] = (0..15);  // buffer numbers: the graph builds without a server
+			def = SynthDef(\ra_test_binaural_lr, { Out.ar(0, c.prBinauralSource.value) });
+		}.protect { HOABinaural.binauralIRs = saved };
+		outs = def.children.detect { |u| u.isKindOf(Out) }.inputs.drop(1);
+		this.assertEquals(outs.size, 2, "two channels out");
+		this.assert(outs[0].isKindOf(BinaryOpUGen) and: { outs[0].operator == '+' }, "channel 0 is mid + side: the left ear");
+		this.assert(outs[1].isKindOf(BinaryOpUGen) and: { outs[1].operator == '-' }, "channel 1 is mid - side: the right ear");
+	}
+
 	test_stereo_monitor {
 		var c = this.chain.build;
 		var m = RAStereoMonitor(16, 18);

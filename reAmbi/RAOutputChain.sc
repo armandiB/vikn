@@ -150,9 +150,12 @@ RAOutputChain {
 		^{ HOAEncoder.ar(ord, PinkNoise.ar(0.001), SinOsc.ar(0.1, 0, pi * 0.999), SinOsc.ar(0.2, 0, pi * 0.999 * 0.4)) }
 	}
 
+	// HOABinaural.ar returns [mid - side, mid + side], the right ear first (measured in NRT:
+	// a source at az +90 deg is 5 dB louder on its channel 1): reversed into [left, right].
+	// Its headphone corrections are the same filter for both ears, so the reverse is exact.
 	prBinauralSource {
 		var n = this.numChannels, ord = order, radius = binauralRadius, model = headphoneModel;
-		^{ var in = \in.ar(0 ! n); HOABinaural.ar(ord, HoaNFCtrl.ar(in, AtkHoa.refRadius, radius, ord), headphoneCorrection: model) }
+		^{ var in = \in.ar(0 ! n); HOABinaural.ar(ord, HoaNFCtrl.ar(in, AtkHoa.refRadius, radius, ord), headphoneCorrection: model).reverse }
 	}
 
 	prAmbixSource {
