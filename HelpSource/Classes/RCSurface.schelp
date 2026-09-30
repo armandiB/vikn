@@ -1,0 +1,80 @@
+TITLE:: RCSurface
+summary:: A parametric surface in R^m, sampled for its tangent lines and rulings
+categories:: Libraries>reCurrent
+related:: Classes/RCLines, Classes/RCProjection
+
+DESCRIPTION::
+A surface is a Function (u, v) → Array of strong::dim:: numbers over uRange × vRange. link::Classes/RCLines#*projected:: samples it (link::#-grid::, link::#-random::, link::#-walk::), takes a tangent segment or the v-line (the ruling) through each sample and projects it on a score space with an link::Classes/RCProjection::. The presets are the surfaces Xenakis drew for Metastasis and the Philips Pavilion (ruled: the cone, the conoid, the hyperbolic paraboloid, the hyperboloid of one sheet), the surface ruled by two rails, the surface of the tangents of a curve, and closed surfaces for projected textures (sphere, torus, the Clifford torus in R^4). Rulings run along v where a preset is ruled.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: func
+(u, v) → Array of dim numbers.
+argument:: dim
+argument:: uRange
+argument:: vRange
+argument:: du
+argument:: dv
+Partial derivatives, Functions (u, v) → Array; central differences (link::#-eps::) when nil.
+argument:: name
+
+subsection:: Presets
+METHOD:: plane
+code::[u, v, 0]::.
+METHOD:: hyperbolicParaboloid
+code::[u, v, u v / c]::, doubly ruled: the string section of Metastasis, the Pavilion's walls.
+METHOD:: conoid
+The right conoid (helicoid) code::[v cos u, v sin u, c u]::, rulings through the axis.
+METHOD:: cone
+code::[v cos u, v sin u, v]::: the fan.
+METHOD:: cylinder
+METHOD:: hyperboloid
+One sheet, code::[cos u - v sin u, sin u + v cos u, v]::, the v-lines straight.
+METHOD:: sphere
+u the azimuth, v the elevation.
+METHOD:: torus
+argument:: bigR
+argument:: r
+METHOD:: clifford
+The Clifford torus in R^4, code::[cos u, sin u, cos v, sin v] / sqrt 2::: flat, and every rotation of R^4 shows it differently to a projection.
+METHOD:: rails
+S(u, v) = A(u) + v (B(u) - A(u)) for two Functions u → Array: the strings between two rails.
+METHOD:: tangentDevelopable
+S(u, v) = C(u) + v C'(u) for a curve C (a Function u → Array): ruled by the tangents of the curve, the Xenakeur construction as a surface.
+
+INSTANCEMETHODS::
+
+METHOD:: at
+The point at (u, v).
+METHOD:: du
+METHOD:: dv
+The partial derivatives at (u, v).
+METHOD:: tangent
+code::cos(angle) * du + sin(angle) * dv::.
+METHOD:: normal
+The unit normal (dim 3 only), nil elsewhere or where the tangents are dependent.
+METHOD:: grid
+nu × nv samples code::[u, v]:: over the ranges, the ends included unless the parameter is periodic.
+METHOD:: random
+n samples uniform over the ranges, seeded.
+METHOD:: walk
+A random walk of n samples from strong::start:: (the ranges' middle by default), wrapped over a periodic range, clipped otherwise; seeded.
+METHOD:: uPeriodic
+METHOD:: vPeriodic
+Whether a parameter wraps (set by the presets).
+METHOD:: eps
+The step of the central differences.
+METHOD:: dim
+METHOD:: uRange
+METHOD:: vRange
+METHOD:: name
+
+EXAMPLES::
+code::
+~s = RCSurface.torus(2, 0.7);
+~s.at(1, 2);
+~s.normal(1, 2);
+~s.grid(8, 4).size;   // 32
+~s.walk(16, 0.3, 0.3, seed: 1);
+::

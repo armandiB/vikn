@@ -1,0 +1,69 @@
+TITLE:: RCLineControl
+summary:: A silent orgnsm distributing generated sonic lines (RCLines) over the voices of a batch, once per cycle
+categories:: Libraries>reCurrent
+related:: Classes/RCLines, Classes/RCPathControl, Classes/RCOrgnsm, Classes/RCBatch, Classes/RCOrgnsmPatterns
+
+DESCRIPTION::
+Like link::Classes/RCPathControl:: with a rhythm, once per cycle (its loop) the control asks its strong::generator:: for the lines of the coming cycle, allocates them to the voices of its batch (link::Classes/RCLines#*allocate::) and writes every voice's code::seq_list:: (one link::Classes/RCSubseq:: per voice, link::Classes/RCLines#*subseq::), code::other_params_key_list:: and code::dur_params::. The voices read the result through link::Classes/RCOrgnsmPatterns#*seqParams::: each hit carries a line's ends as code::<key>0:: / code::<key>1:: (code::pitch0::, code::pitch1::...), its length as code::sustain:: and its code::line_id::. A template declaring those keys reads them itself (no pattern restart); a key it does not declare is installed on the running beats at the first cycle that needs it, reading the value or a Rest.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: song
+argument:: generator
+A Function code::(control, cycleIndex, cycleBeats) → Array of lines::, or nil for a silent cycle (a Ref of one is dereferenced). Errors in it are guarded: the cycle is silent and the error reported.
+argument:: controlledBatch
+argument:: species
+argument:: tribe
+
+METHOD:: maxLinesPerCycle
+
+INSTANCEMETHODS::
+
+subsection:: Static attributes
+Set with code::rPut:: on the template or on a clone:
+list::
+## strong::dur_params:: code::[cycle beats, 1]::, and the derived code::loop_time::, code::quant:: and code::dur_params_orgnsms::.
+## strong::generator::, strong::controlled_batch::.
+## strong::allocation:: code::\free:: (default), code::\round_robin::, code::\strict::.
+## strong::voice_keys:: the batch keys receiving lines, in allocation order; the batch's keys (started and prepared, numbers first, sorted) when nil.
+## strong::line_defaults:: key → value for a coordinate a line lacks, on both ends (e.g. code::(az: 0)::); a coordinate without a default is nil in the hit and the voice's beat falls back to its own default.
+## strong::min_gap:: beats between two lines on one voice (a closer one is dropped), strong::priority:: of the subseqs.
+## strong::cycle_index::, strong::last_lines::, strong::dropped:: (lines no voice could take): kept by the control.
+::
+
+METHOD:: generateLines
+The lines of the coming cycle, validated (a line without a positive dur or starting outside [0, cycle) is dropped, warned) and sorted.
+METHOD:: otherParamsKeyList
+METHOD:: voiceKeys
+METHOD:: seqListByOrgnsm
+METHOD:: setAttrsInOrgnsms
+METHOD:: reserveKeysIn
+Declare the param keys of the given coordinates on every beat of the batch, so that the first cycle needs no pattern restart.
+
+EXAMPLES::
+code::
+// voices: a template reading the line keys it supports
+~tpl = RCOrgnsm(\string, 0, 0, ~song);
+~tpl.addStaticAttrs((seed: 1, dur_params: [8, 1], quant: [8, 0], initial_beg_shift: 0, other_params_key_list: [\pitch0, \pitch1, \sustain], seq_list: []));
+~tpl.addFirstArrayBase = [compute_seq_params: RCOrgnsmPatterns.seqParams(true)];
+~tpl.attrDictBase = [
+	type: \note, instrument: \gliss,
+	dur_flex: Pfunc { |ev| ev.compute_seq_params.dereference[\dur] },
+	pitch0: Pfunc { |ev| var v = ev.compute_seq_params.dereference[\pitch0]; if(v.isNumber) { v } { 0 } },
+	pitch1: Pfunc { |ev| var v = ev.compute_seq_params.dereference[\pitch1]; if(v.isNumber) { v } { 0 } },
+	sustain: Pfunc { |ev| var v = ev.compute_seq_params.dereference[\sustain]; if(v.isNumber) { v } { 0.1 } }
+];
+~strings = RCBatch(\strings, ~tpl, layerKey: \details);
+12.do { |i| ~strings.addCreate(i, ("seed": 100 + i)) };
+~strings.startPrepared;
+
+// the control: a Pithoprakta cloud every cycle, another seed each time
+~ctl = RCLineControl(~song, { |control, cycle, beats| RCLines.cloud(20, beats, (pitch: [-1, 2]), (pitch: 1), [0.5, 2], seed: cycle) }, ~strings);
+~ctlBatch = RCBatch(\line_control, ~ctl, layerKey: \meta);
+~ctlBatch.addCreate(~strings.name, ("dur_params": [8, 1], "quant": [8, -0.25], "allocation": \strict));
+~ctlBatch.startPrepared;
+
+// live: another generator
+~ctlBatch.editAttr("generator", { |control, cycle, beats| RCLines.rails(RCLines.rail([0, (pitch: 1)], [0, (pitch: 1)]), RCLines.rail([beats, (pitch: 0)], [beats, (pitch: 2)]), 12) });
+::

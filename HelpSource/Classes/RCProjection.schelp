@@ -1,0 +1,60 @@
+TITLE:: RCProjection
+summary:: The projection of R^m on a score space (time and parameters): a plane that rotates and drifts
+categories:: Libraries>reCurrent
+related:: Classes/RCLines, Classes/RCSurface
+
+DESCRIPTION::
+A frame of R^m: an origin and one unit vector per row, the first row the time axis, the others the parameter axes named by strong::keys::. A point projects to code::[time, params]:: with each coordinate code::((x - origin) . axis) * scale::. Rotating the frame in a coordinate plane of R^m (Givens rotations: the frame stays orthonormal) and translating it is what a piece does between cycles, by hand or with link::#-advance:: (strong::spin::, strong::drift::), so that the same surface, sampled again, gives other lines: a composition is the path of the plane.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: dim
+argument:: keys
+argument:: origin
+argument:: axes
+One Array of dim numbers per row (time first); the canonical vectors by default. Orthonormalised.
+argument:: scales
+One number per row (1 by default): beats per unit for the time row, units of the key per unit of R^m for the others.
+
+INSTANCEMETHODS::
+
+METHOD:: project
+code::[time, params]:: for a point of R^m.
+METHOD:: rotate
+Rotate every axis in the (i, j) coordinate plane of R^m by strong::angle:: radians.
+METHOD:: translate
+Move the origin.
+METHOD:: advance
+Move the frame by strong::beats:: of its motion: link::#-spin:: and link::#-drift::. link::#-time:: counts the beats advanced since the last reset.
+METHOD:: spin
+An Array of code::[i, j, radiansPerBeat]::.
+METHOD:: drift
+A vector per beat, or nil.
+METHOD:: reset
+Back to the frame as constructed, time 0.
+METHOD:: orthonormalize
+Gram-Schmidt over the rows; a dependent row is reported and replaced.
+METHOD:: scales
+METHOD:: setScale
+A scale by key (code::\time:: for the time row).
+METHOD:: timeAxis
+METHOD:: axisFor
+METHOD:: scaleFor
+METHOD:: axes
+METHOD:: origin
+METHOD:: keys
+METHOD:: dim
+METHOD:: time
+METHOD:: copy
+
+EXAMPLES::
+code::
+~p = RCProjection(4, [\pitch, \az]);   // time = x0, pitch = x1, az = x2, x3 unseen
+~p.scales = [8, 2, pi];
+~p.project([0.5, 0.25, 1, 0]);         // [4, (pitch: 0.5, az: pi)]
+~p.rotate(0, 3, 0.25pi);               // the time axis leans into x3
+~p.spin = [[1, 3, 0.05]];              // 0.05 rad per beat in the (x1, x3) plane
+~p.advance(8);
+~p.reset;
+::

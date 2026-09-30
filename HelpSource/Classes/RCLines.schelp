@@ -1,0 +1,113 @@
+TITLE:: RCLines
+summary:: Sonic straight lines (glissandi in any parameters) and their generators: rails, tangents, projected surfaces, clouds
+categories:: Libraries>reCurrent
+related:: Classes/RCSurface, Classes/RCProjection, Classes/RCLineControl, Classes/RCSubseq
+
+DESCRIPTION::
+A uniform glissando is a straight line in the (time, pitch) plane; Xenakis drew the glissandi of emphasis::Metastasis:: as lines and read the ruled surfaces they sweep (emphasis::Formalized Music::, ch. I). RCLines takes the idea to a score space of time plus any number of named parameters, each linear in its own unit (pitch in octaves, amp in dB, azimuth in radians, a sample index...): a line is one note whose parameters glide from one end to the other. Generators return the lines of one cycle; link::Classes/RCLineControl:: hands them to the voices of a batch, and each voice's synth receives the ends as code::pitch0:: / code::pitch1::, code::amp0:: / code::amp1::... with code::sustain:: the line's length.
+
+A line is an Event:
+code::
+(onset: 2, dur: 4, from: (pitch: 0, amp: -20), to: (pitch: 1, amp: -10), id: 3)
+::
+strong::onset:: and strong::dur:: in beats; strong::from:: and strong::to:: Events of the parameter values at the ends. A point of the score space is code::[time, params]::.
+
+Every generator is pure and returns its lines in time order; the ones that draw are seeded.
+
+CLASSMETHODS::
+
+subsection:: Lines and points
+
+METHOD:: line
+A line.
+argument:: onset
+argument:: dur
+argument:: from
+argument:: to
+argument:: id
+
+METHOD:: between
+The line from point strong::a:: to point strong::b:: (code::[time, params]::), in time order: when b comes first the ends are swapped. A line shorter than strong::minDur:: (vertical in the score: a chord) is stretched to minDur with its ends kept, a chirp.
+argument:: a
+argument:: b
+argument:: minDur
+Defaults to link::#*defaultMinDur::.
+argument:: id
+
+METHOD:: defaultMinDur
+Beats; 0.01.
+
+METHOD:: keysOf
+The union of the parameter keys of the lines, sorted.
+
+METHOD:: slope
+The slope of a line for one key: units per beat.
+
+METHOD:: lerpPoint
+The point between two points at u (0 → a, 1 → b), key by key.
+
+METHOD:: fromKey
+METHOD:: toKey
+METHOD:: paramKeys
+The per-hit param names of a coordinate key (code::pitch:: → code::pitch0::, code::pitch1::) and the list a subseq of the given keys carries (the pairs, then code::sustain:: and code::line_id::).
+
+subsection:: Rails: the string-art surfaces
+
+METHOD:: rail
+The affine rail from point a to point b: a Function u → point.
+
+METHOD:: rails
+strong::n:: lines, line i joining code::a.(u_i):: to code::b.(u_i):: for two rails (Functions u → point), u evenly spaced in [0, 1] or the given strong::us::. Two affine rails give the hyperbolic paraboloid of the string section of Metastasis (bars 309-314); a rail collapsed to one point (code::rail(p, p)::) gives the fan of its opening.
+code::
+~a = RCLines.rail([0, (pitch: 0)], [0, (pitch: 2)]);   // at time 0, from pitch 0 to 2
+~b = RCLines.rail([8, (pitch: 2)], [8, (pitch: 0)]);   // at time 8, the other way
+RCLines.rails(~a, ~b, 12);                             // twelve crossing glissandi
+::
+
+subsection:: Tangents: the Xenakeur construction
+
+METHOD:: tangents
+Lines tangent to strong::curve:: (a Function tau → point) at the touch parameters strong::touches::. strong::extent:: says how far the line runs along the tangent, in units of tau: a number (each side), code::[before, after]::, or a Function code::(point, tangent, tau) → [before, after]:: (a buffer played at rate k lasts its length over k: the extent can follow the slope). strong::derivative::: a Function tau → code::[dtime, dparams]::, nil for central differences with strong::eps::.
+code::
+~curve = RCLines.parabola(4, (pitch: 1), 0.125);              // pitch = 1 + (t - 4)^2 / 8
+RCLines.tangents(~curve, (0, 0.5 .. 8), [1, 1]);               // touches every half beat, two beats long
+::
+
+METHOD:: parabola
+The curve tau → code::[tau, apex + curvature * (tau - apexTime)^2]:: per key; strong::apex:: an Event (key → value at the apex), strong::curvature:: a number or an Event per key (units per beat², the sign turns it).
+
+METHOD:: tangentAt
+code::[point, tangent]:: of a curve at tau (numerical).
+
+subsection:: Projected: a surface seen through a moving plane
+
+METHOD:: projected
+For each sample code::[u, v]:: of strong::surface:: (an link::Classes/RCSurface::), a segment of R^m through S(u, v): strong::direction:: code::\u:: or code::\v:: (the parameter lines), a number (an angle in the tangent plane, 0 = u, pi/2 = v), a Function code::(u, v, i) → angle::, or code::\ruling:: (the whole v-line of the sample, from vRange[0] to vRange[1]: on a ruled surface, the ruling itself). strong::length:: is the segment's length in R^m (ignored by code::\ruling::). Each end is projected by strong::frame:: (an link::Classes/RCProjection::) and the line joins the projected points. strong::timeMode::: code::\window:: keeps the lines starting within [0, cycle), code::\wrap:: wraps their onsets into the cycle, code::\sequence:: ignores the projected time and starts line i at i * cycle / n, code::\none:: keeps every line as projected. Each line remembers its code::sample::.
+code::
+~s = RCSurface.hyperbolicParaboloid;
+~p = RCProjection(3, [\pitch], scales: [8, 2]);   // time = 8 x beats, pitch = 2 y octaves
+~p.rotate(1, 2, 0.3);                             // pitch reads some z too
+RCLines.projected(~s, ~p, ~s.grid(6, 1), \ruling, timeMode: \wrap, cycle: 8);
+::
+
+subsection:: Cloud: Pithoprakta
+
+METHOD:: cloud
+strong::n:: short lines over one cycle: onsets uniform in [0, cycle), start values uniform in strong::ranges:: (key → [lo, hi]), speeds from Xenakis' law for glissando speeds (Formalized Music p. 14): |v| half-normal with temperature a, either sign, i.e. v ~ N(0, a / sqrt 2), units per beat, per key (strong::temperatures::: key → a; a key missing there is static). strong::dur::: a number or [min, max] (uniform), beats. With strong::clip::, an end leaving its range is clipped to it. strong::seed::: the same seed gives the same cloud.
+
+subsection:: Voices
+
+METHOD:: allocate
+Distribute lines over strong::n:: voices, in onset order: code::\round_robin:: (line i to voice i mod n, overlaps allowed), code::\free:: (the voice free the longest; when every voice is busy, the one free soonest: an overlap on that voice), code::\strict:: (as free, but a line finding no free voice is dropped: n strings play at most n lines at once). Returns code::(voices: Array of n Arrays of lines, dropped: Integer)::.
+
+METHOD:: subseq
+One voice's lines as an link::Classes/RCSubseq:: for the seq machinery (link::Classes/RCOrgnsmPatterns#*seqParams::): shift = the first onset, each hit lasting until the next line of the voice (the last one its own length), params code::key0:: / code::key1:: per line for every key of strong::keys:: (the lines' union when nil; a key a line lacks is nil there), plus code::sustain:: (the line's length) and code::line_id::. A line starting less than strong::minGap:: after the previous one of the voice is dropped (warned). nil for no lines.
+
+EXAMPLES::
+code::
+// a cloud, allocated to eight strings
+~lines = RCLines.cloud(30, 8, (pitch: [-1, 2], az: [-pi, pi]), (pitch: 1.5, az: 0.5), [0.5, 2], seed: 3);
+~voices = RCLines.allocate(~lines, 8, \strict);
+~voices[\dropped];
+~voices[\voices].collect { |ls| RCLines.subseq(ls, [\az, \pitch]) };
+::
