@@ -245,7 +245,7 @@ RCLines {
 					from[k] = start;
 					to[k] = end;
 				};
-				this.line(cycle.rand, d, from, to, i)
+				this.line(rrand(0.0, cycle), d, from, to, i)   // not cycle.rand: an Integer cycle would put every onset on a beat
 			}.sort { |x, y| x[\onset] <= y[\onset] }
 		})
 	}
