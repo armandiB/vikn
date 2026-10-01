@@ -62,6 +62,29 @@ returns:: The short commit of the checkout holding dir, nil outside one.
 METHOD:: keyOrder
 The field order of the file.
 
+METHOD:: merge
+argument:: a
+argument:: b
+The overdub take.
+argument:: voices
+The overdubbed voices (nil: every voice of b).
+argument:: mode
+code::\replace:: drops a's events of those voices within punch; code::\keep:: drops nothing; code::\touch:: drops a's events of each control b touched between b's first and last touch of it; nil is touch for continuous controls and replace for the voice's other events.
+argument:: punch
+code::[in, out]:: (out nil: b's duration).
+argument:: loopSpan
+code::[from, to]:: when b was recorded over a loop: its beats fold into the span and, unless keep, only the last pass of each voice (each control for touch and auto) remains.
+returns:: A copy of a with b merged in (ids renewed, causes following), the overdub noted in code::meta[\overdubs]::.
+
+METHOD:: controlKey
+argument:: e
+returns:: What an event controls: code::[\midi, name]::, code::[\osc, key]::, code::[\set | \rPut | \setArg, objectName, key]::, code::[\cc, device, num]::, code::[\bend | \touch, device, chan]::; nil for a note, a transport action, a code line.
+
+METHOD:: controlValue
+METHOD:: isContinuous
+argument:: e
+A control that sets a number.
+
 INSTANCEMETHODS::
 
 METHOD:: add
@@ -99,6 +122,20 @@ METHOD:: meta
 METHOD:: voices
 METHOD:: controls
 METHOD:: tempoMap
+
+METHOD:: controlKeys
+The controls the score sets (link::#*controlKey::).
+METHOD:: curvePoints
+argument:: controlKey
+returns:: code::[[beat, value], ...]::.
+METHOD:: curvePattern
+argument:: controlKey
+argument:: curve
+code::\lin::, code::\exp:: or a number.
+returns:: The control's curve as a pattern: a Pseg between the points, the first value held until the first point, the last forever; nil without numeric points.
+METHOD:: notePattern
+argument:: voice
+returns:: The keyboard notes of a voice as a Pbind (midinote, dur to the next note, sustain to the note off, amp from the velocity, chan), nil without notes.
 
 METHOD:: write
 argument:: path

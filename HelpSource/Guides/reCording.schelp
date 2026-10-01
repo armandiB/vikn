@@ -94,9 +94,29 @@ Every event belongs to a strong::voice::, the unit of overdubbing and of the lan
 
 subsection:: Replay (link::Classes/REScorePlayer::)
 
-An event replays at the recorded beat on the song's clock, from a single Routine that waits between events; what reaches the server goes in a code::server.latency:: bundle, in line with the pattern events. A MIDI event calls its mapping's action with the recorded mapped value (the valFunc is not re-applied: the value is what you edit), an OSC event calls its def's function with the recorded arguments, an action calls the method on the object resolved by name, a code line is interpreted in the current environment. When a message's mapping or def no longer exists, or a code line raises, the event's recorded effects replay instead; what cannot replay is skipped with one warning each. A score also becomes patterns (one stream per continuous control, Pseg between points; one Pbind per voice of notes) and NRT Score lines.
+code::
+~p = REScorePlayer(REScore.read(path), ~song);
+~p.play([4, 0]);                                   // on the next bar
+~p.play(from: 8, to: 16, loop: true);              // a span, again and again
+~p.mute(['core/kick']); ~p.solo([\lead]); ~p.stop;
+~p.onEvent = { |p, ev| ... };                      // the playhead feed of a view
+::
 
-Overdub modes, per voice: strong::replace:: mutes the voice's old events from the punch-in and deletes them as the playhead passes (the default for notes and actions); strong::keep:: adds the new events to the old; strong::touch:: replaces, per control, only while it is touched (the default for continuous controls, where two curves on one slider would fight). Loops play a span again and again, each pass an overdub. A snapshot recalls instantly or morphs over beats, numeric controls interpolated along their spec's warp, the rest switching at the end; a morph is itself one event.
+An event replays at the recorded beat on the song's clock, from a single Routine that waits between events; with the server running, what an event sends goes in a code::server.latency:: bundle, in line with the pattern events; nothing the player does is recorded. A MIDI event calls its mapping's action with the recorded mapped value (the valFunc is not re-applied: the value is what you edit), an OSC event calls its def's function with the recorded arguments, an action calls the method on the object resolved by name, a keyboard message updates the song's keyboard, a code line is compiled and run in the current environment, a snapshot sets the recorded sources, a morph ramps to them. When a message's mapping or def no longer exists, an object is not found, or a code line raises, the event's recorded effects replay instead; what cannot replay is skipped with one warning each.
+
+A score's continuous controls (link::Classes/REScore#-controlKeys::) become patterns, code::score.curvePattern([\midi, \knob_mix])::, a Pseg between the points held at both ends; its notes a Pbind per voice, code::score.notePattern('Seaboard RISE 2')::. Rendering a take offline belongs to the rig that knows which synth each control reaches (HomewareSC's remote rig).
+
+subsection:: Overdub
+
+code::
+~rec.overdub(score, voices: [\lead], mode: \replace, punch: [8, 16], quant: [4, 0]);
+~rec.overdub(score, punch: [8, 16], loop: true);   // every voice, auto mode, each pass an overdub
+~rec.stop;                                         // -> the merged score, written as a new file
+::
+
+The old take plays (link::Classes/REScorePlayer::) while a new one is recorded on the same timeline; code::stop:: merges them (link::Classes/REScore#*merge::) and writes the merge as a new file, the original staying. Modes, per voice: strong::replace:: mutes the voice's old events from the punch-in and drops them within the punch; strong::keep:: adds the new events to the old; strong::touch:: drops, per control, the old events between the first and last touch of it; strong::nil:: (the default) is touch for continuous controls and replace for the voice's other events (notes, transport, messages): two curves on one slider would fight, two notes do not. In a loop the passes fold into the span and, unless strong::keep::, the last pass of each voice (each control, for touch) remains. New events of voices not listed are added.
+
+A snapshot recalls instantly (code::~rec.recall(\intro)::) or morphs over beats (code::~rec.morph(\intro, beats: 8)::): numeric sources ramp (link::Classes/REScorePlayer#*ramp::), the rest switch at once; both are recorded as one strong::morph:: event pointing at the snapshot.
 
 subsection:: Code
 
@@ -145,4 +165,4 @@ Values: numbers and strings as JSON; a Symbol as a string with a leading backsla
 
 section:: Status
 
-Written in this order, each step on its own commits: the format, link::Classes/REJSON:: and link::Classes/REScore:: (read, write, the value codec); link::Classes/RETap::, link::Classes/REScoreRecorder:: and the taps; the code input; then link::Classes/REScorePlayer:: (live replay, loops, overdub modes, morphs, patterns, NRT Score lines); then the remote rig of HomewareSC that records from a phone page; then edit operations on scores and the lanes view.
+Written in this order, each step on its own commits: the format, link::Classes/REJSON:: and link::Classes/REScore:: (read, write, the value codec); link::Classes/RETap::, link::Classes/REScoreRecorder:: and the taps; the code input; link::Classes/REScorePlayer:: (live replay, loops, overdub, morphs, curve and note patterns); then the remote rig of HomewareSC that records from a phone page and renders takes offline; then edit operations on scores and the lanes view.

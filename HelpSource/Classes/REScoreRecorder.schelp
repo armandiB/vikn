@@ -49,6 +49,34 @@ argument:: name
 The state of what is in scope: the sources of every key of the beats, the static attributes of the orgnsms, the song's seed.
 returns:: The event id.
 
+METHOD:: recall
+argument:: name
+Sets the state of the latest snapshot of that name (of the current take, else of the last score) at once; recorded as a morph event of 0 beats.
+
+METHOD:: morph
+argument:: name
+argument:: beats
+Numeric sources ramp to the snapshot's over this many beats (link::Classes/REScorePlayer#*applyState::).
+returns:: The event id, nil when not recording (the state is applied all the same).
+
+METHOD:: overdub
+argument:: scorearg
+The score to play and record over.
+argument:: voices
+The voices overdubbed (nil: all).
+argument:: mode
+code::\replace::, code::\keep::, code::\touch:: or nil (touch for continuous controls, replace for the rest); see link::Classes/REScore#*merge::.
+argument:: punch
+code::[in, out]:: in score beats (nil: from the start to the stop).
+argument:: loop
+Play [in, out] again and again, each pass an overdub.
+argument:: quant
+Both start on that grid of the song's clock (nil: now).
+code::stop:: merges and writes the merge as a new file.
+
+METHOD:: player
+The link::Classes/REScorePlayer:: of the current overdub.
+
 METHOD:: state
 code::\off::, code::\armed:: or code::\recording::.
 METHOD:: isArmed
