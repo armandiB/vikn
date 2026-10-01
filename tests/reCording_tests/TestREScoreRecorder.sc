@@ -274,6 +274,39 @@ TestREScoreRecorder : UnitTest {
 		this.assertEquals(RETap.frames.size, 0, "no cause left open");
 	}
 
+	// An OSC message carries its time (the bundle's timetag when the sender stamped it):
+	// the event is stamped there when it is a little before now, else now.
+	test_stamped_inputs {
+		var s, osc, nowBeat, clock = song.clock;
+		var handler;
+		song.osc.def(\scene, \init, { }, print: false);
+		handler = OSCdef(\rec_scene_init).func;
+		rec.arm;
+		rec.record(snapshotAtStart: false);
+		1.wait;   // a second into the take (logical time: the Routine's)
+		nowBeat = clock.beats - rec.beat0;
+		handler.value(['/rec/scene/init', 1], thisThread.seconds, nil, nil);                 // now
+		handler.value(['/rec/scene/init', 2], thisThread.seconds - 0.5, nil, nil);           // half a second ago
+		handler.value(['/rec/scene/init', 3], thisThread.seconds + 1, nil, nil);             // a clock ahead of ours
+		handler.value(['/rec/scene/init', 4], 295096770.76, nil, nil);                       // a timetag of 1: "immediately"
+		handler.value(['/rec/scene/init', 5], thisThread.seconds - 60, nil, nil);            // too long ago
+		handler.value(['/rec/scene/init', 6], thisThread.seconds - 10000, nil, nil);         // long before the take
+		handler.value(['/rec/scene/init', 7], thisThread.seconds - 2, nil, nil);             // a second before the take started
+		s = rec.stop;
+		osc = s.ofKind(\osc).sort { |a, b| a[\args][0] <= b[\args][0] };
+		this.assertEquals(osc.size, 7);
+		this.assertFloatEquals(osc[0][\beat], nowBeat, "a message of now: now", 0.05);
+		this.assertFloatEquals(osc[1][\beat], nowBeat - (0.5 * clock.tempo), "a stamped message: at its stamp", 0.05);
+		this.assertFloatEquals(osc[1][\secs], osc[0][\secs] - 0.5, "the seconds too", 0.05);
+		this.assertFloatEquals(osc[2][\beat], nowBeat, "a stamp in the future: now", 0.05);
+		this.assertFloatEquals(osc[3][\beat], nowBeat, "an immediate timetag: now", 0.05);
+		this.assertFloatEquals(osc[4][\beat], nowBeat, "a stamp beyond maxLag: now", 0.05);
+		this.assertFloatEquals(osc[5][\beat], nowBeat, "a stamp long before the take: now", 0.05);
+		this.assertFloatEquals(osc[6][\beat], 0, "a stamp before the take's start, within maxLag: at the start", 0.05);
+		this.assertFloatEquals(osc[6][\secs], 0, "its seconds too", 0.05);
+		this.assert(osc.every { |e| e[\time].isNil }, "the time is not a field of the event");
+	}
+
 	test_code_lines {
 		var interp = thisProcess.interpreter;
 		var savedPre = interp.preProcessor;

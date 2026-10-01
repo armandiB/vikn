@@ -19,6 +19,7 @@
 REScoreRecorder {
 	classvar <>allInputs;
 	classvar <>unsafeCode;   // a code line containing one of these is kept but not replayed
+	classvar <>maxLag = 10;  // seconds: an input stamped earlier than that by its sender is stamped now
 
 	var <song, <>root, <>version, <>piece;
 	var <state = \off;      // \off, \armed, \recording
@@ -315,17 +316,28 @@ REScoreRecorder {
 
 	//////// taps (RETap, main thread, guarded)
 
-	prEvent { |kind, voice|
+	// time: when the input carries its own time (an OSC bundle's timetag: a page stamps a
+	// gesture at the touch, before the network), the event is stamped there, as long as it
+	// is at most maxLag seconds before now (a timetag of 1, "immediately", or a sender's
+	// clock that is off, stamps now); never before the take's start.
+	prEvent { |kind, voice, time|
 		var c = this.clock;
 		var ev = IdentityDictionary.new;
 		var tempo = c.tempo;
+		var now = c.seconds, lag;
 		if(tempo != lastTempo) {
 			lastTempo = tempo;
 			score.tempoMap.add([c.beats - beat0, tempo]);
-			this.prAdd(IdentityDictionary[\beat -> (c.beats - beat0), \secs -> (c.seconds - time0), \kind -> \tempo, \tempo -> tempo]);
+			this.prAdd(IdentityDictionary[\beat -> (c.beats - beat0), \secs -> (now - time0), \kind -> \tempo, \tempo -> tempo]);
 		};
-		ev[\beat] = c.beats - beat0;
-		ev[\secs] = c.seconds - time0;
+		lag = time !? { |t| if(t.isNumber) { now - t } { nil } };
+		if(lag.notNil and: { lag > 0 } and: { lag <= maxLag }) {
+			ev[\beat] = (c.secs2beats(time) - beat0).max(0);
+			ev[\secs] = (time - time0).max(0);
+		} {
+			ev[\beat] = c.beats - beat0;
+			ev[\secs] = now - time0;
+		};
 		ev[\kind] = kind;
 		voice !? { ev[\voice] = voice };
 		^ev
@@ -358,8 +370,8 @@ REScoreRecorder {
 		if(kind != \rawMidi and: { inputSong !== song }) { ^this };   // raw MIDI belongs to no song
 		name = data[\name] ?? { data[\key] } ?? { data[\device] };
 		if(this.prInputInScope(kind, name).not) { ^this };
-		ev = this.prEvent(kind, this.prVoiceForName(name ? kind));
-		data.keysValuesDo { |k, v| ev[k] = REScore.encodeValue(v) };
+		ev = this.prEvent(kind, this.prVoiceForName(name ? kind), data[\time]);
+		data.keysValuesDo { |k, v| if(k != \time) { ev[k] = REScore.encodeValue(v) } };
 		parentFrame !? { |f| f[\ids][this] !? { |id| ev[\cause] = id } };
 		frame[\ids][this] = this.prAdd(ev);
 	}

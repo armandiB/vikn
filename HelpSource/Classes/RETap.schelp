@@ -24,7 +24,7 @@ argument:: kind
 code::\midi::, code::\osc:: or code::\keyboard::.
 argument:: song
 argument:: data
-An Event of the fields to record (code::name::, code::raw::, code::value::; code::key::, code::path::, code::args::; code::device::, code::msg::, code::chan::, code::note::, code::value::).
+An Event of the fields to record (code::name::, code::raw::, code::value::; code::key::, code::path::, code::args::; code::device::, code::msg::, code::chan::, code::note::, code::value::). code::time:: is not recorded as a field: the recorder stamps the event there when it is a little before now (an OSC bundle's timetag).
 argument:: func
 The handler, run inside the input's cause; nil records only.
 returns:: What func returns.

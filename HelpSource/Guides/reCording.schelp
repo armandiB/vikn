@@ -58,7 +58,7 @@ strong::scope:: is a set of objects (layers, beats, batches, orgnsms, fobjects, 
 
 table::
 ## code::\midi:: || the mappings of link::Classes/RCMidi:: (code::control::, code::controlSynth::, code::controlAttribute::): the raw CC value and the mapped value
-## code::\osc:: || the defs of link::Classes/RCOsc::: the path and the message arguments (the remote page sends OSC too)
+## code::\osc:: || the defs of link::Classes/RCOsc::: the path and the message arguments (the remote page sends OSC too). A message that came in a bundle with a timetag is stamped at that time when it lies within code::REScoreRecorder.maxLag:: seconds before now (the page stamps each gesture at the touch, so the network's delay is not in the take); a timetag of now, of 1 or of a clock that is off stamps now
 ## code::\keyboard:: || link::Classes/RCKeyboardState::: note on/off, bend, pressure, CC per channel
 ## code::\actions:: || the public methods of the reCurrent objects listed under link::#What is recorded::
 ## code::\code:: || the lines evaluated in the IDE
@@ -171,7 +171,7 @@ code::
 ::
 
 table::
-## code::beat::, code::secs:: || on the song's clock, from code::beat0:: / code::time0::; replay follows the clock, offline rendering uses seconds through the tempo map
+## code::beat::, code::secs:: || on the song's clock, from code::beat0:: / code::time0:: (an OSC message stamped by its sender: at the stamp); replay follows the clock, offline rendering uses seconds through the tempo map
 ## code::id:: || unique in the file, stable across edits; code::cause:: names the event that produced this one
 ## code::kind:: || code::action::, code::midi::, code::osc::, code::keyboard::, code::code::, code::snapshot::, code::morph::, code::tempo::
 ## code::voice:: || see link::#Voices::
