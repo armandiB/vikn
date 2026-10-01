@@ -47,7 +47,7 @@ RCLaws {
 			\linear, { 1 - (1 - u).sqrt },
 			\linear_hi, { (1 - u).sqrt },
 			\triangular, { (u + 1.0.rand) / 2 },
-			\gauss, { (0.5 + this.gauss(0.25)).clip(0, 1) },
+			\gauss, { (0.5 + (0.25 * if(u.isNil) { this.gauss(1) } { this.normalQuantile(u) })).clip(0, 1) },   // from u when given (correlated draws)
 			\arcsine, { (1 - (pi * u).cos) / 2 },
 			\cauchy, { (0.5 + ((pi * (u - 0.5)).tan / 16)).clip(0, 1) },
 			\logistic, { (0.5 + ((u.max(1e-9) / (1 - u).max(1e-9)).log / 12)).clip(0, 1) },
@@ -112,6 +112,92 @@ RCLaws {
 		var counts = (max + 1).collect { |k| (cells * (-1 * lambda).exp * (lambda ** k) / k.asInteger.factorial).round.asInteger };
 		counts[0] = counts[0] + (cells - counts.sum);
 		^counts
+	}
+
+	//////// covariation: correlated draws through a Gaussian copula
+	// The laws above are inverse distribution functions of one uniform u each. Several dimensions
+	// co-vary when their u's are correlated: draw standard normals z, mix them by the Cholesky
+	// factor L of a correlation matrix (z' = L z), map each through the normal CDF to a uniform, and
+	// hand those uniforms to the laws. Each dimension keeps its own marginal law; the correlation of
+	// the resulting uniforms is (6 / π) asin(ρ / 2) (0.68 for ρ 0.7), ±1 ties them exactly.
+
+	// The standard normal CDF Φ(z) (Abramowitz-Stegun 7.1.26, error under 1.5e-7).
+	*normalCdf { |z|
+		var x = z.abs / 2.sqrt;   // Φ(z) = (1 + erf(z / √2)) / 2
+		var t = 1 / (1 + (0.3275911 * x));
+		var erf = 1 - ((((((1.061405429 * t) - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * (-1 * x * x).exp);
+		^if(z >= 0) { 0.5 * (1 + erf) } { 0.5 * (1 - erf) }
+	}
+
+	// Its inverse, the normal quantile Φ⁻¹(u) (Acklam's rational approximation, relative error 1.15e-9).
+	*normalQuantile { |u|
+		var a = #[-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+		var b = #[-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
+		var c = #[-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+		var d = #[7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+		var pLow = 0.02425, q, r;
+		u = u.clip(1e-12, 1 - 1e-12);
+		^case
+		{ u < pLow } {
+			q = (-2 * u.log).sqrt;
+			(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+		}
+		{ u > (1 - pLow) } {
+			q = (-2 * (1 - u).log).sqrt;
+			-1 * (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+		}
+		{
+			q = u - 0.5;
+			r = q * q;
+			(((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
+		}
+	}
+
+	// The lower Cholesky factor of a symmetric positive-definite matrix (an Array of rows), nil when
+	// the matrix is not positive-definite.
+	*cholesky { |matrix|
+		var n = matrix.size, l = Array.fill(n, { 0.0 ! n });
+		n.do { |i|
+			(i + 1).do { |j|
+				var sum = matrix[i][j];
+				j.do { |k| sum = sum - (l[i][k] * l[j][k]) };
+				if(i == j) {
+					if(sum <= 1e-12) { ^nil };
+					l[i][j] = sum.sqrt;
+				} {
+					l[i][j] = sum / l[j][j];
+				};
+			};
+		};
+		^l
+	}
+
+	// A correlation matrix over n dimensions from pairs [i, j, rho] (unit diagonal, symmetric), and
+	// its Cholesky factor: (matrix:, chol:). Pairs that do not fit together (no positive-definite
+	// matrix has them) are shrunk towards 0 by tenths until one does, with a warning.
+	*correlation { |n, pairs|
+		var m = Array.fill(n, { |i| Array.fill(n, { |j| if(i == j) { 1.0 } { 0.0 } }) }), chol, shrink = 1.0, tries = 0;
+		(pairs ? []).do { |p| var rho = p[2].clip(-1, 1) * 0.9999999; m[p[0]][p[1]] = rho; m[p[1]][p[0]] = rho };   // ±1 kept a hair inside: the factor stays definite
+		chol = this.cholesky(m);
+		while { chol.isNil and: { tries < 10 } } {
+			shrink = shrink * 0.9;
+			tries = tries + 1;
+			n.do { |i| n.do { |j| if(i != j) { m[i][j] = m[i][j] * 0.9 } } };
+			chol = this.cholesky(m);
+		};
+		if(tries > 0) { RCLog.warn(\laws, "correlation pairs % do not fit together: shrunk by %".format(pairs, shrink.round(0.01))) };
+		^(matrix: m, chol: chol ?? { this.cholesky(Array.fill(n, { |i| Array.fill(n, { |j| if(i == j) { 1.0 } { 0.0 } }) })) })
+	}
+
+	// n correlated standard normals from a Cholesky factor (n independent gaussians mixed by it).
+	*correlatedNormals { |chol|
+		var z = chol.size.collect { this.gauss(1) };
+		^chol.collect { |row| row.sum { |l, k| l * z[k] } }
+	}
+
+	// n correlated uniforms in (0, 1): the normals through Φ, ready for `value` and `step`.
+	*correlatedUniforms { |chol|
+		^this.correlatedNormals(chol).collect { |z| this.normalCdf(z).clip(1e-9, 1 - 1e-9) }
 	}
 
 	// The entropy in bits of a set of values binned by `bin` (Xenakis' variety: 0 for one value,

@@ -121,6 +121,36 @@ TestRCLaws : UnitTest {
 		this.assertEquals(RCLaws.entropyBits([], 1), 0, "nothing: 0");
 	}
 
+	test_normal_cdf_and_quantile {
+		this.assert(this.near(RCLaws.normalCdf(0), 0.5, 1e-6), "Φ(0) = 0.5");
+		this.assert(this.near(RCLaws.normalCdf(1.959964), 0.975, 1e-5), "Φ(1.96) = 0.975");
+		this.assert(this.near(RCLaws.normalQuantile(0.975), 1.959964, 1e-5), "Φ⁻¹(0.975) = 1.96");
+		this.assert([0.001, 0.1, 0.5, 0.9, 0.999].every { |u| this.near(RCLaws.normalCdf(RCLaws.normalQuantile(u)), u, 1e-6) }, "the quantile inverts the CDF");
+		this.assert(this.near(RCLaws.value(\gauss, 0.5, 0, 1), 0.5, 1e-9) and: { RCLaws.value(\gauss, 0.975, 0, 1) > 0.9 }, "the gauss law reads u when given: its median at the centre, u 0.975 near the top");
+	}
+
+	test_cholesky_and_correlation {
+		var l = RCLaws.cholesky([[4, 2], [2, 3]]);
+		var c = RCLaws.correlation(3, [[0, 1, 0.7], [0, 2, -0.5]]);
+		var bad = RCUtil.seeded(1, { RCLaws.correlation(3, [[0, 1, 0.95], [1, 2, 0.95], [0, 2, -0.95]]) });
+		this.assert(l.notNil and: { this.near(l[0][0], 2) } and: { this.near(l[1][0], 1) } and: { this.near(l[1][1], 2.sqrt) }, "the Cholesky factor of [[4, 2], [2, 3]]");
+		this.assertEquals(RCLaws.cholesky([[1, 2], [2, 1]]), nil, "not positive-definite: nil");
+		this.assert(this.near(c.matrix[0][1], 0.7, 1e-5) and: { this.near(c.matrix[2][0], -0.5, 1e-5) } and: { c.matrix[1][2] == 0 } and: { c.chol.notNil }, "a correlation matrix from pairs, symmetric, with its factor");
+		this.assert(bad.chol.notNil and: { bad.matrix[0][1].abs < 0.95 }, "pairs that fit no positive-definite matrix are shrunk until they do");
+	}
+
+	test_correlated_uniforms {
+		var c = RCLaws.correlation(2, [[0, 1, 0.7]]), n = 4000;
+		var draws = RCUtil.seeded(1994, { n.collect { RCLaws.correlatedUniforms(c.chol) } });
+		var x = draws.collect(_[0]), y = draws.collect(_[1]);
+		var mx = x.mean, my = y.mean;
+		var cov = (x - mx) * (y - my), r = cov.mean / ((x - mx).squared.mean.sqrt * (y - my).squared.mean.sqrt);
+		var tied = RCUtil.seeded(3, { 50.collect { RCLaws.correlatedUniforms(RCLaws.correlation(2, [[0, 1, 1]]).chol) } });
+		this.assert((mx - 0.5).abs < 0.03 and: { (my - 0.5).abs < 0.03 } and: { x.every { |v| v > 0 and: { v < 1 } } }, "each dimension stays uniform on (0, 1) (means % %)".format(mx.round(0.01), my.round(0.01)));
+		this.assert((r - 0.68).abs < 0.06, "the uniforms' correlation is (6 / π) asin(0.35) = 0.68 (%)".format(r.round(0.01)));
+		this.assert(tied.every { |p| (p[0] - p[1]).abs < 3e-3 }, "rho 1 ties the two draws (within the 1e-7 kept off the diagonal)");
+	}
+
 	test_seeded {
 		var a = RCUtil.seeded(1994, { 10.collect { RCLaws.value(\gauss) } });
 		var b = RCUtil.seeded(1994, { 10.collect { RCLaws.value(\gauss) } });

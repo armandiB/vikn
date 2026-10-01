@@ -45,6 +45,31 @@ Poisson's table for a mean density over a number of cells: how many cells hold 0
 METHOD:: entropyBits
 The entropy in bits of a set of values binned by strong::bin::: 0 for one value, log2 n for n equally frequent ones.
 
+SUBSECTION:: Covariation
+The laws take one uniform u each; several dimensions co-vary when their u's are correlated (a Gaussian copula): standard normals mixed by the Cholesky factor of a correlation matrix, each through Φ to a uniform, each uniform to its own law. Every dimension keeps its marginal law; the correlation of the uniforms is (6 / π) asin(ρ / 2), 0.68 for ρ 0.7; ρ ±1 ties two dimensions exactly (the same u, or 1 - u).
+
+code::
+~c = RCLaws.correlation(3, [[0, 1, 0.7], [0, 2, -0.5]]);   // pitch and level together, pitch against brightness
+~u = RCLaws.correlatedUniforms(~c.chol);                   // three uniforms
+[RCLaws.value(\uniform, ~u[0], -1, 2), RCLaws.value(\linear, ~u[1], -24, -6), RCLaws.value(\gauss, ~u[2], 0, 1)]
+::
+
+METHOD:: correlation
+A correlation matrix over strong::n:: dimensions from strong::pairs:: code::[i, j, rho]:: (unit diagonal, symmetric) and its Cholesky factor, as code::(matrix:, chol:)::. Pairs that fit no positive-definite matrix are shrunk towards 0 by tenths until one does, with a warning.
+
+METHOD:: correlatedUniforms
+n correlated uniforms in (0, 1) from a Cholesky factor, for code::value:: and code::step::.
+
+METHOD:: correlatedNormals
+n correlated standard normals from a Cholesky factor.
+
+METHOD:: cholesky
+The lower Cholesky factor of a symmetric positive-definite matrix (an Array of rows); nil when it is not positive-definite.
+
+METHOD:: normalCdf
+METHOD:: normalQuantile
+The standard normal distribution function Φ and its inverse (errors under 1.5e-7 and 1.2e-9). The code::\gauss:: law reads its u through the quantile when u is given.
+
 METHOD:: valueLaws
 METHOD:: stepLaws
 The names each method accepts.
