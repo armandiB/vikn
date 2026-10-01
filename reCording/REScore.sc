@@ -107,6 +107,219 @@ REScore {
 
 	copy { ^this.class.fromDict(RCUtil.copyTree(this.asDict)) }
 
+	//////// editing: every operation answers a new score, the receiver untouched, ids kept
+
+	// Seconds of a beat through the tempo map ([[beat, tempo], ...], piecewise constant).
+	beatsToSecs { |beat|
+		var map = tempoMap.asArray;
+		var secs = 0;
+		if(map.isEmpty) { ^beat / (meta[\tempo] ? 1) };
+		map.do { |pair, i|
+			var start = pair[0], tempo = pair[1];
+			var end = map[i + 1] !? (_[0]) ? inf;
+			if(beat > start) { secs = secs + ((min(beat, end) - start) / tempo) };
+		};
+		if(beat < map[0][0]) { secs = (beat - map[0][0]) / map[0][1] };
+		^secs
+	}
+
+	prSelected { |e, voices, kinds|
+		^(voices.isNil or: { voices.includes(e[\voice]) }) and: { kinds.isNil or: { kinds.includes(e[\kind]) } }
+	}
+
+	prSet { |names| ^names !? { IdentitySet.newFrom(names.asArray.collect(_.asSymbol)) } }
+
+	// func: beat → beat, on the selected events (voices, kinds: nil = all).
+	retimed { |func, voices, kinds|
+		var res = this.copy;
+		var vs = this.prSet(voices), ks = this.prSet(kinds);
+		res.events.do { |e|
+			if(this.prSelected(e, vs, ks)) {
+				e[\beat] = func.value(e[\beat], e);
+				e[\secs] = res.beatsToSecs(e[\beat]);
+			};
+		};
+		res.sort;
+		^res
+	}
+
+	// Moved by beats (a negative shift undoes a latency); what lands before 0 is dropped,
+	// a snapshot there is kept at 0.
+	shifted { |beats, voices, kinds|
+		var res = this.retimed({ |b| b + beats }, voices, kinds);
+		var dropped = 0;
+		res.events.copy.do { |e|
+			if(e[\beat] < 0) {
+				if(e[\kind] == \snapshot) { e[\beat] = 0; e[\secs] = 0 } { res.remove(e[\id]); dropped = dropped + 1 };
+			};
+		};
+		if(dropped > 0) { RCLog.post(\score, "shifted by %: % event(s) before the start dropped".format(beats, dropped)) };
+		res.sort;
+		res.meta[\duration] !? { |d| res.meta[\duration] = max(0, d + beats) };
+		^res
+	}
+
+	// Stretched around origin.
+	scaled { |factor, voices, kinds, origin = 0|
+		var res = this.retimed({ |b| ((b - origin) * factor) + origin }, voices, kinds);
+		res.meta[\duration] !? { |d| res.meta[\duration] = ((d - origin) * factor) + origin };
+		^res
+	}
+
+	// To the nearest grid (beats), fully (strength 1) or part of the way.
+	quantized { |grid = 0.25, voices, kinds, strength = 1|
+		^this.retimed({ |b| b + ((b.round(grid) - b) * strength) }, voices, kinds)
+	}
+
+	// The events of [from, to), rebased to 0; the latest snapshot before from is kept at 0.
+	trimmed { |from = 0, to|
+		var res = this.copy;
+		var last = res.events.select { |e| e[\kind] == \snapshot and: { e[\beat] < from } }.last;
+		to = to ?? { this.duration };
+		res.events.copy.do { |e|
+			if(e !== last and: { e[\beat] < from or: { e[\beat] >= to } }) { res.remove(e[\id]) };
+		};
+		res.events.do { |e| e[\beat] = max(0, e[\beat] - from) };
+		res.prRebaseTempoMap(from);
+		res.events.do { |e| e[\secs] = res.beatsToSecs(e[\beat]) };
+		res.meta[\duration] = to - from;
+		res.sort;
+		// the kept snapshot leads the events at 0 whatever its id: the state comes first
+		last !? { res.events.remove(last); res.events.addFirst(last) };
+		^res
+	}
+
+	prRebaseTempoMap { |from|
+		var map = tempoMap.asArray.sort { |a, b| a[0] <= b[0] };
+		var before = map.select { |p| p[0] <= from };
+		var after = map.select { |p| p[0] > from };
+		var res = List.new;
+		before.last !? { |p| res.add([0, p[1]]) };
+		after.do { |p| res.add([p[0] - from, p[1]]) };
+		tempoMap = res;
+	}
+
+	// Without the points of a continuous control that lie within tolerance of the line
+	// between their kept neighbours; the first and last points of each control stay.
+	thinned { |tolerance = 0.001, voices|
+		var res = this.copy;
+		var vs = this.prSet(voices);
+		var groups = Dictionary.new;
+		res.events.do { |e|
+			var k = this.class.controlKey(e);
+			if(k.notNil and: { this.class.isContinuous(e) } and: { vs.isNil or: { vs.includes(e[\voice]) } }) {
+				groups[k] = (groups[k] ? []).add(e);
+			};
+		};
+		groups.do { |points|
+			var kept = points.first;
+			points.do { |e, i|
+				var next = points[i + 1];
+				var interp, span;
+				if(i > 0 and: { next.notNil }) {
+					span = next[\beat] - kept[\beat];
+					interp = if(span <= 0) { this.class.controlValue(kept) } {
+						this.class.controlValue(kept) + ((this.class.controlValue(next) - this.class.controlValue(kept)) * ((e[\beat] - kept[\beat]) / span))
+					};
+					if((this.class.controlValue(e) - interp).abs <= tolerance) { res.remove(e[\id]) } { kept = e };
+				};
+			};
+		};
+		^res
+	}
+
+	// The values of the continuous controls averaged over a window of points (odd, centred).
+	smoothed { |window = 3, voices|
+		var res = this.copy;
+		var vs = this.prSet(voices);
+		var groups = Dictionary.new;
+		var half = (window.asInteger div: 2).max(1);
+		res.events.do { |e|
+			var k = this.class.controlKey(e);
+			if(k.notNil and: { this.class.isContinuous(e) } and: { vs.isNil or: { vs.includes(e[\voice]) } }) {
+				groups[k] = (groups[k] ? []).add(e);
+			};
+		};
+		groups.do { |points|
+			var values = points.collect { |e| this.class.controlValue(e) };
+			points.do { |e, i|
+				var lo = max(0, i - half), hi = min(values.size - 1, i + half);
+				this.class.prSetControlValue(e, values[lo..hi].sum / (hi - lo + 1));
+			};
+		};
+		^res
+	}
+
+	withoutVoices { |voices|
+		var res = this.copy;
+		var vs = this.prSet(voices);
+		res.events.copy.do { |e| if(vs.includes(e[\voice])) { res.remove(e[\id]) } };
+		vs.do { |v| res.voices.removeAt(v) };
+		^res
+	}
+
+	onlyVoices { |voices|
+		var vs = this.prSet(voices);
+		^this.withoutVoices(this.voiceNames.reject { |v| vs.includes(v) })
+	}
+
+	withoutKinds { |kinds|
+		var res = this.copy;
+		var ks = this.prSet(kinds);
+		res.events.copy.do { |e| if(ks.includes(e[\kind])) { res.remove(e[\id]) } };
+		^res
+	}
+
+	renamedVoice { |old, new|
+		var res = this.copy;
+		old = old.asSymbol;
+		new = new.asSymbol;
+		res.events.do { |e| if(e[\voice] == old) { e[\voice] = new } };
+		res.voices[old] !? { |v| res.voices.removeAt(old); res.voices[new] = v };
+		^res
+	}
+
+	// The control's events in [from, to) replaced by points [[beat, value], ...], shaped like
+	// its first recorded event (kind, voice, receiver, path...).
+	replacedSegment { |controlKey, from, to, points|
+		var res = this.copy;
+		var template = res.events.detect { |e| this.class.controlKey(e) == controlKey };
+		if(template.isNil) { RCLog.warn(\score, "no event controls %: nothing replaced".format(controlKey)); ^res };
+		res.events.copy.do { |e|
+			if(this.class.controlKey(e) == controlKey and: { e[\beat] >= from } and: { e[\beat] < to }) { res.remove(e[\id]) };
+		};
+		points.do { |p|
+			var ev = IdentityDictionary.new;
+			template.keysValuesDo { |k, v| ev[k] = RCUtil.copyTree(v) };
+			ev.removeAt(\id);
+			ev.removeAt(\cause);
+			ev[\beat] = p[0];
+			ev[\secs] = res.beatsToSecs(p[0]);
+			this.class.prSetControlValue(ev, p[1]);
+			res.add(ev);
+		};
+		res.sort;
+		^res
+	}
+
+	// The control's value at a beat: its last point at or before it, else its first.
+	valueAt { |controlKey, beat|
+		var points = this.curvePoints(controlKey);
+		var before;
+		if(points.isEmpty) { ^nil };
+		before = points.select { |p| p[0] <= beat }.last;
+		^(before ? points.first)[1]
+	}
+
+	*prSetControlValue { |e, value|
+		switch(e[\kind],
+			\midi, { e[\value] = value; e.removeAt(\raw) },
+			\osc, { e[\args] = [value] ++ ((e[\args] ? []).drop(1)) },
+			\action, { e[\args] = (e[\args] ? [nil]).copy; e[\args][1] = value },
+			\keyboard, { e[\value] = value }
+		);
+	}
+
 	//////// controls: the events that set one value, and their curves
 
 	// What an event controls: [\midi, name], [\osc, key], [\set, beatName, key],

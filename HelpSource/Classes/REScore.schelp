@@ -144,6 +144,67 @@ METHOD:: asDict
 METHOD:: asJSONString
 METHOD:: copy
 
+subsection:: Editing
+
+Every operation answers a new score and leaves the receiver as it was; ids are kept; beats and seconds move together through the tempo map (link::#-beatsToSecs::). code::voices:: and code::kinds:: restrict an operation (nil: all).
+
+METHOD:: shifted
+argument:: beats
+Negative undoes a latency. What lands before 0 is dropped (reported); a snapshot there is kept at 0.
+argument:: voices
+argument:: kinds
+METHOD:: scaled
+argument:: factor
+argument:: voices
+argument:: kinds
+argument:: origin
+The beat the stretch is around.
+METHOD:: quantized
+argument:: grid
+Beats.
+argument:: voices
+argument:: kinds
+argument:: strength
+1 moves to the grid, 0.5 half the way.
+METHOD:: retimed
+argument:: func
+code::{ |beat, event| newBeat }::.
+argument:: voices
+argument:: kinds
+METHOD:: trimmed
+argument:: from
+argument:: to
+The events of [from, to) rebased to 0, the latest snapshot before from kept at 0 and leading, the tempo map rebased.
+METHOD:: thinned
+argument:: tolerance
+A point of a continuous control within it of the line between its kept neighbours goes; the ends and the corners stay.
+argument:: voices
+METHOD:: smoothed
+argument:: window
+Points, odd, centred; the values of the continuous controls averaged.
+argument:: voices
+METHOD:: withoutVoices
+METHOD:: onlyVoices
+argument:: voices
+METHOD:: withoutKinds
+argument:: kinds
+METHOD:: renamedVoice
+argument:: old
+argument:: new
+METHOD:: replacedSegment
+argument:: controlKey
+argument:: from
+argument:: to
+argument:: points
+code::[[beat, value], ...]:: shaped like the control's first recorded event (what a curve editor sends).
+METHOD:: valueAt
+argument:: controlKey
+argument:: beat
+The control's value at a beat: its last point at or before it, else its first.
+METHOD:: beatsToSecs
+argument:: beat
+Through the tempo map (piecewise constant).
+
 EXAMPLES::
 
 code::

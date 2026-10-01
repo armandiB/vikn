@@ -118,6 +118,19 @@ The old take plays (link::Classes/REScorePlayer::) while a new one is recorded o
 
 A snapshot recalls instantly (code::~rec.recall(\intro)::) or morphs over beats (code::~rec.morph(\intro, beats: 8)::): numeric sources ramp (link::Classes/REScorePlayer#*ramp::), the rest switch at once; both are recorded as one strong::morph:: event pointing at the snapshot.
 
+subsection:: Editing
+
+code::
+s = REScore.read(path);
+s.shifted(-0.4).write(path2);                       // the whole take 0.4 beat earlier (a measured latency)
+s.quantized(0.25, voices: [\lead], strength: 0.5);
+s.trimmed(8, 16).scaled(2);                          // the second bar, twice as slow
+s.thinned(0.002).smoothed(5);                        // a knob curve without its jitter
+s.replacedSegment([\midi, \knob_mix], 4, 8, [[4, 0.2], [6, 0.9], [8, 0.2]]);
+::
+
+Every operation answers a new score (the receiver stays, ids are kept, seconds follow the beats through the tempo map): code::shifted::, code::scaled::, code::quantized::, code::retimed:: (a function of the beat), code::trimmed:: (the latest snapshot before the start kept at 0), code::thinned::, code::smoothed::, code::withoutVoices::, code::onlyVoices::, code::withoutKinds::, code::renamedVoice::, code::replacedSegment:: (what a curve editor sends: new points of one control over a span), code::valueAt::. See link::Classes/REScore#Editing::.
+
 subsection:: Code
 
 With code::\code:: among the inputs, the recorder wraps the interpreter's code::preProcessor:: (it returns the code unchanged, after opening a cause) and chains its code::codeDump:: (which closes it with the text); both are restored by code::disarm::. Lines matching code::exit::, code::recompile::, code::boot::, code::quit::, shell commands are stored but marked code::replay: false::; flip it per event when the line is harmless.
@@ -165,4 +178,4 @@ Values: numbers and strings as JSON; a Symbol as a string with a leading backsla
 
 section:: Status
 
-Written in this order, each step on its own commits: the format, link::Classes/REJSON:: and link::Classes/REScore:: (read, write, the value codec); link::Classes/RETap::, link::Classes/REScoreRecorder:: and the taps; the code input; link::Classes/REScorePlayer:: (live replay, loops, overdub, morphs, curve and note patterns); then the remote rig of HomewareSC that records from a phone page and renders takes offline; then edit operations on scores and the lanes view.
+Written in this order, each step on its own commits: the format, link::Classes/REJSON:: and link::Classes/REScore:: (read, write, the value codec); link::Classes/RETap::, link::Classes/REScoreRecorder:: and the taps; the code input; link::Classes/REScorePlayer:: (live replay, loops, overdub, morphs, curve and note patterns); the remote rig of HomewareSC (code::scripts/rig.sh::: a phone page that plays a sound design try, records takes, replays them and renders them offline); the edit operations; the lanes view of a take (the rig's code::view.html::, a playhead from the live side). Not done yet: editing on the page itself (it would send code::replacedSegment:: operations), the visuals feed.
