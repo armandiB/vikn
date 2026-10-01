@@ -94,6 +94,25 @@ TestREScoreRecorder : UnitTest {
 		this.assert(RETap.codeHooksInstalled.not, "hooks removed");
 	}
 
+	test_onEvent_feed {
+		var b = this.restBeat(layer, \k, [amp: 0.1]);
+		var seen = List.new;
+		rec.onEvent = { |r, ev| seen.add([r, ev[\kind], ev[\id]]) };
+		rec.arm(inputs: #[\actions]);
+		rec.record(snapshotAtStart: true);
+		b.set(\amp, 0.5);
+		rec.snapshot(\x);
+		rec.onEvent = { nil.explode };
+		b.set(\amp, 0.6);
+		rec.stop;
+		this.assertEquals(seen.collect(_[1]), [\snapshot, \action, \snapshot], "every recorded event reaches onEvent, in order");
+		this.assert(seen.every { |x| x[0] === rec }, "with the recorder");
+		this.assertEquals(seen.collect(_[2]), [1, 2, 3], "after the id is assigned");
+		this.assertEquals(rec.lastScore.size, 4, "a failing hook is reported and the take goes on");
+		this.assert(this.logHas("explode"));
+		rec.onEvent = nil;
+	}
+
 	test_scope_and_inputs {
 		var other = song.layer(\details);
 		var b1 = this.restBeat(layer, \a);

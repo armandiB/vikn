@@ -23,9 +23,10 @@ REScoreRecorder {
 	var <song, <>root, <>version, <>piece;
 	var <state = \off;      // \off, \armed, \recording
 	var <scope, <inputs, <voiceOf, <voices;
-	var <score, <lastScore, <beat0, <time0, lastTempo;
+	var <score, <lastScore, <lastPath, <beat0, <time0, lastTempo;
 	var <>startSnapshot = true;
 	var <player, overdubbing;
+	var <>onEvent;   // { |recorder, event| } after each recorded event (a view's live feed)
 
 	*initClass {
 		allInputs = #[\midi, \osc, \keyboard, \actions, \code];
@@ -155,7 +156,7 @@ REScoreRecorder {
 		};
 		lastScore = s;
 		if(root.notNil) {
-			RCGuard.call(\score, nil) { s.write(REScore.pathFor(root, song.name, version)) };
+			lastPath = RCGuard.call(\score, nil) { s.write(REScore.pathFor(root, song.name, version)) };
 		} {
 			RCLog.warn(\score, "no root folder: the score was not written (lastScore holds it: lastScore.write(path))");
 		};
@@ -201,7 +202,7 @@ REScoreRecorder {
 		ev[\name] = name.asSymbol;
 		ev[\beats] = beats;
 		if(source === score) { ev[\snapshot] = snap[\id] } { ev[\state] = snap[\state] };
-		^score.add(ev)
+		^this.prAdd(ev)
 	}
 
 	recall { |name| ^this.morph(name, 0) }
@@ -231,7 +232,7 @@ REScoreRecorder {
 		ev = this.prEvent(\snapshot, nil);
 		ev[\name] = name.asSymbol;
 		ev[\state] = st;
-		^score.add(ev)
+		^this.prAdd(ev)
 	}
 
 	prBeatState { |b|
@@ -251,13 +252,20 @@ REScoreRecorder {
 		if(tempo != lastTempo) {
 			lastTempo = tempo;
 			score.tempoMap.add([c.beats - beat0, tempo]);
-			score.add(IdentityDictionary[\beat -> (c.beats - beat0), \secs -> (c.seconds - time0), \kind -> \tempo, \tempo -> tempo]);
+			this.prAdd(IdentityDictionary[\beat -> (c.beats - beat0), \secs -> (c.seconds - time0), \kind -> \tempo, \tempo -> tempo]);
 		};
 		ev[\beat] = c.beats - beat0;
 		ev[\secs] = c.seconds - time0;
 		ev[\kind] = kind;
 		voice !? { ev[\voice] = voice };
 		^ev
+	}
+
+	// Into the score, then to onEvent (guarded: a view must not break a take).
+	prAdd { |ev|
+		var id = score.add(ev);
+		onEvent !? { |f| RCGuard.call(\score, nil) { f.value(this, score.at(id)) } };
+		^id
 	}
 
 	tapAction { |obj, method, args, frame|
@@ -271,7 +279,7 @@ REScoreRecorder {
 		ev[\args] = enc[0];
 		if(enc[1].not) { ev[\replay] = false };
 		frame !? { |f| f[\ids][this] !? { |id| ev[\cause] = id } };
-		score.add(ev);
+		this.prAdd(ev);
 	}
 
 	tapInput { |kind, inputSong, data, parentFrame, frame|
@@ -283,7 +291,7 @@ REScoreRecorder {
 		ev = this.prEvent(kind, this.prVoiceForName(name ? kind));
 		data.keysValuesDo { |k, v| ev[k] = REScore.encodeValue(v) };
 		parentFrame !? { |f| f[\ids][this] !? { |id| ev[\cause] = id } };
-		frame[\ids][this] = score.add(ev);
+		frame[\ids][this] = this.prAdd(ev);
 	}
 
 	tapCode { |text, parentFrame, frame|
@@ -293,7 +301,7 @@ REScoreRecorder {
 		ev[\text] = text;
 		if(unsafeCode.any { |pat| text.contains(pat) }) { ev[\replay] = false };
 		parentFrame !? { |f| f[\ids][this] !? { |id| ev[\cause] = id } };
-		frame[\ids][this] = score.add(ev);
+		frame[\ids][this] = this.prAdd(ev);
 	}
 
 	dropCode { |frame|
