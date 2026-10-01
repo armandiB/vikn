@@ -264,6 +264,18 @@ TestRCLines : UnitTest {
 		this.assert(big[\voices].every { |v| v.size <= 1 }, "each line on its own voice");
 	}
 
+	test_allocate_pinned {
+		var free = [[0, 2], [0.5, 2], [1, 2]].collect { |p, i| RCLines.line(p[0], p[1], (pitch: i), (pitch: i)) };
+		var thread = [[0, 1], [1, 1], [2, 1.5]].collect { |p, i| RCLines.line(p[0], p[1], (pitch: 10 + i), (pitch: 11 + i)).put(\voice, 4) };
+		var alloc = RCLines.allocate(free ++ thread, 3, \strict);
+		var pitches = alloc[\voices].collect { |v| v.collect { |l| l[\from][\pitch] } };
+		this.assertEquals(pitches[1], [10, 11, 12], "the thread's lines sit on voice 4 mod 3 = 1, in order, whatever their onsets");
+		this.assertEquals(pitches[0] ++ pitches[2], [0, 1], "the free lines avoid the busy pinned voice");
+		this.assertEquals(alloc[\dropped], 1, "strict: the third free line finds the two other voices busy and is dropped, never a pinned one");
+		alloc = RCLines.allocate(thread, 1, \round_robin);
+		this.assertEquals(alloc[\voices][0].size, 3, "one voice: the thread fits whatever the mode");
+	}
+
 	test_subseq_of_a_voice {
 		var lines = [RCLines.line(1, 2, (pitch: 0, amp: -6), (pitch: 1, amp: 0), \a), RCLines.line(2, 3, (pitch: 2), (pitch: 1), \b), RCLines.line(2.0001, 1, (pitch: 5), (pitch: 5))];
 		var s = RCLines.subseq(lines, [\amp, \pitch]);

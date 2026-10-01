@@ -10,6 +10,7 @@
 //
 // A line is an Event:
 //   (onset: beats, dur: beats, from: (pitch: 0, amp: -20), to: (pitch: 1, amp: -10), id: 3)
+// plus, optionally, voice: an Integer pinning it to one voice of the batch (allocate).
 // A point of the score space is [time, params] with params an Event.
 //
 // Generators (every one pure, seeded where it draws):
@@ -254,13 +255,22 @@ RCLines {
 	// Distribute lines over n voices (in onset order): \round_robin (line i to voice i mod n,
 	// overlaps allowed), \free (the voice free the longest; when every voice is busy, the one
 	// free soonest: an overlap on that voice), \strict (as \free, but a line finding no free
-	// voice is dropped: n strings play at most n lines at once). Returns
-	// (voices: Array of n Arrays of lines, dropped: Integer).
+	// voice is dropped: n strings play at most n lines at once). A line carrying `voice` (an
+	// Integer) is pinned to voice `voice mod n` in every mode, placed first and never dropped:
+	// the thread of a continuous texture stays on one voice (the free lines then avoid it while
+	// it is busy). Returns (voices: Array of n Arrays of lines, dropped: Integer).
 	*allocate { |lines, n = 1, mode = \free|
 		var sorted = (lines ? []).sort { |x, y| x[\onset] <= y[\onset] };
 		var voices = Array.fill(n.max(1), { List.new });
 		var busyUntil = 0 ! n.max(1);
 		var dropped = 0;
+		var pinned = sorted.select { |l| l[\voice].isKindOf(Integer) };
+		pinned.do { |line|
+			var v = line[\voice] % voices.size;
+			voices[v].add(line);
+			busyUntil[v] = max(busyUntil[v], line[\onset] + line[\dur]);
+		};
+		sorted = sorted.reject { |l| l[\voice].isKindOf(Integer) };
 		sorted.do { |line, i|
 			var v;
 			if(mode == \round_robin) {

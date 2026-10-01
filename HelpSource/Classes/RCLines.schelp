@@ -10,6 +10,7 @@ A line is an Event:
 code::
 (onset: 2, dur: 4, from: (pitch: 0, amp: -20), to: (pitch: 1, amp: -10), id: 3)
 ::
+with, optionally, code::voice::, an Integer pinning the line to one voice of the batch (link::#*allocate::).
 strong::onset:: and strong::dur:: in beats; strong::from:: and strong::to:: Events of the parameter values at the ends. A point of the score space is code::[time, params]::.
 
 Every generator is pure and returns its lines in time order; the ones that draw are seeded.
@@ -98,7 +99,7 @@ strong::n:: short lines over one cycle: onsets uniform in [0, cycle), start valu
 subsection:: Voices
 
 METHOD:: allocate
-Distribute lines over strong::n:: voices, in onset order: code::\round_robin:: (line i to voice i mod n, overlaps allowed), code::\free:: (the voice free the longest; when every voice is busy, the one free soonest: an overlap on that voice), code::\strict:: (as free, but a line finding no free voice is dropped: n strings play at most n lines at once). Returns code::(voices: Array of n Arrays of lines, dropped: Integer)::.
+Distribute lines over strong::n:: voices, in onset order: code::\round_robin:: (line i to voice i mod n, overlaps allowed), code::\free:: (the voice free the longest; when every voice is busy, the one free soonest: an overlap on that voice), code::\strict:: (as free, but a line finding no free voice is dropped: n strings play at most n lines at once). A line carrying code::voice:: (an Integer) is pinned to voice code::voice mod n:: in every mode, placed first and never dropped: the thread of a continuous texture stays on one voice, and the free lines avoid that voice while it is busy. Returns code::(voices: Array of n Arrays of lines, dropped: Integer)::.
 
 METHOD:: subseq
 One voice's lines as an link::Classes/RCSubseq:: for the seq machinery (link::Classes/RCOrgnsmPatterns#*seqParams::): shift = the first onset, each hit lasting until the next line of the voice (the last one its own length), params code::key0:: / code::key1:: per line for every key of strong::keys:: (the lines' union when nil; a key a line lacks is nil there), plus code::sustain:: (the line's length) and code::line_id::. A line starting less than strong::minGap:: after the previous one of the voice is dropped (warned). nil for no lines.

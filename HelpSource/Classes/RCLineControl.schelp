@@ -25,7 +25,7 @@ Set with code::rPut:: on the template or on a clone:
 list::
 ## strong::dur_params:: code::[cycle beats, 1]::, and the derived code::loop_time::, code::quant:: and code::dur_params_orgnsms::.
 ## strong::generator::, strong::controlled_batch::.
-## strong::allocation:: code::\free:: (default), code::\round_robin::, code::\strict::.
+## strong::allocation:: code::\free:: (default), code::\round_robin::, code::\strict::; a line carrying code::voice:: is pinned to that voice (mod the voice count) whatever the mode (link::Classes/RCLines#*allocate::).
 ## strong::voice_keys:: the batch keys receiving lines, in allocation order; the batch's keys (started and prepared, numbers first, sorted) when nil.
 ## strong::line_defaults:: key → value for a coordinate a line lacks, on both ends (e.g. code::(az: 0)::); a coordinate without a default is nil in the hit and the voice's beat falls back to its own default.
 ## strong::min_gap:: beats between two lines on one voice (a closer one is dropped), strong::priority:: of the subseqs.
