@@ -1,0 +1,66 @@
+TITLE:: RCLaws
+summary:: Stochastic laws as inverse distribution functions of one uniform draw; walks with elastic barriers; Poisson counts; an entropy
+categories:: Libraries>reCurrent
+related:: Classes/RCSieve, Classes/RCMarkov, Classes/RCUtil, Classes/RCNoteAlg
+
+DESCRIPTION::
+The distributions of Xenakis' stochastic music (emphasis::Formalized Music::), written as he wrote them for the computer: a function of one uniform draw u in [0, 1) ("the machine can only draw numbers y0 at random with equiprobability between 0 and 1; we modulate this probability", p. 142 and App. I-II). A seeded uniform stream then gives a reproducible result under any law (link::Classes/RCUtil#*seeded::). Also the reflecting barriers of his random walks (ch. IX method 4, GENDYN's elastic mirrors, ch. XIII), Poisson counts (ch. I), and an entropy in bits (the ataxy, ch. II p. 63).
+
+Every method draws from the calling thread's random generator.
+
+CLASSMETHODS::
+
+METHOD:: value
+A value in [lo, hi] by strong::law::, from the uniform draw strong::u:: (nil: drawn now).
+table::
+## code::\uniform:: ||
+## code::\linear:: || the second law (App. II p. 327): x = a (1 - sqrt(1 - u)), density 2/a (1 - x/a): lo likelier, mean a/3
+## code::\linear_hi:: || its mirror: hi likelier
+## code::\triangular:: || the sum of two uniforms: the middle
+## code::\gauss:: || standard deviation a quarter of the range, clipped
+## code::\arcsine:: || the edges (ch. IX)
+## code::\cauchy:: || a narrow centre with far tails, clipped to the range
+## code::\logistic::, code::\hcos:: || the logistic and the hyperbolic cosine (ln tan(π u / 2)), clipped
+## code::\exponential:: || from lo, mean a quarter of the range (the first law, App. I p. 323); code::\exponential_hi:: from hi
+::
+
+METHOD:: step
+A signed step of scale strong::step:: for a random walk: code::\uniform:: (±u step), code::\linear:: (small steps likelier), code::\gauss:: (sd step/2), code::\cauchy:: (mostly small, sometimes a leap, clipped at four steps), code::\bilateral:: (Laplace: exponential either side), code::\logistic::.
+
+METHOD:: reflect
+x brought into [lo, hi] by reflection at the ends: the excursion past a barrier comes back from it (1.2 → 0.8 in [0, 1], 2.5 → 0.5).
+
+METHOD:: gauss
+A gaussian of standard deviation sd (Box-Muller on two uniform draws).
+
+METHOD:: poisson
+A Poisson count of mean lambda (Knuth's method; the normal approximation past 50).
+
+METHOD:: exponential
+An exponential value of the given mean, x = -ln(1 - u) × mean, clipped to [lo, hi]: Xenakis' durations and gaps.
+
+METHOD:: poissonTable
+Poisson's table for a mean density over a number of cells: how many cells hold 0, 1, 2 ... events, the rounding remainder left to the empty cells. Achorripsis (p. 29): code::poissonTable(0.6, 196):: gives code::[107, 65, 19, 4, 1, 0, 0]::.
+
+METHOD:: entropyBits
+The entropy in bits of a set of values binned by strong::bin::: 0 for one value, log2 n for n equally frequent ones.
+
+METHOD:: valueLaws
+METHOD:: stepLaws
+The names each method accepts.
+
+EXAMPLES::
+code::
+// the second law: the interval from the last pitch, small intervals likelier, reflected inside a band
+~last = 0.3;
+~next = RCLaws.reflect(~last + (RCLaws.value(\linear, nil, 0, 2) * [1, -1].choose), -1, 1);
+
+// a GENDYN-like walk: Cauchy steps of a semitone between elastic barriers
+~x = 0; 20.collect { ~x = RCLaws.reflect(~x + RCLaws.step(\cauchy, nil, 1/12), -1, 1) };
+
+// how many grains in a cell of density 2 per beat over 4 beats, the same every time
+RCUtil.seeded(1994, { RCLaws.poisson(8) });
+
+// the mean of 6000 draws of the second law on [0, 3] is 1
+RCUtil.seeded(1, { 6000.collect { RCLaws.value(\linear, nil, 0, 3) }.mean });
+::

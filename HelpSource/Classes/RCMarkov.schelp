@@ -1,0 +1,62 @@
+TITLE:: RCMarkov
+summary:: Markov chains: transition matrices, their stationary distribution and entropy, a matrix from a protocol, the coupled mechanism of Analogique
+categories:: Libraries>reCurrent
+related:: Classes/RCLaws, Classes/RCSieve, Classes/RCCrawlerMoves
+
+DESCRIPTION::
+The Markovian stochastic music of emphasis::Formalized Music:: (ch. II-III). A matrix is an Array of rows, row i holding the probabilities of the states entered from state i (rows sum to 1). Xenakis writes his matrices by columns: his (β), X→X 0.85 / X→Y 0.15, Y→X 0.4 / Y→Y 0.6 (p. 82), is code::[[0.85, 0.15], [0.4, 0.6]]:: here.
+
+code::
+~beta = [[0.85, 0.15], [0.4, 0.6]];
+RCMarkov.stationary(~beta);        // [0.727, 0.273] (p. 85)
+RCMarkov.entropy(~beta);           // 0.708 bits (p. 86 prints 0.707)
+RCMarkov.next(~beta, 0);           // 0 or 1
+RCMarkov.fromProtocol("ABABBBABAABABABABBBBABAABABBAABABBABAAABABBAABBABBA", [\A, \B]).counts;   // [[6, 17], [17, 10]] (p. 73-74)
+::
+
+CLASSMETHODS::
+
+METHOD:: next
+The next state from strong::state:: by the matrix (the row normalised as drawn).
+
+METHOD:: stationary
+The stationary distribution, by iteration from the uniform one (p. 85-86: the fixed probability vector).
+
+METHOD:: rowEntropy
+The entropy in bits of one row of probabilities.
+
+METHOD:: entropy
+The mean entropy of the chain in bits: each row's entropy weighted by the stationary probability of its state (p. 86).
+
+METHOD:: fromProtocol
+The matrix a protocol implies (p. 73-74): strong::protocol:: a String (one character per state) or an Array of Symbols, strong::states:: their names in matrix order (the sorted distinct ones when nil). Returns code::(states:, mtp:, counts:):: — the names, the row-stochastic matrix (a state never left gets a uniform row) and the transition counts.
+
+METHOD:: isStochastic
+Every row sums to one within strong::tol::, every entry non-negative.
+
+METHOD:: normalize
+Rows scaled to sum to one (an empty row becomes uniform).
+
+METHOD:: uniform
+The n × n matrix of equal probabilities.
+
+METHOD:: coupledStep
+One step of a coupled mechanism (Analogique A et B, p. 83-84: "f0 standing before two urns (α) and (β)... with a probability equal to 1/2"). strong::vars:: is an Array of variable Events:
+code::
+(key: \f, state: 0, mtps: (alpha: ~alpha, beta: ~beta), couplings: (g: [\beta, \alpha], d: [\alpha, \beta]))
+::
+For each variable the other variables' states propose matrices through its strong::couplings:: (the state of variable g, as an index into g's table, names one of f's strong::mtps::); one proposal is chosen at random and the next state is drawn from that matrix's row of the current state. Without couplings strong::mtp:: names the matrix, else the only one (the first by name). Every variable steps from the previous states. Writes code::state:: and code::mtp_used:: into each variable and returns the names used, in the variables' order. A variable whose matrix cannot be found keeps its state (reported through link::Classes/RCLog::).
+
+EXAMPLES::
+code::
+// Analogique A et B: three variables, the same pair of matrices each, Xenakis' couplings (p. 83)
+(
+var alpha = [[0.2, 0.8], [0.8, 0.2]], beta = [[0.85, 0.15], [0.4, 0.6]];
+~vars = [
+	(key: \f, state: 0, mtps: (alpha: alpha, beta: beta), couplings: (d: [\alpha, \beta], g: [\beta, \alpha])),
+	(key: \g, state: 0, mtps: (alpha: alpha, beta: beta), couplings: (f: [\alpha, \beta], d: [\alpha, \beta])),
+	(key: \d, state: 0, mtps: (alpha: alpha, beta: beta), couplings: (f: [\alpha, \beta], g: [\alpha, \beta]))
+];
+20.collect { RCMarkov.coupledStep(~vars); ~vars.collect(_[\state]) };   // the screens' letters, as f g d
+)
+::
