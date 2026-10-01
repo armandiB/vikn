@@ -76,11 +76,17 @@ RCMidi {
 			}, ccNum + 32, chan, srcID).permanent_(true);
 			keys = keys ++ [lsbKey];
 		};
+		// recorded as an input (RETap) with the raw and the mapped value; the
+		// action runs inside the message's cause
 		fire = { |total|
 			RCGuard.call(key, nil) {
 				var v = valFunc.value(total);
 				RCLog.info(key, { "= " ++ v.asString });
-				action.value(v, total);
+				if(RETap.active) {
+					RETap.input(\midi, song, (name: name, raw: total, value: v), { action.value(v, total) });
+				} {
+					action.value(v, total);
+				};
 			};
 		};
 		if(throttle.notNil) {

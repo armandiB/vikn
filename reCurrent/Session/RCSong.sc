@@ -14,7 +14,7 @@ RCSong {
 	var <loopBuffers, <>sampleLibrary;
 	var <osc, <midi, <keyboard, <registry;
 	var <outputs, <recorders, <replays;
-	var server, clock;
+	var server, clock, scoreRecorder;
 
 	*new { |name, seed, session, layerKeys = #[\core, \details, \meta]|
 		^super.new.initRCSong(name, seed, session, layerKeys)
@@ -54,11 +54,21 @@ RCSong {
 		^keyboard
 	}
 
+	// The score recorder of the song (REScoreRecorder, reCording), made on
+	// first use; root, version and piece are kept when given.
+	scoreRecorder { |root, version, piece|
+		scoreRecorder = scoreRecorder ?? { REScoreRecorder(this) };
+		root !? { scoreRecorder.root = root.asString };
+		version !? { scoreRecorder.version = version.asString };
+		piece !? { scoreRecorder.piece = piece.asString };
+		^scoreRecorder
+	}
+
 	server { ^server ?? { session.server } }
 	server_ { |s| server = s }
 	clock { ^clock ?? { session.clock } }
 	clock_ { |c| clock = c }
-	seed_ { |s| seed = s }
+	seed_ { |s| if(RETap.active) { RETap.action(this, \seed_, [s]) }; seed = s }
 
 	//////// layers
 
@@ -78,13 +88,15 @@ RCSong {
 
 	allBeats { ^layers.values.collect { |l| l.beats.values }.flatten(1) }
 
-	killAllBeats {
-		layers.do(_.killAll);
+	// Recorded (RETap); library code uses the pr twins.
+	killAllBeats { if(RETap.active) { RETap.action(this, \killAllBeats, []) }; this.prKillAllBeats }
+	pauseAllBeats { if(RETap.active) { RETap.action(this, \pauseAllBeats, []) }; layers.do(_.prPauseAll) }
+	resumeAllBeats { if(RETap.active) { RETap.action(this, \resumeAllBeats, []) }; layers.do(_.prResumeAll) }
+
+	prKillAllBeats {
+		layers.do(_.prKillAll);
 		RCLog.post(\song, "% killed all beats".format(name));
 	}
-
-	pauseAllBeats { layers.do(_.pauseAll) }
-	resumeAllBeats { layers.do(_.resumeAll) }
 
 	//////// server topology
 
@@ -246,9 +258,14 @@ RCSong {
 	// rebuilt by buildOutputs), groups. OSC and MIDI definitions survive (a
 	// scene/init handler must stay reachable).
 	clearAll { |freeGroups = true|
-		this.killAllBeats;
-		registry.fobjects.copy.do { |f| RCGuard.call(\song, nil) { f.free } };
-		registry.all.do { |o| RCGuard.call(\song, nil) { o.free } };
+		if(RETap.active) { RETap.action(this, \clearAll, [freeGroups]) };
+		^this.prClearAll(freeGroups)
+	}
+
+	prClearAll { |freeGroups = true|
+		this.prKillAllBeats;
+		registry.fobjects.copy.do { |f| RCGuard.call(\song, nil) { f.prFree } };
+		registry.all.do { |o| RCGuard.call(\song, nil) { o.prFree } };
 		registry.clear;
 		loopBuffers.copy.do(_.free);
 		loopBuffers.clear;
@@ -263,7 +280,8 @@ RCSong {
 	}
 
 	free {
-		this.clearAll(true);
+		scoreRecorder !? (_.free);
+		this.prClearAll(true);
 		outputs.clear;
 		layers.do(_.free);
 		osc.freeAll;

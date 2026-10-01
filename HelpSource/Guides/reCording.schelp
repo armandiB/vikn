@@ -81,8 +81,10 @@ table::
 ## link::Classes/RCBatch:: || code::addCreate::, code::startPrepared::, code::editAttr::, code::apply::, code::deleteBeats::, code::free::
 ## link::Classes/RCOrgnsm:: || code::rPut::, code::create::, code::start::, code::free::
 ## link::Classes/RCCrawler:: || code::init::, code::initFromBatch::, code::setVal::, code::jumpNext::, code::setNextVal::, code::createPattern::, code::free::
-## link::Classes/RCFObject:: || code::create::, code::setArg::, code::setArgArray::, code::setCenter::, code::setOrigin::, code::setRotationMatrix::, code::setWidth::, code::free::
+## link::Classes/RCFObject:: || code::create::, code::rPut::, code::setArg::, code::setArgArray::, code::setCenter::, code::setOrigin::, code::setRotationMatrix::, code::setWidth::, code::free::
 ::
+
+A subclass that specialises one of these overrides its private twin (link::Classes/RCPathControl:: overrides code::prStart::, not code::start::): the public method records, then dispatches.
 
 Inputs: MIDI mappings (name, raw and mapped value), OSC defs (key, path, arguments), keyboard messages (channel, note, velocity, bend, pressure, CC), code lines (text). Snapshots: the sources of every key of the beats in scope, the static attributes of the orgnsms, the registered controls' values. A take also starts with a snapshot (code::record(startSnapshot: false):: skips it) so that it replays from silence.
 

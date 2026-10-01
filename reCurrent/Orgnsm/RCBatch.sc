@@ -36,15 +36,17 @@ RCBatch {
 	song { ^template.song }
 
 	// Create one orgnsm under `key`; started now or kept for startPrepared.
+	// Recorded (RETap), like startPrepared, apply, editAttr, deleteBeats and free.
 	addCreate { |key, replaceAttrs, deleteAttrs, start = false|
 		var attrs = this.replaceAttrs.copy;
 		var o;
+		if(RETap.active) { RETap.action(this, \addCreate, [key, replaceAttrs, deleteAttrs, start]) };
 		replaceAttrs !? { |r| r.keysValuesDo { |k, v| attrs[k] = v } };
-		o = template.create(layerKey: layerKey, terminationKey: terminationKey, replaceAttrs: attrs,
+		o = template.prCreate(layerKey: layerKey, terminationKey: terminationKey, replaceAttrs: attrs,
 			deleteAttrs: deleteAttrs, osc: osc, pickNewNumber: pickNewNumber, oscNames: oscNames, chan: chan,
 			batch: this, batchKey: key);
 		if(start) {
-			o.start;
+			o.prStart;
 			this.prList(lists, key).add(o);
 		} {
 			this.prList(prepared, key).add(o);
@@ -58,10 +60,11 @@ RCBatch {
 
 	// Start the prepared orgnsms of `keys` (all by default). Returns the keys.
 	startPrepared { |keys|
+		if(RETap.active) { RETap.action(this, \startPrepared, [keys]) };
 		keys = keys ?? { prepared.keys.asArray };
 		keys.do { |key|
 			prepared[key] !? { |list|
-				list.do { |o| o.start; this.prList(lists, key).add(o) };
+				list.do { |o| o.prStart; this.prList(lists, key).add(o) };
 				prepared.removeAt(key);
 			};
 		};
@@ -100,6 +103,11 @@ RCBatch {
 	// Apply func to the live orgnsms selected by cond (all by default). A
 	// throwing cond or func is reported and skips that orgnsm.
 	apply { |func, cond|
+		if(RETap.active) { RETap.action(this, \apply, [func, cond]) };
+		^this.prApply(func, cond)
+	}
+
+	prApply { |func, cond|
 		applyCount = applyCount + 1;
 		^this.collectAll { |o, i, list, key|
 			if(o.isFreed.not and: { cond.isNil or: { RCGuard.call(name, false) { cond.value(o, i, list, key) } } }) {
@@ -109,19 +117,25 @@ RCBatch {
 	}
 
 	editAttr { |attr, value, cond, valueIsFunc = false|
-		^this.apply({ |o, i, list, key|
+		if(RETap.active) { RETap.action(this, \editAttr, [attr, value, cond, valueIsFunc]) };
+		^this.prApply({ |o, i, list, key|
 			var v = if(valueIsFunc) { value.value(o, i, list, key) } { value };
-			o.rPut(attr, v);
+			o.prRPut(attr, v);
 			o
 		}, cond)
 	}
 
 	// Free the selected live (and prepared) orgnsms; cleanup drops them from the lists.
 	deleteBeats { |cond, cleanup = false|
-		var res = this.apply({ |o| o.free; nil }, cond);
+		if(RETap.active) { RETap.action(this, \deleteBeats, [cond, cleanup]) };
+		^this.prDeleteBeats(cond, cleanup)
+	}
+
+	prDeleteBeats { |cond, cleanup = false|
+		var res = this.prApply({ |o| o.prFree; nil }, cond);
 		prepared.keysValuesDo { |key, list|
 			list.do { |o, i|
-				if(cond.isNil or: { RCGuard.call(name, false) { cond.value(o, i, list, key) } }) { o.free };
+				if(cond.isNil or: { RCGuard.call(name, false) { cond.value(o, i, list, key) } }) { o.prFree };
 			};
 		};
 		if(cleanup) {
@@ -133,7 +147,10 @@ RCBatch {
 		^res
 	}
 
-	free { this.deleteBeats(nil, true) }
+	free {
+		if(RETap.active) { RETap.action(this, \free, []) };
+		this.prDeleteBeats(nil, true);
+	}
 
 	printOn { |stream| stream << "RCBatch(" << name << ", " << this.size << " orgnsms)" }
 }

@@ -116,7 +116,13 @@ RCOrgnsm {
 		^[slot] ++ keys[1..]
 	}
 
+	// Recorded (RETap); library code writes through prRPut.
 	rPut { |key, val|
+		if(RETap.active) { RETap.action(this, \rPut, [key, val]) };
+		^this.prRPut(key, val)
+	}
+
+	prRPut { |key, val|
 		var keys = this.convertKey(key);
 		var slot = keys[0];
 		var rest;
@@ -303,15 +309,21 @@ RCOrgnsm {
 	tribeDict { ^song.registry.tribe(species, tribe) }
 
 	// A registered, prepared clone. Start it with .start (or .value).
+	// Recorded (RETap), like start and free; library code uses the pr twins.
 	create { |layerKey = \core, terminationKey, replaceAttrs, deleteAttrs, osc = false, pickNewNumber = true, oscNames, chan, batch, batchKey|
+		if(RETap.active) { RETap.action(this, \create, [layerKey, terminationKey, replaceAttrs, deleteAttrs, osc, pickNewNumber, oscNames, chan, batch, batchKey]) };
+		^this.prCreate(layerKey, terminationKey, replaceAttrs, deleteAttrs, osc, pickNewNumber, oscNames, chan, batch, batchKey)
+	}
+
+	prCreate { |layerKey = \core, terminationKey, replaceAttrs, deleteAttrs, osc = false, pickNewNumber = true, oscNames, chan, batch, batchKey|
 		var c = this.clone;
 		c.layerKey = layerKey;
 		c.terminationKey = terminationKey;
 		c.chan = chan;
 		c.batch = batch;
 		c.batchKey = batchKey;
-		replaceAttrs !? { |r| r.keysValuesDo { |k, v| c.rPut(k, v) } };
-		deleteAttrs !? { |d| d.do { |k| c.rPut(k, nil) } };
+		replaceAttrs !? { |r| r.keysValuesDo { |k, v| c.prRPut(k, v) } };
+		deleteAttrs !? { |d| d.do { |k| c.prRPut(k, nil) } };
 		c.register(pickNewNumber);
 		c.prepare(osc, oscNames);
 		^c
@@ -326,10 +338,15 @@ RCOrgnsm {
 	}
 
 	start { |quant|
+		if(RETap.active) { RETap.action(this, \start, [quant]) };
+		^this.prStart(quant)
+	}
+
+	prStart { |quant|
 		if(isFreed) { RCLog.warn(\orgnsm, "% is freed, cannot start".format(this.name)); ^nil };
 		if(spec.isNil) { this.prepare };
 		if(spec.isNil) { ^nil };
-		beat = spec.start(quant);
+		beat = spec.prStart(quant);
 		^beat
 	}
 
@@ -340,10 +357,16 @@ RCOrgnsm {
 	// Stops the beat, unregisters, frees resources marked "always" (or all).
 	free { |freeAllServerResources = false|
 		if(isFreed) { ^false };
+		if(RETap.active) { RETap.action(this, \free, [freeAllServerResources]) };
+		^this.prFree(freeAllServerResources)
+	}
+
+	prFree { |freeAllServerResources = false|
+		if(isFreed) { ^false };
 		isFreed = true;
 		if(freeAllServerResources) { this.freeAllServerResources } { this.freeAlwaysServerResources };
 		this.unregister;
-		beat !? { |b| b.free(post: false) };
+		beat !? { |b| b.prFree(post: false) };
 		^true
 	}
 
