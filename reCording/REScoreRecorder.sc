@@ -25,6 +25,7 @@ REScoreRecorder {
 	var <scope, <inputs, <voiceOf, <voices;
 	var <>voicesByLayer = false;   // a beat's default voice: its layer (true) or layer/name (false)
 	var <controls;                 // name → spec (min, max, warp, default, unit), written into every take
+	var controlGetters, controlSetters;   // name → { value } / { |value| }: snapshots and recalls of registered controls
 	var <score, <lastScore, <lastPath, <beat0, <time0, lastTempo;
 	var <>startSnapshot = true;
 	var <player, overdubbing;
@@ -47,6 +48,8 @@ REScoreRecorder {
 		voiceOf = IdentityDictionary.new;
 		voices = IdentityDictionary.new;
 		controls = IdentityDictionary.new;
+		controlGetters = IdentityDictionary.new;
+		controlSetters = IdentityDictionary.new;
 	}
 
 	clock { ^song.clock }
@@ -104,13 +107,24 @@ REScoreRecorder {
 		^if(objOrName.isKindOf(Symbol) or: { objOrName.isKindOf(String) }) { this.prVoiceForName(objOrName) } { this.prVoiceFor(objOrName) }
 	}
 
-	// specs the takes carry (name → (min:, max:, warp:, default:, unit:)): a view scales a
-	// control's curve by them, a morph ramps along their warp. A ControlSpec is accepted.
-	addControl { |name, spec|
-		controls[name.asSymbol] = if(spec.isKindOf(ControlSpec)) {
-			IdentityDictionary[\min -> spec.minval, \max -> spec.maxval, \warp -> spec.warp.asSpecifier.asString, \default -> spec.default, \unit -> spec.units.asString]
-		} { spec };
+	// A registered control: its spec goes into every take (name → (min:, max:, warp:,
+	// default:, unit:); a ControlSpec is accepted), a view scales its curve by it, a morph
+	// ramps along its warp; with `get` ({ value }) a snapshot holds its value, with `set`
+	// ({ |value| }) a recall or a morph brings it back.
+	addControl { |name, spec, get, set|
+		name = name.asSymbol;
+		spec !? {
+			controls[name] = if(spec.isKindOf(ControlSpec)) {
+				IdentityDictionary[\min -> spec.minval, \max -> spec.maxval, \warp -> spec.warp.asSpecifier.asString, \default -> spec.default, \unit -> spec.units.asString]
+			} { spec };
+		};
+		get !? { controlGetters[name] = get };
+		set !? { controlSetters[name] = set };
 	}
+
+	controlGetter { |name| ^controlGetters[name.asSymbol] }
+	controlSetter { |name| ^controlSetters[name.asSymbol] }
+	controlNames { ^controlGetters.keys.asArray.sort { |a, b| a.asString <= b.asString } }
 
 	free { this.disarm }
 
@@ -191,6 +205,7 @@ REScoreRecorder {
 		stopBeat = this.clock.beats - beat0;
 		s.meta[\duration] = stopBeat;
 		s.meta[\commits] = this.prCommits;
+		root !? { s.meta[\root] = root };
 		state = \armed;
 		score = nil;
 		overdubbing = nil;
@@ -275,6 +290,14 @@ REScoreRecorder {
 		st[\orgnsms] = IdentityDictionary.new;
 		song.registry.all.do { |o|
 			if(o.isFreed.not and: { this.prInScope(o) }) { st[\orgnsms][o.name] = REScore.encodeValue(o.staticAttrs) };
+		};
+		if(controlGetters.notEmpty) {
+			st[\controls] = IdentityDictionary.new;
+			controlGetters.keysValuesDo { |k, get|
+				if(this.prInputInScope(\control, k)) {
+					RCGuard.call(\score, nil) { st[\controls][k] = REScore.encodeValue(get.value) };
+				};
+			};
 		};
 		ev = this.prEvent(\snapshot, nil);
 		ev[\name] = name.asSymbol;
@@ -366,6 +389,8 @@ REScoreRecorder {
 	prOwners { |obj|
 		case
 		{ obj.isKindOf(RCBeat) } { ^[obj, obj.layer, obj.song] }
+		{ obj.isKindOf(RCDurList) } { ^[obj] ++ (obj.owner !? { |b| this.prOwners(b) } ? []) }
+		{ obj.isKindOf(RCSwing) } { ^[obj] ++ (obj.layer !? { |l| this.prOwners(l) } ? []) }
 		{ obj.isKindOf(RCLayer) } { ^[obj, obj.song] }
 		{ obj.isKindOf(RCOrgnsm) } { ^[obj, obj.batch, obj.layer, obj.song].reject(_.isNil) }
 		{ obj.isKindOf(RCBatch) } { ^[obj, obj.song] }
@@ -386,6 +411,8 @@ REScoreRecorder {
 		^voiceOf[obj] ?? {
 			case
 			{ obj.isKindOf(RCBeat) } { this.prBeatVoice(obj) }
+			{ obj.isKindOf(RCDurList) } { obj.owner !? { |b| this.prVoiceFor(b) } ? \durList }
+			{ obj.isKindOf(RCSwing) } { obj.layer !? (_.key) ? \swing }
 			{ obj.isKindOf(RCLayer) } { obj.key }
 			{ obj.isKindOf(RCSong) } { obj.name }
 			{ obj.isKindOf(RCBatch) } { obj.name }

@@ -5,14 +5,20 @@
 //   amount * sin(pi * (t % mod)) + shift
 // A custom `func` receives (t, swing) and replaces the default shape.
 // Non-finite results are replaced by 0 so a bad function can never break the
-// dur pipeline.
+// dur pipeline. Setting amount, mod or shift is recorded (RETap) under the
+// layer that holds the swing (`layer`, set by RCLayer).
 
 RCSwing {
-	var <>amount, <>mod, <>shift, <>func;
+	var <amount, <mod, <shift, <>func;
+	var <>layer;   // the RCLayer it belongs to, nil for a free swing
 
 	*new { |amount = 0, mod = 1, shift = 0, func|
 		^super.newCopyArgs(amount, mod, shift, func)
 	}
+
+	amount_ { |a| if(RETap.active) { RETap.action(this, \amount_, [a]) }; amount = a }
+	mod_ { |m| if(RETap.active) { RETap.action(this, \mod_, [m]) }; mod = m }
+	shift_ { |s| if(RETap.active) { RETap.action(this, \shift_, [s]) }; shift = s }
 
 	value { |t|
 		var res;

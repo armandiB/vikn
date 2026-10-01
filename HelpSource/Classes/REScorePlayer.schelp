@@ -26,6 +26,22 @@ argument:: beats
 argument:: curve
 returns:: A Pseg to the target, then the target held.
 
+METHOD:: rampControl
+argument:: set
+code::{ |value| }::.
+argument:: from
+argument:: to
+argument:: beats
+argument:: spec
+A take's spec dictionary (min, max, warp), nil for linear.
+argument:: clock
+argument:: stepsPerBeat
+returns:: The Routine stepping the setter to the target along the spec's warp.
+
+METHOD:: controlSpecFor
+argument:: spec
+returns:: A link::Classes/ControlSpec:: from a take's spec dictionary.
+
 INSTANCEMETHODS::
 
 METHOD:: play
@@ -65,6 +81,13 @@ METHOD:: onLoop
 code::{ |player, pass| }:: at each new pass.
 METHOD:: onDone
 code::{ |player| }:: at the end (not for loops).
+
+METHOD:: interpolate
+Between two points of an input control (MIDI, OSC, raw MIDI, keyboard), fire interpolated values along the control's spec (true by default); actions on objects are never ramped.
+METHOD:: stepsPerBeat
+The rate of the ramps (16).
+METHOD:: interpolated
+Interpolated values fired so far.
 
 METHOD:: followTempo
 Apply the recorded tempo events to the clock (false by default).

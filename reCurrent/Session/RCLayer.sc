@@ -18,6 +18,7 @@ RCLayer {
 		key = keyarg.asSymbol;
 		clock = clockarg;
 		swing = swingarg ?? { RCSwing.new };
+		swing.layer = this;   // its settings are recorded under this layer
 		midiOut = midiOutarg;
 		addMidiOuts = addMidiOutsarg ? [];
 		beats = IdentityDictionary.new;
@@ -30,7 +31,7 @@ RCLayer {
 	server { ^server ?? { song !? (_.server) } }
 	server_ { |s| server = s }
 	seed { ^song !? (_.seed) }
-	swing_ { |s| swing = s }
+	swing_ { |s| swing = s; s !? { s.layer = this } }
 	songName { ^song !? (_.name) }
 
 	beat { |name| ^beats[name.asSymbol] }

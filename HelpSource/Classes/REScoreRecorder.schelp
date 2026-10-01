@@ -48,8 +48,17 @@ METHOD:: voicesByLayer
 METHOD:: addControl
 argument:: name
 argument:: spec
-A link::Classes/ControlSpec:: or a dictionary (min, max, warp, default, unit): written into every take's code::controls::.
+A link::Classes/ControlSpec:: or a dictionary (min, max, warp, default, unit): written into every take's code::controls::; nil keeps the spec given before.
+argument:: get
+code::{ value }::: a snapshot holds the control's value.
+argument:: set
+code::{ |value| }::: a recall or a morph brings it back (a morph ramps it along the spec's warp).
 METHOD:: controls
+METHOD:: controlGetter
+METHOD:: controlSetter
+argument:: name
+METHOD:: controlNames
+The controls with a getter.
 
 METHOD:: disarm
 Stops a recording, removes the hooks.

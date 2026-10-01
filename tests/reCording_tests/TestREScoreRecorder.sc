@@ -133,6 +133,47 @@ TestREScoreRecorder : UnitTest {
 		rec.voicesByLayer = false;
 	}
 
+	test_durlist_and_swing_actions {
+		var b = this.restBeat(layer, \k);
+		var s, ev;
+		b.durList_([1, 1, 1, 1]);
+		rec.arm(inputs: #[\actions]);
+		rec.record(snapshotAtStart: false);
+		b.durList.addHit(0.5);
+		b.durList.removeHit(2);
+		layer.swing.amount = 0.05;
+		s = rec.stop;
+		this.assertEquals(s.ofKind(\action).collect(_[\method]), [\addHit, \removeHit, \amount_], "dur list edits and swing settings are actions");
+		ev = s.at(1);
+		this.assertEquals(ev[\rc][\rc], "durList");
+		this.assertEquals(ev[\rc][\name], "k", "under the beat that owns the list");
+		this.assertEquals(ev[\voice], 'core/k', "in the beat's voice");
+		this.assertEquals(REScore.resolve(ev[\rc], song), b.durList, "resolved through the beat");
+		this.assertEquals(s.at(3)[\rc][\rc], "swing");
+		this.assertEquals(REScore.resolve(s.at(3)[\rc], song), layer.swing, "resolved through the layer");
+		this.assertEquals(s.at(3)[\voice], \core, "in the layer's voice");
+		this.assertEquals(b.durList.array.size, 5, "the edits happened");
+	}
+
+	test_control_snapshots {
+		var value = 0.2, s, snapId;
+		rec.addControl(\knob, IdentityDictionary[\min -> 0, \max -> 1, \warp -> "lin"], get: { value }, set: { |v| value = v });
+		this.assertEquals(rec.controlNames, [\knob]);
+		rec.arm(inputs: #[\actions]);
+		rec.record(snapshotAtStart: false);
+		snapId = rec.snapshot(\a);
+		value = 0.9;
+		s = rec.stop;
+		this.assertEquals(s.at(snapId)[\state][\controls][\knob], 0.2, "a snapshot holds the registered controls' values");
+		REScorePlayer.applyState(song, s.at(snapId)[\state]);
+		this.assertEquals(value, 0.2, "recalled through the setter");
+		value = 1.0;
+		REScorePlayer.applyState(song, s.at(snapId)[\state], 2);
+		this.assertEquals(value, 1.0, "a morph has not moved yet");
+		(3 / clock.tempo).wait;
+		this.assertFloatEquals(value, 0.2, "and lands on the snapshot's value after its beats");
+	}
+
 	test_raw_midi {
 		var got = nil, s;
 		var def = MIDIdef.noteOn(\re_test_raw, { |vel, note, chan, src| got = [note, vel, chan] });

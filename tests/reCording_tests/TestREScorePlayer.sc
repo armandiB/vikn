@@ -65,6 +65,44 @@ TestREScorePlayer : UnitTest {
 		this.assertEquals(clock.tempo, 20, "but does not touch the clock unless followTempo");
 	}
 
+	test_interpolation {
+		var got = List.new;
+		var s = REScore(\pl);
+		var p;
+		song.midi.control(\knob, 5, 0, "No Such Device", { |x| x }, { |v| got.add(v) });
+		s.add((beat: 0, kind: \midi, voice: \knob, name: \knob, raw: 0, value: 0.0));
+		s.add((beat: 2, kind: \midi, voice: \knob, name: \knob, raw: 127, value: 1.0));
+		s.add((beat: 2.5, kind: \midi, voice: \knob, name: \knob, raw: 127, value: 1.0));
+		s.meta[\duration] = 3;
+		s.controls[\knob] = IdentityDictionary[\min -> 0, \max -> 1, \warp -> "lin"];
+		p = REScorePlayer(s, song);
+		p.stepsPerBeat = 4;
+		p.play;
+		(4 / clock.tempo).wait;
+		this.assertEquals(p.fired, 3, "the recorded points");
+		this.assert(p.interpolated >= 6, "steps between the first two points: " ++ p.interpolated);
+		this.assertEquals(got.first, 0.0);
+		this.assert(got.asArray.every { |v, i| i == 0 or: { v >= got[i - 1] } }, "rising: " ++ got);
+		this.assert(got.includes(0.5), "halfway at beat 1: " ++ got);
+		this.assertEquals(got.last, 1.0);
+		got.clear;
+		p.interpolate = false;
+		p.play;
+		(4 / clock.tempo).wait;
+		this.assertEquals(got.asArray, [0.0, 1.0, 1.0], "without interpolation: the points only");
+	}
+
+	test_commit_warning {
+		var s = REScore(\pl);
+		var p;
+		s.meta[\commits] = IdentityDictionary[\vikn -> "0000000"];
+		p = REScorePlayer(s, song);
+		p.play;
+		(0.5 / clock.tempo).wait;
+		this.assert(this.logHas("recorded with other code"), "a mismatching commit is reported");
+		p.stop;
+	}
+
 	test_fire_raw_midi {
 		var got = nil;
 		var def = MIDIdef.cc(\re_test_raw_cc, { |val, num, chan, src| got = [num, val, chan, src] });

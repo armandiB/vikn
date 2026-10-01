@@ -85,6 +85,8 @@ table::
 ## link::Classes/RCOrgnsm:: || code::rPut::, code::create::, code::start::, code::free::
 ## link::Classes/RCCrawler:: || code::init::, code::initFromBatch::, code::setVal::, code::jumpNext::, code::setNextVal::, code::createPattern::, code::free::
 ## link::Classes/RCFObject:: || code::create::, code::rPut::, code::setArg::, code::setArgArray::, code::setCenter::, code::setOrigin::, code::setRotationMatrix::, code::setWidth::, code::free::
+## link::Classes/RCDurList:: || code::put::, code::addHit::, code::removeHit::, code::totalDur_::, code::duplicate:: (under the beat that owns the list)
+## link::Classes/RCSwing:: || code::amount_::, code::mod_::, code::shift_:: (under the layer that holds the swing)
 ::
 
 A subclass that specialises one of these overrides its private twin (link::Classes/RCPathControl:: overrides code::prStart::, not code::start::): the public method records, then dispatches.
@@ -105,7 +107,7 @@ code::
 ~p.onEvent = { |p, ev| ... };                      // the playhead feed of a view
 ::
 
-An event replays at the recorded beat on the song's clock, from a single Routine that waits between events; with the server running, what an event sends goes in a code::server.latency:: bundle, in line with the pattern events; nothing the player does is recorded. A MIDI event calls its mapping's action with the recorded mapped value (the valFunc is not re-applied: the value is what you edit), an OSC event calls its def's function with the recorded arguments, an action calls the method on the object resolved by name, a keyboard message updates the song's keyboard, a code line is compiled and run in the current environment, a snapshot sets the recorded sources, a morph ramps to them. When a message's mapping or def no longer exists, an object is not found, or a code line raises, the event's recorded effects replay instead; what cannot replay is skipped with one warning each.
+An event replays at the recorded beat on the song's clock, from a single Routine that waits between events; with the server running, what an event sends goes in a code::server.latency:: bundle, in line with the pattern events; nothing the player does is recorded. Between two points of an input control (a MIDI, OSC, raw MIDI or keyboard value) the player ramps, code::stepsPerBeat:: times a beat, along the control's spec when the take carries one (most SynthDefs do not smooth their arguments; code::interpolate = false:: plays the points only). Before playing, the take's commits are compared with the checkouts: other code is reported once. A MIDI event calls its mapping's action with the recorded mapped value (the valFunc is not re-applied: the value is what you edit), an OSC event calls its def's function with the recorded arguments, an action calls the method on the object resolved by name, a keyboard message updates the song's keyboard, a code line is compiled and run in the current environment, a snapshot sets the recorded sources, a morph ramps to them. When a message's mapping or def no longer exists, an object is not found, or a code line raises, the event's recorded effects replay instead; what cannot replay is skipped with one warning each.
 
 A score's continuous controls (link::Classes/REScore#-controlKeys::) become patterns, code::score.curvePattern([\midi, \knob_mix])::, a Pseg between the points held at both ends; its notes a Pbind per voice, code::score.notePattern('Seaboard RISE 2')::. Rendering a take offline belongs to the rig that knows which synth each control reaches (HomewareSC's remote rig).
 
@@ -119,7 +121,7 @@ code::
 
 The old take plays (link::Classes/REScorePlayer::) while a new one is recorded on the same timeline; code::stop:: merges them (link::Classes/REScore#*merge::) and writes the merge as a new file, the original staying. Modes, per voice: strong::replace:: mutes the voice's old events from the punch-in and drops them within the punch; strong::keep:: adds the new events to the old; strong::touch:: drops, per control, the old events between the first and last touch of it; strong::nil:: (the default) is touch for continuous controls and replace for the voice's other events (notes, transport, messages): two curves on one slider would fight, two notes do not. In a loop the passes fold into the span and, unless strong::keep::, the last pass of each voice (each control, for touch) remains. New events of voices not listed are added.
 
-A snapshot recalls instantly (code::~rec.recall(\intro)::) or morphs over beats (code::~rec.morph(\intro, beats: 8)::): numeric sources ramp (link::Classes/REScorePlayer#*ramp::), the rest switch at once; both are recorded as one strong::morph:: event pointing at the snapshot.
+A snapshot recalls instantly (code::~rec.recall(\intro)::) or morphs over beats (code::~rec.morph(\intro, beats: 8)::): numeric sources ramp (link::Classes/REScorePlayer#*ramp::), the registered controls ramp through their setter along their spec's warp (link::Classes/REScorePlayer#*rampControl::), the rest switch at once; both are recorded as one strong::morph:: event pointing at the snapshot. A registered control is in a snapshot when it was given a getter: code::~rec.addControl(\knob_mix, spec, get: { ~mix }, set: { |v| ~mix = v; ~reverb.set(\mix, v) })::.
 
 subsection:: Editing
 

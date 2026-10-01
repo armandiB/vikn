@@ -46,7 +46,12 @@ returns:: The value back: code::{sc}:: compiled and run (nil, reported, when it 
 
 METHOD:: rcRef
 argument:: obj
-returns:: code::{rc: "beat"|"layer"|"song"|"batch"|"orgnsm"|"fobject"|"crawler", name: ..., layer: ..., song: ...}::, nil for anything else.
+returns:: code::{rc: "beat"|"layer"|"song"|"batch"|"orgnsm"|"fobject"|"crawler"|"durList"|"swing", name: ..., layer: ..., song: ...}:: (a dur list through the beat that owns it, a swing through its layer), nil for anything else.
+
+METHOD:: withControlValue
+argument:: e
+argument:: value
+returns:: A copy of a control's event with another value (what a replay interpolates with).
 
 METHOD:: resolve
 argument:: ref

@@ -514,6 +514,7 @@ RCBeat {
 
 	durList_ { |array, seed|
 		durList = RCDurList(array);
+		durList.owner = this;   // its edits are recorded under this beat
 		seqOffset = 0;
 		^this.realDur_(this.prLoopPattern {
 			if(durList.size == 0) {

@@ -30,7 +30,7 @@ REScore {
 			\duration, \tempoMap, \voices, \controls, \events,
 			\id, \beat, \secs, \kind, \voice, \cause, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
 			\value, \text, \replay, \state];
-		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \beat0, \time0, \tempo, \latency, \duration, \overdubs];
+		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \beat0, \time0, \tempo, \latency, \duration, \overdubs];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
 		// classes whose compile string is the value itself (a Function needs its source, see prEncode)
 		scClasses = [Pattern, Ref, Env, Rest, Quant, ControlSpec, Association, Char, Class, Point, Rect, Interval, Tuning, Scale];
@@ -309,6 +309,15 @@ REScore {
 		if(points.isEmpty) { ^nil };
 		before = points.select { |p| p[0] <= beat }.last;
 		^(before ? points.first)[1]
+	}
+
+	// A copy of a control's event with another value (what a replay interpolates with).
+	*withControlValue { |e, value|
+		var ev = IdentityDictionary.new;
+		e.keysValuesDo { |k, v| ev[k] = v };
+		ev[\args] = ev[\args] !? (_.copy);
+		this.prSetControlValue(ev, value);
+		^ev
 	}
 
 	*prSetControlValue { |e, value|
@@ -688,6 +697,10 @@ REScore {
 		{ obj.isKindOf(RCOrgnsm) } { ^IdentityDictionary[\rc -> "orgnsm", \song -> obj.song.name.asString, \name -> obj.name.asString] }
 		{ obj.isKindOf(RCFObject) } { ^IdentityDictionary[\rc -> "fobject", \song -> obj.song.name.asString, \name -> (obj.name ? obj.synthDefName).asString] }
 		{ obj.isKindOf(RCCrawler) } { ^IdentityDictionary[\rc -> "crawler", \keys -> obj.attrKeys.collect(_.asString)] }
+		{ obj.isKindOf(RCDurList) and: { obj.owner.isKindOf(RCBeat) } } {
+			^IdentityDictionary[\rc -> "durList", \song -> obj.owner.songName.asString, \layer -> obj.owner.layer.key.asString, \name -> obj.owner.name.asString]
+		}
+		{ obj.isKindOf(RCSwing) and: { obj.layer.notNil } } { ^IdentityDictionary[\rc -> "swing", \song -> obj.layer.songName.asString, \layer -> obj.layer.key.asString] }
 		{ ^nil };
 	}
 
@@ -702,6 +715,8 @@ REScore {
 			\song, { ^s },
 			\layer, { ^s !? { |x| x.layer(name) } },
 			\beat, { ^s !? { |x| x.layer(ref[\layer] ? \core) !? { |l| l.beat(name) } } },
+			\durList, { ^s !? { |x| x.layer(ref[\layer] ? \core) !? { |l| l.beat(name) !? (_.durList) } } },
+			\swing, { ^s !? { |x| x.layer(ref[\layer] ? \core) !? (_.swing) } },
 			\orgnsm, { ^s !? { |x| x.registry.all.detect { |o| o.name == name } } },
 			\fobject, { ^s !? { |x| x.registry.fobject(name) } },
 			\batch, { ^this.prFindInEnvironment { |x| x.isKindOf(RCBatch) and: { x.name == name } } },

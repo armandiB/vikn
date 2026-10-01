@@ -30,7 +30,8 @@ REScorePlayer {
 	var <muted, <soloed;
 	var <>onEvent, <>onLoop, <>onDone;
 	var <>followTempo = false, <>useLatency = true;
-	var <fired = 0, <skipped = 0, warned, failedRoots;
+	var <>interpolate = true, <>stepsPerBeat = 16;   // a continuous control ramps to its next point
+	var <fired = 0, <skipped = 0, <interpolated = 0, warned, failedRoots, ramps, nextOf, commitsChecked = false;
 
 	*initClass {
 		orgnsmIdentityKeys = #[\orgnsm, \tribe, \o_species, \orgnsm_name, \tribe_name, \seed];
@@ -46,6 +47,8 @@ REScorePlayer {
 		soloed = IdentitySet.new;
 		warned = IdentitySet.new;
 		failedRoots = IdentitySet.new;
+		ramps = List.new;
+		nextOf = IdentityDictionary.new;
 	}
 
 	//////// transport
@@ -60,9 +63,13 @@ REScorePlayer {
 		events = this.prSortedEvents;
 		fired = 0;
 		skipped = 0;
+		interpolated = 0;
 		passes = 0;
 		warned.clear;
 		failedRoots.clear;
+		ramps.clear;
+		this.prIndexControls(events);
+		this.prCheckCommits;
 		routine = Routine { this.prRun(events) };
 		state = \playing;
 		if(atBeat.notNil) { clock.schedAbs(atBeat, routine) } { routine.play(clock, quant) };
@@ -110,11 +117,12 @@ REScorePlayer {
 			ev = events[idx];
 			if(ev.isNil or: { to.notNil and: { ev[\beat] >= to } }) {
 				if(loop) {
-					if(to > lastBeat) { (to - lastBeat).wait };
+					this.prWaitUntil(to, lastBeat);
 					passes = passes + 1;
 					startBeat = startBeat + len;
 					idx = (events.detectIndex { |e| e[\beat] >= from }) ? events.size;
 					lastBeat = from;
+					ramps.clear;
 					onLoop.value(this, passes);
 				} {
 					state = \stopped;
@@ -123,7 +131,7 @@ REScorePlayer {
 					^this
 				};
 			} {
-				if(ev[\beat] > lastBeat) { (ev[\beat] - lastBeat).wait };
+				this.prWaitUntil(ev[\beat], lastBeat);
 				lastBeat = ev[\beat];
 				this.prPlayEvent(ev);
 				idx = idx + 1;
@@ -131,18 +139,93 @@ REScorePlayer {
 		};
 	}
 
+	// Waits until `beat` on the clock; on the way, every stepsPerBeat, the controls on a
+	// ramp get their interpolated values.
+	prWaitUntil { |beat, lastBeat|
+		var now = lastBeat;
+		var step = 1 / stepsPerBeat;
+		while { ramps.notEmpty and: { (beat - now) > step } } {
+			step.wait;
+			now = now + step;
+			this.prRampStep(now);
+		};
+		if(beat > now) { (beat - now).wait };
+	}
+
+	prRampStep { |now|
+		ramps.copy.do { |r|
+			var a = r[\from], b = r[\to];
+			var t;
+			if(now >= b[\beat]) {
+				ramps.remove(r);
+			} {
+				t = ((now - a[\beat]) / (b[\beat] - a[\beat])).clip(0, 1);
+				if(this.fire(this.prInterpolated(a, b, t))) { interpolated = interpolated + 1 };
+			};
+		};
+	}
+
+	// The next point of every continuous input control (a MIDI, OSC, raw MIDI or keyboard
+	// value: what a knob or a slider sent), for the ramps. An action on an object (a beat's
+	// key source) is not ramped: each step would be an edit of a pattern.
+	prIndexControls { |events|
+		var last = Dictionary.new;
+		nextOf.clear;
+		events.do { |e|
+			var k;
+			if(#[\midi, \osc, \rawMidi, \keyboard].includes(e[\kind]) and: { REScore.isContinuous(e) }) {
+				k = REScore.controlKey(e);
+				last[k] !? { |prev| nextOf[prev[\id]] = e };
+				last[k] = e;
+			};
+		};
+	}
+
+	// A copy of `a` with its value `t` of the way to `b`'s, along the control's spec when
+	// the score carries one (score.controls, by the event's key or name), else linear.
+	prInterpolated { |a, b, t|
+		var va = REScore.controlValue(a), vb = REScore.controlValue(b);
+		var spec = score.controls[a[\key]] ?? { score.controls[a[\name]] };
+		var cs = spec !? { this.class.controlSpecFor(spec) };
+		var v = if(cs.notNil) { cs.map(cs.unmap(va) + ((cs.unmap(vb) - cs.unmap(va)) * t)) } { va + ((vb - va) * t) };
+		var ev = REScore.withControlValue(a, v);
+		ev[\interpolated] = true;
+		^ev
+	}
+
 	prPlayEvent { |ev|
 		var voice = ev[\voice];
-		var ok;
+		var ok, next;
 		if(voice.notNil and: { muted.includes(voice) or: { soloed.notEmpty and: { soloed.includes(voice).not } } }) { ^this };
 		if(ev[\cause].notNil and: { failedRoots.includes(ev[\cause]).not }) { ^this };   // its root played
+		ramps.copy.do { |r| if(r[\to] === ev) { ramps.remove(r) } };
 		ok = this.fire(ev);
 		if(ok) {
 			fired = fired + 1;
 			onEvent.value(this, ev);
+			if(interpolate) {
+				next = nextOf[ev[\id]];
+				if(next.notNil and: { (next[\beat] - ev[\beat]) > (1 / stepsPerBeat) } and: { REScore.controlValue(next) != REScore.controlValue(ev) }) {
+					ramps.add(IdentityDictionary[\from -> ev, \to -> next]);
+				};
+			};
 		} {
 			skipped = skipped + 1;
 			if(ev[\cause].isNil) { failedRoots.add(ev[\id]) };
+		};
+	}
+
+	// The take was recorded with other code: said once per player.
+	prCheckCommits {
+		var commits = score.meta[\commits];
+		var now, mismatches = List.new;
+		if(commits.isNil or: { commitsChecked }) { ^this };
+		commitsChecked = true;
+		now = IdentityDictionary[\vikn -> REScore.gitHead(REScore.filenameSymbol.asString.dirname)];
+		score.meta[\root] !? { |r| now[\homeware] = REScore.gitHead(r) };
+		commits.keysValuesDo { |k, v| now[k] !? { |h| if(h != v) { mismatches.add("% % (now %)".format(k, v, h)) } } };
+		if(mismatches.notEmpty) {
+			RCLog.warn(\player, "the take was recorded with other code: %".format(mismatches.join(", ")));
 		};
 	}
 
@@ -304,11 +387,54 @@ REScorePlayer {
 				attrs.keysValuesDo { |k, v| if(orgnsmIdentityKeys.includes(k).not) { o.rPut(k, v) } };
 			};
 		};
+		// the registered controls (REScoreRecorder.addControl with set:): at once, or ramped
+		// along their spec's warp
+		state[\controls] !? { |ctls|
+			var rec = song.scoreRecorder;
+			ctls.keysValuesDo { |name, v|
+				var set = rec.controlSetter(name), get = rec.controlGetter(name), from;
+				v = REScore.decodeValue(v, song);
+				if(set.isNil) {
+					RCLog.warn(\player, "snapshot: no setter for the control %".format(name));
+				} {
+					from = get !? { RCGuard.call(\player, nil) { get.value } };
+					if(beats > 0 and: { v.isNumber } and: { from.isNumber }) {
+						this.rampControl(set, from, v, beats, rec.controls[name], song.clock);
+					} {
+						RCGuard.call(\player, nil) { set.value(v) };
+					};
+				};
+			};
+		};
 	}
 
 	// A source that moves from one value to another over `beats`, then holds.
 	*ramp { |fromValue, toValue, beats, curve = \lin|
 		^Pseq([Pseg([fromValue, toValue], [beats], curve), Pn(toValue, inf)], 1)
+	}
+
+	// set.value called stepsPerBeat times a beat from one value to another, along the
+	// spec's warp (a dictionary with min, max, warp; nil: linear), on clock.
+	*rampControl { |set, from, to, beats, spec, clock, stepsPerBeat = 16|
+		var steps = max(2, (beats * stepsPerBeat).round.asInteger);
+		var cs = spec !? { this.controlSpecFor(spec) };
+		var u0 = cs !? (_.unmap(from)) ? from, u1 = cs !? (_.unmap(to)) ? to;
+		^Routine {
+			steps.do { |i|
+				var u = u0 + ((u1 - u0) * ((i + 1) / steps));
+				(beats / steps).wait;
+				RCGuard.call(\player, nil) { set.value(cs !? (_.map(u)) ? u) };
+			};
+		}.play(clock ? TempoClock.default)
+	}
+
+	// A ControlSpec from a take's spec dictionary (min, max, warp: "lin", "exp" or a number).
+	*controlSpecFor { |spec|
+		var warp = spec[\warp] ? \lin;
+		var min = spec[\min] ? 0, max = spec[\max] ? 1;
+		if(warp.isNumber.not) { warp = warp.asSymbol };
+		if(warp == \exp and: { min <= 0 or: { max <= 0 } }) { warp = \lin };
+		^ControlSpec(min, max, warp)
 	}
 
 	printOn { |stream| stream << "REScorePlayer(" << (score.song ? "?") << ", " << state << ")" }
