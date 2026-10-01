@@ -4,7 +4,7 @@ categories:: Libraries>reCording
 related:: Guides/reCording, Classes/REScore, Classes/REScoreRecorder
 
 DESCRIPTION::
-Every event at its recorded beat on the song's clock, from one Routine that waits between events; nothing it does is recorded (link::Classes/RETap#*silently::) and, with the server running, each event's messages go in a code::server.latency:: bundle. How each kind replays, and the fallback to an event's recorded effects, is in the reCording guide ("Replay").
+Every event at its recorded beat on the song's clock, from one Routine that waits between events; nothing it does is recorded (link::Classes/RETap#*silently::) and, with the server running, each event's messages go in a code::server.latency:: bundle. How each kind replays, and the fallback to an event's recorded effects, is in the reCording guide ("Replay"). A code::\rawMidi:: event is dispatched through link::Classes/MIDIIn:: as the device would send it, from the device of the recorded name when present.
 
 CLASSMETHODS::
 

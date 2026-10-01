@@ -22,11 +22,13 @@ RETap {
 	classvar <frames;                   // open causes, innermost last: (kind:, ids: recorder → event id)
 	classvar silent = 0;
 	classvar codeUsers, preHook, dumpHook, savedPreProcessor;
+	classvar rawUsers, rawFuncs;
 
 	*initClass {
 		recorders = [];
 		frames = [];
 		codeUsers = IdentitySet.new;
+		rawUsers = IdentitySet.new;
 	}
 
 	*add { |recorder|
@@ -130,4 +132,46 @@ RETap {
 	*prCloseCodeFrames {
 		while { frames.notEmpty and: { frames.last[\kind] == \code } } { frames.pop };
 	}
+
+	//////// raw MIDI: every message of every device, as the device sent it (MIDIFuncs installed
+	//////// while a recorder wants them; replayed by dispatching through MIDIIn again, so that any
+	//////// MIDIdef of a piece fires as it did)
+
+	*enableRawMidi { |user|
+		rawUsers.add(user);
+		if(rawFuncs.isNil) { this.prInstallRawMidi };
+	}
+
+	*disableRawMidi { |user|
+		rawUsers.remove(user);
+		if(rawUsers.isEmpty and: { rawFuncs.notNil }) { this.prRemoveRawMidi };
+	}
+
+	*rawMidiInstalled { ^rawFuncs.notNil }
+
+	*prInstallRawMidi {
+		var raw = { |msg, chan, num, value, src|
+			this.input(\rawMidi, nil, (device: this.deviceName(src), src: src, msg: msg, chan: chan, num: num, value: value));
+		};
+		if(MIDIClient.initialized.not) { RCLog.warn(\tap, "raw MIDI: MIDIClient is not initialized, nothing will arrive until it is") };
+		rawFuncs = [
+			MIDIFunc.noteOn({ |vel, note, chan, src| raw.(\noteOn, chan, note, vel, src) }),
+			MIDIFunc.noteOff({ |vel, note, chan, src| raw.(\noteOff, chan, note, vel, src) }),
+			MIDIFunc.cc({ |val, num, chan, src| raw.(\control, chan, num, val, src) }),
+			MIDIFunc.bend({ |val, chan, src| raw.(\bend, chan, nil, val, src) }),
+			MIDIFunc.touch({ |val, chan, src| raw.(\touch, chan, nil, val, src) }),
+			MIDIFunc.polytouch({ |val, note, chan, src| raw.(\polytouch, chan, note, val, src) }),
+			MIDIFunc.program({ |val, chan, src| raw.(\program, chan, nil, val, src) })
+		];
+		rawFuncs.do(_.permanent_(true));
+	}
+
+	*prRemoveRawMidi {
+		rawFuncs.do(_.free);
+		rawFuncs = nil;
+	}
+
+	// The name of a MIDI source by uid ("midi" when unknown), and back.
+	*deviceName { |src| ^(MIDIClient.sources ? []).detect { |e| e.uid == src } !? (_.name) ? "midi" }
+	*deviceUid { |name| ^(MIDIClient.sources ? []).detect { |e| e.name == name.asString } !? (_.uid) }
 }

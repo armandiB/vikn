@@ -28,7 +28,7 @@ REScore {
 	*initClass {
 		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \beat0, \time0, \tempo, \latency,
 			\duration, \tempoMap, \voices, \controls, \events,
-			\id, \beat, \secs, \kind, \voice, \cause, \rc, \method, \args, \name, \key, \path, \msg, \chan, \note, \raw,
+			\id, \beat, \secs, \kind, \voice, \cause, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
 			\value, \text, \replay, \state];
 		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \beat0, \time0, \tempo, \latency, \duration, \overdubs];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
@@ -316,7 +316,8 @@ REScore {
 			\midi, { e[\value] = value; e.removeAt(\raw) },
 			\osc, { e[\args] = [value] ++ ((e[\args] ? []).drop(1)) },
 			\action, { e[\args] = (e[\args] ? [nil]).copy; e[\args][1] = value },
-			\keyboard, { e[\value] = value }
+			\keyboard, { e[\value] = value },
+			\rawMidi, { e[\value] = value }
 		);
 	}
 
@@ -341,6 +342,11 @@ REScore {
 				if(e[\msg] == \cc) { ^[\cc, e[\device], e[\num]] };
 				if(e[\msg] == \bend or: { e[\msg] == \touch }) { ^[e[\msg], e[\device], e[\chan]] };
 				^nil
+			},
+			\rawMidi, {
+				if(e[\msg] == \control) { ^[\cc, e[\device], e[\num]] };
+				if(e[\msg] == \bend or: { e[\msg] == \touch }) { ^[e[\msg], e[\device], e[\chan]] };
+				^nil
 			}
 		);
 		^nil
@@ -352,7 +358,8 @@ REScore {
 			\midi, { ^e[\value] },
 			\osc, { ^e[\args] !? (_[0]) },
 			\action, { ^e[\args] !? (_[1]) },
-			\keyboard, { ^e[\value] }
+			\keyboard, { ^e[\value] },
+			\rawMidi, { ^e[\value] }
 		);
 		^nil
 	}

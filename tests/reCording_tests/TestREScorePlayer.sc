@@ -65,6 +65,20 @@ TestREScorePlayer : UnitTest {
 		this.assertEquals(clock.tempo, 20, "but does not touch the clock unless followTempo");
 	}
 
+	test_fire_raw_midi {
+		var got = nil;
+		var def = MIDIdef.cc(\re_test_raw_cc, { |val, num, chan, src| got = [num, val, chan, src] });
+		var p = REScorePlayer(REScore(\pl), song);
+		var rec = song.scoreRecorder;
+		rec.arm(inputs: #[\rawMidi]);
+		rec.record(snapshotAtStart: false);
+		this.assert(p.fire((kind: \rawMidi, msg: \control, device: "nope", src: 9, chan: 2, num: 7, value: 100)), "a raw MIDI event fires");
+		this.assertEquals(got, [7, 100, 2, 9], "dispatched through MIDIIn: a MIDIdef of the piece got it, from the recorded uid when the device is absent");
+		this.assertEquals(rec.stop.size, 0, "the recorder's own raw hooks stay silent meanwhile");
+		rec.disarm;
+		def.free;
+	}
+
 	test_firing_is_not_recorded {
 		var b = this.restBeat(\k, [amp: 0.1]);
 		var rec = song.scoreRecorder;

@@ -62,7 +62,10 @@ table::
 ## code::\keyboard:: || link::Classes/RCKeyboardState::: note on/off, bend, pressure, CC per channel
 ## code::\actions:: || the public methods of the reCurrent objects listed under link::#What is recorded::
 ## code::\code:: || the lines evaluated in the IDE
+## code::\rawMidi:: || every MIDI message of every device, as sent (note on/off, control, bend, touch, polytouch, program; voice: the device's name). Not on by default: it replaces code::\midi:: and code::\keyboard::, because a raw message replays by dispatching through MIDIIn again, so the piece's own MIDIdefs, the song's mappings and its keyboard fire as they did. The choice: code::\midi:: and code::\keyboard:: give editable mapped values for a piece built on code::song.midi:: and code::song.keyboard::; code::\rawMidi:: captures anything, raw.
 ::
+
+Voices can be named at arm or added later: code::~rec.addVoice(\roto, ~song.midi.names("Roto-Control")):: groups a device's mappings, code::~rec.addVoice(\lead, [~beat1, ~beat2])::, code::~rec.removeVoice(\lead)::; code::arm(voicesByLayer: true):: makes a layer the default voice of its beats; code::~rec.voiceFor(obj):: tells. code::~rec.addControl(\knob_mix, ControlSpec(0, 1)):: gives the takes the spec of a control (a view scales its curve by it, a morph ramps along its warp).
 
 subsection:: Your actions, not the program's
 

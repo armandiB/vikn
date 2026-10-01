@@ -23,13 +23,15 @@ REScoreRecorder {
 	var <song, <>root, <>version, <>piece;
 	var <state = \off;      // \off, \armed, \recording
 	var <scope, <inputs, <voiceOf, <voices;
+	var <>voicesByLayer = false;   // a beat's default voice: its layer (true) or layer/name (false)
+	var <controls;                 // name → spec (min, max, warp, default, unit), written into every take
 	var <score, <lastScore, <lastPath, <beat0, <time0, lastTempo;
 	var <>startSnapshot = true;
 	var <player, overdubbing;
 	var <>onEvent;   // { |recorder, event| } after each recorded event (a view's live feed)
 
 	*initClass {
-		allInputs = #[\midi, \osc, \keyboard, \actions, \code];
+		allInputs = #[\midi, \osc, \keyboard, \actions, \code, \rawMidi];
 		unsafeCode = #["exit", "recompile", "boot", "quit", "unixCmd", "systemCmd", "shutdown"];
 	}
 
@@ -44,6 +46,7 @@ REScoreRecorder {
 		piece = piecearg !? (_.asString);
 		voiceOf = IdentityDictionary.new;
 		voices = IdentityDictionary.new;
+		controls = IdentityDictionary.new;
 	}
 
 	clock { ^song.clock }
@@ -53,26 +56,60 @@ REScoreRecorder {
 	//////// arming
 
 	// scope: nil (the whole song), or objects (layers, beats, batches, orgnsms,
-	// fobjects, crawlers, the song's midi/osc/keyboard) and mapping or def
-	// names; inputs: kinds of event, all by default; voices: name → the objects
-	// and names grouped under it.
-	arm { |scope, inputs, voices|
+	// fobjects, crawlers, the song's midi/osc/keyboard) and mapping, def or
+	// device names; inputs: kinds of event, every one but \rawMidi by default
+	// (\rawMidi, every MIDI message of every device as sent, replaces \midi
+	// and \keyboard: their mappings fire again when the raw messages replay);
+	// voices: name → the objects and names grouped under it (nil keeps the
+	// voices added so far, an empty Event clears them); voicesByLayer: a
+	// beat's default voice is its layer.
+	arm { |scope, inputs, voices, voicesByLayer|
 		this.prSetScope(scope);
 		this.prSetInputs(inputs);
-		this.prSetVoices(voices);
+		voices !? { this.prSetVoices(voices) };
+		voicesByLayer !? { |b| this.voicesByLayer = b };
 		if(state == \off) { state = \armed };
 		RETap.add(this);
 		if(this.inputs.includes(\code)) { RETap.enableCode(this) } { RETap.disableCode(this) };
+		if(this.inputs.includes(\rawMidi)) { RETap.enableRawMidi(this) } { RETap.disableRawMidi(this) };
 		RCLog.post(\score, "% armed: %".format(song.name, this.inputs.asArray.sort { |a, b| a.asString <= b.asString }));
 	}
 
 	disarm {
 		if(state == \recording) { this.stop };
 		RETap.disableCode(this);
+		RETap.disableRawMidi(this);
 		RETap.remove(this);
 		score = nil;
 		state = \off;
 		RCLog.post(\score, "% disarmed".format(song.name));
+	}
+
+	// A voice of your own: objects and names (mappings, defs, devices) grouped
+	// under a name, added to the voices so far (a member moves to the new voice).
+	addVoice { |name, members|
+		var d = ();
+		d[name.asSymbol] = members;
+		this.prAddVoices(d);
+	}
+
+	removeVoice { |name|
+		name = name.asSymbol;
+		voiceOf.keys.copy.do { |k| if(voiceOf[k] == name) { voiceOf.removeAt(k) } };
+		voices.removeAt(name);
+	}
+
+	// The voice an object or a name would be recorded under.
+	voiceFor { |objOrName|
+		^if(objOrName.isKindOf(Symbol) or: { objOrName.isKindOf(String) }) { this.prVoiceForName(objOrName) } { this.prVoiceFor(objOrName) }
+	}
+
+	// specs the takes carry (name → (min:, max:, warp:, default:, unit:)): a view scales a
+	// control's curve by them, a morph ramps along their warp. A ControlSpec is accepted.
+	addControl { |name, spec|
+		controls[name.asSymbol] = if(spec.isKindOf(ControlSpec)) {
+			IdentityDictionary[\min -> spec.minval, \max -> spec.maxval, \warp -> spec.warp.asSpecifier.asString, \default -> spec.default, \unit -> spec.units.asString]
+		} { spec };
 	}
 
 	free { this.disarm }
@@ -82,19 +119,28 @@ REScoreRecorder {
 	}
 
 	prSetInputs { |inputsarg|
-		inputs = IdentitySet.newFrom((inputsarg ? allInputs).asArray.collect(_.asSymbol));
+		inputs = IdentitySet.newFrom((inputsarg ?? { allInputs.reject(_ == \rawMidi) }).asArray.collect(_.asSymbol));
 		inputs.do { |k| if(allInputs.includes(k).not) { RCLog.warn(\score, "unknown input kind % (one of %)".format(k, allInputs)) } };
+		if(inputs.includes(\rawMidi) and: { inputs.includes(\midi) or: { inputs.includes(\keyboard) } }) {
+			RCLog.post(\score, "rawMidi replaces midi and keyboard (their mappings fire again when the raw messages replay)");
+			inputs.remove(\midi);
+			inputs.remove(\keyboard);
+		};
 	}
 
 	prSetVoices { |voicesarg|
 		voiceOf.clear;
 		voices.clear;
+		this.prAddVoices(voicesarg);
+	}
+
+	prAddVoices { |voicesarg|
 		voicesarg !? { |dict|
 			dict.keysValuesDo { |voice, members|
 				voice = voice.asSymbol;
 				members = members.asArray;
 				members.do { |m| voiceOf[if(m.isKindOf(String)) { m.asSymbol } { m }] = voice };
-				voices[voice] = IdentityDictionary[\objects -> members.collect { |m| REScore.rcRef(m) ?? { m.asString } }];
+				voices[voice] = IdentityDictionary[\objects -> ((voices[voice] !? (_[\objects]) ? []) ++ members.collect { |m| REScore.rcRef(m) ?? { m.asString } })];
 			};
 		};
 	}
@@ -130,6 +176,7 @@ REScoreRecorder {
 		score.meta[\latency] = song.server.latency;
 		score.tempoMap.add([0, lastTempo]);
 		voices.keysValuesDo { |k, v| score.voices[k] = v };
+		controls.keysValuesDo { |k, v| score.controls[k] = v };
 		state = \recording;
 		if(startSnapshot) { this.snapshot(\start) };
 		RCLog.post(\score, "% recording from beat %".format(song.name, beat0));
@@ -285,7 +332,7 @@ REScoreRecorder {
 	tapInput { |kind, inputSong, data, parentFrame, frame|
 		var ev, name;
 		if(state != \recording or: { inputs.includes(kind).not }) { ^this };
-		if(inputSong !== song) { ^this };
+		if(kind != \rawMidi and: { inputSong !== song }) { ^this };   // raw MIDI belongs to no song
 		name = data[\name] ?? { data[\key] } ?? { data[\device] };
 		if(this.prInputInScope(kind, name).not) { ^this };
 		ev = this.prEvent(kind, this.prVoiceForName(name ? kind));
@@ -331,7 +378,7 @@ REScoreRecorder {
 		var surface;
 		if(scope.isNil) { ^true };
 		if(name.notNil and: { scope.includes(name.asSymbol) }) { ^true };
-		surface = switch(kind, \midi, { song.midi }, \osc, { song.osc }, \keyboard, { song.keyboard });
+		surface = switch(kind, \midi, { song.midi }, \osc, { song.osc }, \keyboard, { song.keyboard }, \rawMidi, { song.midi });
 		^(surface.notNil and: { scope.includes(surface) }) or: { scope.includes(song) }
 	}
 
@@ -349,7 +396,7 @@ REScoreRecorder {
 		}
 	}
 
-	prBeatVoice { |b| ^(b.layer.key.asString ++ "/" ++ b.name).asSymbol }
+	prBeatVoice { |b| ^if(voicesByLayer) { b.layer.key } { (b.layer.key.asString ++ "/" ++ b.name).asSymbol } }
 
 	prVoiceForName { |name| ^voiceOf[name.asSymbol] ?? { name.asSymbol } }
 

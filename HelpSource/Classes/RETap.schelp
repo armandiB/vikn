@@ -44,6 +44,17 @@ The interpreter hooks are installed while at least one user wants them.
 
 METHOD:: codeHooksInstalled
 
+METHOD:: enableRawMidi
+METHOD:: disableRawMidi
+argument:: user
+MIDIFuncs for every message of every device are installed while at least one user wants them; each message is an input of kind code::\rawMidi::.
+METHOD:: rawMidiInstalled
+METHOD:: deviceName
+argument:: src
+The name of a MIDI source by uid ("midi" when unknown).
+METHOD:: deviceUid
+argument:: name
+
 METHOD:: mainThreadOnly
 True by default; false lets tests drive actions from a Routine.
 

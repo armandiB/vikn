@@ -158,6 +158,7 @@ REScorePlayer {
 					\midi, { this.prFireMidi(ev) },
 					\osc, { this.prFireOsc(ev) },
 					\keyboard, { this.prFireKeyboard(ev) },
+					\rawMidi, { this.prFireRawMidi(ev) },
 					\code, { this.prFireCode(ev) },
 					\snapshot, { this.prFireSnapshot(ev) },
 					\morph, { this.prFireMorph(ev) },
@@ -220,6 +221,26 @@ REScorePlayer {
 				\bend, { kb.bend(ev[\value], ev[\chan]) },
 				\touch, { kb.touch(ev[\value], ev[\chan]) },
 				\cc, { kb.cc(ev[\value], ev[\num], ev[\chan]) }
+			);
+			true
+		}
+	}
+
+	// Dispatched through MIDIIn as the device would: every MIDIdef and MIDIFunc fires as it
+	// did (the recorder's own raw hooks are silent meanwhile). The source is the device of
+	// the same name when present, else the recorded uid.
+	prFireRawMidi { |ev|
+		var src = RETap.deviceUid(ev[\device]) ? ev[\src] ? 0;
+		var chan = ev[\chan] ? 0, num = ev[\num] ? 0, val = ev[\value] ? 0;
+		^RCGuard.call(\player, false) {
+			switch(ev[\msg],
+				\noteOn, { MIDIIn.doNoteOnAction(src, chan, num, val) },
+				\noteOff, { MIDIIn.doNoteOffAction(src, chan, num, val) },
+				\control, { MIDIIn.doControlAction(src, chan, num, val) },
+				\bend, { MIDIIn.doBendAction(src, chan, val) },
+				\touch, { MIDIIn.doTouchAction(src, chan, val) },
+				\polytouch, { MIDIIn.doPolyTouchAction(src, chan, num, val) },
+				\program, { MIDIIn.doProgramAction(src, chan, val) }
 			);
 			true
 		}

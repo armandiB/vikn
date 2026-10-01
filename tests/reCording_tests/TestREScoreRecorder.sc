@@ -94,6 +94,70 @@ TestREScoreRecorder : UnitTest {
 		this.assert(RETap.codeHooksInstalled.not, "hooks removed");
 	}
 
+	test_voice_conveniences_and_controls {
+		var b1 = this.restBeat(layer, \a);
+		var b2 = this.restBeat(layer, \b);
+		var s;
+		song.midi.control(\k1, 1, 0, "Dev A", { |x| x }, { });
+		song.midi.control(\k2, 2, 0, "Dev B", { |x| x }, { });
+		this.assertEquals(song.midi.names("Dev A"), [\k1], "the mappings of a device");
+		this.assertEquals(song.midi.names, [\k1, \k2], "every mapping");
+		rec.arm(voices: (lead: [b1]), inputs: #[\actions]);
+		rec.addVoice(\fx, [b2, \knob]);
+		rec.addVoice(\devA, song.midi.names("Dev A"));
+		this.assertEquals(rec.voiceFor(b1), \lead);
+		this.assertEquals(rec.voiceFor(b2), \fx, "added after arm");
+		this.assertEquals(rec.voiceFor(\knob), \fx, "a name too");
+		this.assertEquals(rec.voiceFor(\k1), \devA, "a device's mappings as one voice");
+		rec.arm(inputs: #[\actions]);
+		this.assertEquals(rec.voiceFor(b2), \fx, "arm without voices keeps them");
+		rec.addVoice(\lead, [b2]);
+		this.assertEquals(rec.voiceFor(b2), \lead, "a member moves to the new voice");
+		rec.removeVoice(\lead);
+		this.assertEquals(rec.voiceFor(b1), 'core/a', "removed: the default again");
+		rec.arm(voices: (), inputs: #[\actions]);
+		this.assertEquals(rec.voiceFor(\knob), \knob, "an empty Event clears them");
+		rec.arm(voicesByLayer: true, inputs: #[\actions]);
+		this.assertEquals(rec.voiceFor(b1), \core, "voicesByLayer: a beat's default voice is its layer");
+		rec.addControl(\knob, ControlSpec(20, 2000, \exp, 0, 440, "Hz"));
+		rec.addControl(\mix, IdentityDictionary[\min -> 0, \max -> 1]);
+		rec.record(snapshotAtStart: false);
+		b1.set(\amp, 0.5);
+		s = rec.stop;
+		this.assertEquals(s.at(1)[\voice], \core);
+		this.assertEquals(s.controls[\knob][\warp], "exp", "a ControlSpec becomes a spec");
+		this.assertEquals(s.controls[\knob][\max], 2000);
+		this.assertEquals(s.controls[\knob][\unit], "Hz");
+		this.assertEquals(s.controls[\mix][\max], 1, "a dictionary as it is");
+		this.assertEquals(s.voices[\lead], nil, "a removed voice is not in the take");
+		rec.voicesByLayer = false;
+	}
+
+	test_raw_midi {
+		var got = nil, s;
+		var def = MIDIdef.noteOn(\re_test_raw, { |vel, note, chan, src| got = [note, vel, chan] });
+		rec.arm(inputs: #[\rawMidi, \midi, \actions]);
+		this.assert(this.logHas("rawMidi replaces"), "rawMidi replaces midi and keyboard");
+		this.assert(rec.inputs.includes(\midi).not and: { rec.inputs.includes(\rawMidi) });
+		this.assert(RETap.rawMidiInstalled, "the raw hooks are installed");
+		rec.record(snapshotAtStart: false);
+		MIDIIn.doNoteOnAction(7, 1, 60, 100);
+		MIDIIn.doControlAction(7, 1, 7, 64);
+		MIDIIn.doBendAction(7, 1, 8192);
+		MIDIIn.doNoteOffAction(7, 1, 60, 0);
+		s = rec.stop;
+		this.assertEquals(s.ofKind(\rawMidi).collect(_[\msg]), [\noteOn, \control, \bend, \noteOff], "every message as sent");
+		this.assertEquals([s.at(1)[\num], s.at(1)[\value], s.at(1)[\chan], s.at(1)[\src]], [60, 100, 1, 7], "note, velocity, channel, source");
+		this.assertEquals(s.at(1)[\voice], \midi, "voice: the device's name (unknown uid: midi)");
+		this.assertEquals(got, [60, 100, 1], "a MIDIdef of the piece still fired");
+		this.assertEquals(REScore.controlKey(s.at(2)), [\cc, "midi", 7], "a CC is a control");
+		this.assert(REScore.isContinuous(s.at(2)));
+		this.assertEquals(REScore.controlKey(s.at(1)), nil, "a note is not");
+		rec.disarm;
+		this.assert(RETap.rawMidiInstalled.not, "disarm removes the hooks");
+		def.free;
+	}
+
 	test_onEvent_feed {
 		var b = this.restBeat(layer, \k, [amp: 0.1]);
 		var seen = List.new;

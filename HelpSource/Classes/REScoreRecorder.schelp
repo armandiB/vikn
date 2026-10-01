@@ -26,11 +26,30 @@ INSTANCEMETHODS::
 
 METHOD:: arm
 argument:: scope
-nil (the whole song), or objects (layers, beats, batches, orgnsms, fobjects, crawlers, the song's code::midi::, code::osc:: or code::keyboard::) and mapping or def names. An event is kept when its object, or what holds it, is in the scope.
+nil (the whole song), or objects (layers, beats, batches, orgnsms, fobjects, crawlers, the song's code::midi::, code::osc:: or code::keyboard::) and mapping, def or device names. An event is kept when its object, or what holds it, is in the scope.
 argument:: inputs
-The kinds of event, all by default.
+The kinds of event: every one but code::\rawMidi:: by default. code::\rawMidi:: (every MIDI message of every device, replayed by dispatching through MIDIIn) replaces code::\midi:: and code::\keyboard::.
 argument:: voices
-An Event: voice name → the objects and names grouped under it.
+An Event: voice name → the objects and names grouped under it. nil keeps the voices added so far, an empty Event clears them.
+argument:: voicesByLayer
+A beat's default voice is its layer (true) or code::layer/name:: (false).
+
+METHOD:: addVoice
+argument:: name
+argument:: members
+Objects and names (mappings, defs, devices) grouped under the name; a member moves to the new voice.
+METHOD:: removeVoice
+argument:: name
+METHOD:: voiceFor
+argument:: objOrName
+The voice it would be recorded under.
+METHOD:: voicesByLayer
+
+METHOD:: addControl
+argument:: name
+argument:: spec
+A link::Classes/ControlSpec:: or a dictionary (min, max, warp, default, unit): written into every take's code::controls::.
+METHOD:: controls
 
 METHOD:: disarm
 Stops a recording, removes the hooks.
