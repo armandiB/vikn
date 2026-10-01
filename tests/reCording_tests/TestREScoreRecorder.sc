@@ -242,6 +242,37 @@ TestREScoreRecorder : UnitTest {
 		File.delete(dir);
 	}
 
+	// An overdub: the old take plays while a new one is recorded over it; stop
+	// merges them (the old voice's events in the span replaced here).
+	test_overdub {
+		var b = this.restBeat(layer, \k, [amp: 0.1]);
+		var s, merged, player;
+		rec.arm(inputs: #[\actions]);
+		rec.record(snapshotAtStart: false);
+		b.set(\amp, 0.2);
+		(1 / clock.tempo).wait;
+		b.set(\amp, 0.3);
+		(1 / clock.tempo).wait;
+		s = rec.stop;
+		this.assertEquals(s.size, 2);
+		rec.overdub(s, ['core/k'], \replace, [0.5, 4]);
+		player = rec.player;
+		(0.3 / clock.tempo).wait;   // the start is one scheduled Function on the clock
+		this.assert(rec.isRecording and: { player.isPlaying }, "both started");
+		this.assert(player.muted.includes('core/k'), "replace: the voice is muted while overdubbing");
+		b.set(\amp, 0.9);
+		(0.3 / clock.tempo).wait;
+		merged = rec.stop;
+		this.assert(player.isPlaying.not, "stop stops the player");
+		this.assertEquals(merged.eventsOf('core/k').collect { |e| e[\args][1] }, [0.2, 0.9], "the old event in the punch replaced by the new one, the rest kept");
+		this.assert(merged.eventsOf('core/k').last[\beat] >= 0.5 and: { merged.eventsOf('core/k').last[\beat] < 4 },
+			"the new event's beat on the score's timeline (the punch-in plus the wait): " ++ merged.eventsOf('core/k').last[\beat]);
+		this.assertEquals(merged.events.collect(_[\id]), [1, 3], "ids: the old one kept, the new one renewed after the highest");
+		this.assertEquals(merged.meta[\overdubs].size, 1);
+		this.assertEquals(rec.lastScore, merged, "the merge is the last score");
+		this.assertEquals(s.size, 2, "the original take is untouched");
+	}
+
 	// The same scripted session with recording off and on: the same sources,
 	// seeds, beats and log lines; the score is the only difference.
 	runScript { |record|

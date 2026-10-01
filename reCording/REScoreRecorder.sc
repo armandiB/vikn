@@ -25,6 +25,7 @@ REScoreRecorder {
 	var <scope, <inputs, <voiceOf, <voices;
 	var <score, <lastScore, <beat0, <time0, lastTempo;
 	var <>startSnapshot = true;
+	var <player, overdubbing;
 
 	*initClass {
 		allInputs = #[\midi, \osc, \keyboard, \actions, \code];
@@ -99,25 +100,28 @@ REScoreRecorder {
 
 	//////// recording
 
-	// quant: nil → now; else that grid on the song's clock (one Function scheduled).
-	record { |quant, snapshotAtStart|
+	// quant: nil → now; else that grid on the song's clock (one Function
+	// scheduled); atBeat: an absolute clock beat instead. offsetBeat: the
+	// score beat of the start (an overdub from the middle of a score).
+	record { |quant, snapshotAtStart, atBeat, offsetBeat = 0|
 		if(state == \off) { this.arm };
 		if(state == \recording) { RCLog.warn(\score, "% already recording".format(song.name)); ^this };
 		snapshotAtStart !? { |b| startSnapshot = b };
 		score = REScore(song, piece, version);
-		if(quant.isNil) {
-			this.prStart;
-		} {
-			this.clock.schedAbs(quant.asQuant.nextTimeOnGrid(this.clock), { this.prStart; nil });
+		case
+		{ atBeat.notNil } { this.clock.schedAbs(atBeat, { this.prStart(offsetBeat); nil }) }
+		{ quant.isNil } { this.prStart(offsetBeat) }
+		{
+			this.clock.schedAbs(quant.asQuant.nextTimeOnGrid(this.clock), { this.prStart(offsetBeat); nil });
 			RCLog.post(\score, "% recording at the next %".format(song.name, quant));
 		};
 	}
 
-	prStart {
+	prStart { |offsetBeat = 0|
 		var c = this.clock;
 		if(state != \armed or: { score.isNil }) { ^this };
-		beat0 = c.beats;
-		time0 = c.seconds;
+		beat0 = c.beats - offsetBeat;
+		time0 = c.seconds - (offsetBeat * c.beatDur);   // the time of the score's beat 0
 		lastTempo = c.tempo;
 		score.meta[\beat0] = beat0;
 		score.meta[\time0] = time0;
@@ -130,14 +134,25 @@ REScoreRecorder {
 		RCLog.post(\score, "% recording from beat %".format(song.name, beat0));
 	}
 
-	// Ends the take: the REScore, written to <root>/<stamp>_<song> <version>.json when root is set.
+	// Ends the take: the REScore, written to <root>/<stamp>_<song> <version>.json
+	// when root is set. An overdub ends with the merged score instead (the
+	// original file stays, the merge is a new one).
 	stop {
-		var s = score;
+		var s = score, od = overdubbing, stopBeat;
 		if(state != \recording) { RCLog.warn(\score, "% is not recording".format(song.name)); ^nil };
-		s.meta[\duration] = this.clock.beats - beat0;
+		stopBeat = this.clock.beats - beat0;
+		s.meta[\duration] = stopBeat;
 		s.meta[\commits] = this.prCommits;
 		state = \armed;
 		score = nil;
+		overdubbing = nil;
+		if(od.notNil) {
+			player.stop;
+			s = RCGuard.call(\score, s) {
+				var punch = [od[\from], od[\to] ? stopBeat];
+				REScore.merge(od[\score], s, od[\voices], od[\mode], punch, if(od[\loop]) { punch } { nil })
+			};
+		};
 		lastScore = s;
 		if(root.notNil) {
 			RCGuard.call(\score, nil) { s.write(REScore.pathFor(root, song.name, version)) };
@@ -147,6 +162,49 @@ REScoreRecorder {
 		RCLog.post(\score, "% stopped: % events over % beats".format(song.name, s.size, s.duration.round(0.01)));
 		^s
 	}
+
+	// Plays `score` on the song while recording a new take over it; stop merges
+	// the two (REScore.merge) and writes the merge. voices: the voices
+	// overdubbed (nil: all); mode: \replace (their old events are muted from
+	// the punch-in and gone from the merge), \keep (added), \touch (replaced
+	// per control while touched), nil (touch for continuous controls, replace
+	// for the rest); punch: [in, out] in score beats (nil: from the start to
+	// the stop); loop: [in, out] again and again, each pass an overdub; quant:
+	// both start on that grid of the song's clock (nil: now).
+	overdub { |scorearg, voices, mode, punch, loop = false, quant|
+		var from, to, at;
+		if(state == \recording) { RCLog.warn(\score, "% already recording".format(song.name)); ^this };
+		if(state == \off) { this.arm };
+		from = punch !? (_[0]) ? 0;
+		to = punch !? (_[1]);
+		if(loop and: { to.isNil }) { to = scorearg.duration };
+		at = quant !? { |q| q.asQuant.nextTimeOnGrid(this.clock) } ?? { this.clock.beats };
+		player = REScorePlayer(scorearg, song);
+		if(mode == \replace) { player.mute(voices ?? { scorearg.voiceNames }) };
+		overdubbing = IdentityDictionary[\score -> scorearg, \voices -> voices, \mode -> mode, \from -> from, \to -> to, \loop -> loop];
+		this.record(nil, false, atBeat: at, offsetBeat: from);
+		player.play(nil, from, to, loop, atBeat: at);
+		RCLog.post(\score, "% overdubbing % from beat %".format(song.name, voices ? "every voice", from));
+	}
+
+	// Sets the state of a snapshot (by name, the latest one of the current
+	// take, else of the last score) at once, or over `beats`; recorded as a
+	// morph event (beats 0: a recall).
+	morph { |name, beats = 0|
+		var source = score ? lastScore;
+		var snap = source !? { |s| s.events.reverse.detect { |e| e[\kind] == \snapshot and: { e[\name] == name.asSymbol } } };
+		var ev;
+		if(snap.isNil) { RCLog.warn(\score, "no snapshot named %".format(name)); ^nil };
+		REScorePlayer.applyState(song, snap[\state], beats);
+		if(state != \recording) { ^nil };
+		ev = this.prEvent(\morph, nil);
+		ev[\name] = name.asSymbol;
+		ev[\beats] = beats;
+		if(source === score) { ev[\snapshot] = snap[\id] } { ev[\state] = snap[\state] };
+		^score.add(ev)
+	}
+
+	recall { |name| ^this.morph(name, 0) }
 
 	prCommits {
 		var res = IdentityDictionary.new;

@@ -12,7 +12,7 @@
 RCMidi {
 	classvar fineValues;   // srcID → chan → ccNum → defKey → lsb value
 
-	var <song, <defs, <ccMap, throttles;
+	var <song, <defs, <ccMap, throttles, <actions;
 
 	*initClass {
 		fineValues = IdentityDictionary.new;
@@ -25,6 +25,16 @@ RCMidi {
 		defs = IdentityDictionary.new;    // name → [MIDIdef keys]
 		ccMap = Dictionary.new;           // [ccNum, chan] → [names]
 		throttles = IdentityDictionary.new;   // name → throttle state of a mapping (see control)
+		actions = IdentityDictionary.new;     // name → action, for replay
+	}
+
+	// A mapping's action with a mapped value (a recorded one, REScorePlayer):
+	// the valFunc is not applied again. False when there is no such mapping.
+	replay { |name, value, raw|
+		var action = actions[name.asSymbol];
+		if(action.isNil) { ^false };
+		RCGuard.call(this.defKey(name), nil) { action.value(value, raw) };
+		^true
 	}
 
 	defKey { |name| ^("rc_" ++ song.name ++ "_" ++ name).asSymbol }
@@ -119,6 +129,7 @@ RCMidi {
 			};
 		}, ccNum, chan, srcID).permanent_(true);
 		defs[name] = keys;
+		actions[name] = action;
 		ccMap[[ccNum, chan]] = slot ++ [name];
 		^keys
 	}
@@ -149,6 +160,7 @@ RCMidi {
 		defs[name] !? { |keys|
 			keys.do { |k| MIDIdef.all[k] !? (_.free) };   // MIDIdef(k) would re-create an empty def
 			defs.removeAt(name);
+			actions.removeAt(name);
 			throttles.removeAt(name);   // a pending throttled value is dropped with its mapping
 			this.prForgetFineValues(keys);
 			ccMap.keysValuesDo { |cc, names| ccMap[cc] = names.reject { |n| n == name } };

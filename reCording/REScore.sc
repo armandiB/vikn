@@ -30,7 +30,7 @@ REScore {
 			\duration, \tempoMap, \voices, \controls, \events,
 			\id, \beat, \secs, \kind, \voice, \cause, \rc, \method, \args, \name, \key, \path, \msg, \chan, \note, \raw,
 			\value, \text, \replay, \state];
-		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \beat0, \time0, \tempo, \latency, \duration];
+		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \beat0, \time0, \tempo, \latency, \duration, \overdubs];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
 		// classes whose compile string is the value itself (a Function needs its source, see prEncode)
 		scClasses = [Pattern, Ref, Env, Rest, Quant, ControlSpec, Association, Char, Class, Point, Rect, Interval, Tuning, Scale];
@@ -106,6 +106,200 @@ REScore {
 	}
 
 	copy { ^this.class.fromDict(RCUtil.copyTree(this.asDict)) }
+
+	//////// controls: the events that set one value, and their curves
+
+	// What an event controls: [\midi, name], [\osc, key], [\set, beatName, key],
+	// [\rPut, orgnsmName, key], [\setArg, fobjectName, key], [\cc, device, num],
+	// [\bend | \touch, device, chan]; nil for anything else (a note, a transport
+	// action, a code line...).
+	*controlKey { |e|
+		var rc = e[\rc], args = e[\args];
+		switch(e[\kind],
+			\midi, { ^[\midi, e[\name]] },
+			\osc, { ^[\osc, e[\key]] },
+			\action, {
+				if(e[\method] == \set or: { e[\method] == \rPut } or: { e[\method] == \setArg }) {
+					^[e[\method], rc !? (_[\name]), args !? (_[0])]
+				};
+				^nil
+			},
+			\keyboard, {
+				if(e[\msg] == \cc) { ^[\cc, e[\device], e[\num]] };
+				if(e[\msg] == \bend or: { e[\msg] == \touch }) { ^[e[\msg], e[\device], e[\chan]] };
+				^nil
+			}
+		);
+		^nil
+	}
+
+	// The value such an event sets (nil for the others).
+	*controlValue { |e|
+		switch(e[\kind],
+			\midi, { ^e[\value] },
+			\osc, { ^e[\args] !? (_[0]) },
+			\action, { ^e[\args] !? (_[1]) },
+			\keyboard, { ^e[\value] }
+		);
+		^nil
+	}
+
+	// A continuous control: one that sets a number.
+	*isContinuous { |e| ^this.controlKey(e).notNil and: { this.controlValue(e).isNumber } }
+
+	controlKeys {
+		var res = Set.new;
+		events.do { |e| this.class.controlKey(e) !? { |k| res.add(k) } };
+		^res.asArray
+	}
+
+	// [[beat, value], ...] of one control, in order.
+	curvePoints { |controlKey|
+		^events.select { |e| this.class.controlKey(e) == controlKey }.collect { |e| [e[\beat], this.class.controlValue(e)] }.asArray
+	}
+
+	// The control's curve as a pattern: its first value held until its first
+	// point, then Pseg between points (curve: \lin, \exp or a number), the
+	// last value held forever.
+	curvePattern { |controlKey, curve = \lin|
+		var points = this.curvePoints(controlKey).select { |p| p[1].isNumber };
+		var levels, durs;
+		if(points.isEmpty) { ^nil };
+		levels = points.collect(_[1]);
+		durs = points.collect(_[0]).differentiate.drop(1).max(0);
+		if(points[0][0] > 0) {
+			levels = [points[0][1]] ++ levels;
+			durs = [points[0][0]] ++ durs;
+		};
+		if(durs.isEmpty) { ^Pn(points[0][1], inf) };
+		^Pseq([Pseg(levels, durs, curve), Pn(points.last[1], inf)], 1)
+	}
+
+	// The keyboard notes of a voice as a Pbind: midinote, dur (to the next
+	// note, 1 for the last), sustain (to the note's own noteOff, else dur),
+	// amp (velocity / 127), chan; starting at the first note.
+	notePattern { |voice|
+		var ons = events.select { |e| e[\kind] == \keyboard and: { e[\voice] == voice.asSymbol } and: { e[\msg] == \noteOn } };
+		var offs = events.select { |e| e[\kind] == \keyboard and: { e[\voice] == voice.asSymbol } and: { e[\msg] == \noteOff } };
+		var durs, sustains;
+		if(ons.isEmpty) { ^nil };
+		durs = ons.collect { |e, i| if(i < (ons.size - 1)) { ons[i + 1][\beat] - e[\beat] } { 1 } };
+		sustains = ons.collect { |e, i|
+			var off = offs.detect { |o| o[\note] == e[\note] and: { o[\chan] == e[\chan] } and: { o[\beat] >= e[\beat] } };
+			off !? { |o| max(o[\beat] - e[\beat], 0.01) } ? durs[i]
+		};
+		^Pbind(
+			\midinote, Pseq(ons.collect(_[\note])),
+			\dur, Pseq(durs),
+			\sustain, Pseq(sustains),
+			\amp, Pseq(ons.collect { |e| (e[\value] ? 100) / 127 }),
+			\chan, Pseq(ons.collect { |e| e[\chan] ? 0 })
+		)
+	}
+
+	//////// overdub: merging a new take into a score
+
+	// A copy of `a` with the events of `b` merged in. voices: the overdubbed
+	// voices (nil: every voice of b); mode: \replace drops a's events of those
+	// voices within punch [in, out] (out nil: b's duration), \keep drops
+	// nothing, \touch drops a's events of each control b touched between b's
+	// first and last touch of it, nil (auto) is touch for continuous controls
+	// and replace for the voice's other events; b's events of other voices are
+	// added. loopSpan [from, to]: b was recorded over a loop, its beats fold
+	// into the span and, unless \keep, only the last pass of each voice (each
+	// control for touch and auto) remains. Ids are renewed, causes follow.
+	*merge { |a, b, voices, mode, punch, loopSpan|
+		var res = a.copy;
+		var idMap = IdentityDictionary.new;
+		var bEvents = b.events.asArray;
+		var pin = punch !? (_[0]) ? 0;
+		var pout = punch !? (_[1]) ?? { b.duration };
+		var voiceSet;
+		if(loopSpan.notNil) { bEvents = this.prFold(bEvents, loopSpan, mode) };
+		voiceSet = IdentitySet.newFrom((voices ?? { b.voiceNames }).asArray.collect(_.asSymbol));
+		voiceSet.do { |v|
+			var newOnes = bEvents.select { |e| e[\voice] == v };
+			switch(mode,
+				\replace, { res.events.copy.do { |e| if(e[\voice] == v and: { e[\beat] >= pin } and: { e[\beat] < pout }) { res.remove(e[\id]) } } },
+				\keep, { },
+				\touch, { this.prRemoveTouched(res, v, newOnes, false, pin, pout) },
+				{ this.prRemoveTouched(res, v, newOnes, true, pin, pout) }
+			);
+		};
+		bEvents.do { |e|
+			var ev = IdentityDictionary.new;
+			e.keysValuesDo { |k, val| ev[k] = val };
+			ev.removeAt(\id);
+			ev[\cause] !? { |c| if(idMap[c].notNil) { ev[\cause] = idMap[c] } { ev.removeAt(\cause) } };
+			idMap[e[\id]] = res.add(ev);
+		};
+		res.sort;
+		res.meta[\overdubs] = (res.meta[\overdubs] ? []) ++ [IdentityDictionary[
+			\created -> b.meta[\created], \voices -> voiceSet.asArray.collect(_.asString).sort,
+			\mode -> (mode ? \auto).asString, \punch -> [pin, pout]]];
+		^res
+	}
+
+	*prRemoveTouched { |res, voice, newOnes, auto, pin, pout|
+		var spans = Dictionary.new;   // control key → [first, last] touch
+		var others = false;
+		newOnes.do { |e|
+			var k = this.controlKey(e);
+			var span;
+			if(k.notNil and: { auto.not or: { this.isContinuous(e) } }) {
+				span = spans[k];
+				spans[k] = if(span.isNil) { [e[\beat], e[\beat]] } { [min(span[0], e[\beat]), max(span[1], e[\beat])] };
+			} {
+				others = true;
+			};
+		};
+		res.events.copy.do { |e|
+			var k, span;
+			if(e[\voice] == voice) {
+				k = this.controlKey(e);
+				span = k !? { spans[k] };
+				if(span.notNil and: { e[\beat] >= span[0] } and: { e[\beat] <= span[1] }) {
+					res.remove(e[\id]);
+				} {
+					if(auto and: { others } and: { k.isNil or: { this.isContinuous(e).not } }
+						and: { e[\beat] >= pin } and: { e[\beat] < pout }) { res.remove(e[\id]) };
+				};
+			};
+		};
+	}
+
+	// Beats folded into [from, to]; for every mode but \keep only the last pass
+	// of each voice (each control, for touch and auto) remains.
+	*prFold { |events, span, mode|
+		var from = span[0], len = span[1] - span[0];
+		var lastPass = Dictionary.new;
+		var folded;
+		if(len <= 0) { ^events };
+		folded = events.collect { |e|
+			var ev = IdentityDictionary.new;
+			var pass = 0;
+			e.keysValuesDo { |k, v| ev[k] = v };
+			if(e[\beat] >= from) {
+				pass = ((e[\beat] - from) / len).floor.asInteger;
+				ev[\beat] = from + ((e[\beat] - from) mod: len);
+			};
+			ev[\pass] = pass;
+			ev
+		};
+		if(mode == \keep) { ^folded.do { |ev| ev.removeAt(\pass) } };
+		folded.do { |ev|
+			var key = this.prPassKey(ev, mode);
+			lastPass[key] = max(lastPass[key] ? 0, ev[\pass]);
+		};
+		folded = folded.select { |ev| ev[\pass] == lastPass[this.prPassKey(ev, mode)] };
+		folded.do { |ev| ev.removeAt(\pass) };
+		^folded
+	}
+
+	*prPassKey { |ev, mode|
+		if(mode == \replace) { ^[ev[\voice]] };
+		^[ev[\voice], if(mode.isNil and: { this.isContinuous(ev).not }) { nil } { this.controlKey(ev) }]
+	}
 
 	//////// the file
 
