@@ -16,6 +16,9 @@ METHOD:: kvReplaceMany
 METHOD:: kvPutAll
 METHOD:: kvKeys
 METHOD:: asKV
+METHOD:: seeded
+code::func.value:: in a Routine of its own random state when strong::seed:: is given, else as it is: a draw in an unseeded thread would advance the caller's state, and a seeded one is isolated both ways. The same seed gives the same result (the generators of link::Classes/RCLines::, link::Classes/RCSurface:: and link::Classes/RCLaws:: draw this way).
+
 METHOD:: isStatic
 True when a value can be used as-is in a pattern without being streamed.
 METHOD:: cartesianProduct

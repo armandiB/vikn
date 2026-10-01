@@ -69,7 +69,7 @@ RCSurface {
 
 	// n samples uniform over the ranges, seeded.
 	random { |n = 16, seed|
-		^RCLines.prSeeded(seed, { n.collect { [rrand(uRange[0], uRange[1]), rrand(vRange[0], vRange[1])] } })
+		^RCUtil.seeded(seed, { n.collect { [rrand(uRange[0], uRange[1]), rrand(vRange[0], vRange[1])] } })
 	}
 
 	// A random walk of n samples from `start` ([u, v], the ranges' middle by default), steps
@@ -78,7 +78,7 @@ RCSurface {
 	walk { |n = 16, stepU = 0.1, stepV = 0.1, start, seed|
 		var u = start !? (_[0]) ?? { (uRange[0] + uRange[1]) / 2 };
 		var v = start !? (_[1]) ?? { (vRange[0] + vRange[1]) / 2 };
-		^RCLines.prSeeded(seed, {
+		^RCUtil.seeded(seed, {
 			n.collect {
 				var sample = [u, v];
 				u = this.prFold(u + stepU.rand2, uRange, uPeriodic);

@@ -229,7 +229,7 @@ RCLines {
 	*cloud { |n = 16, cycle = 8, ranges, temperatures, dur = 1, seed, clip = true, minDur|
 		ranges = ranges ?? { (pitch: [0, 2]) };
 		temperatures = temperatures ?? { () };
-		^this.prSeeded(seed, {
+		^RCUtil.seeded(seed, {
 			n.collect { |i|
 				var d = if(dur.isKindOf(SequenceableCollection)) { rrand(dur[0], dur[1]) } { dur };
 				var from = (), to = ();
@@ -247,16 +247,6 @@ RCLines {
 				this.line(cycle.rand, d, from, to, i)
 			}.sort { |x, y| x[\onset] <= y[\onset] }
 		})
-	}
-
-	// func in a Routine of its own random state when seed is given (a draw in an unseeded
-	// thread would advance the caller's state, see docs/SC_NOTES).
-	*prSeeded { |seed, func|
-		var routine;
-		if(seed.isNil) { ^func.value };
-		routine = Routine { func.value.yield };
-		routine.randSeed = seed;
-		^routine.next
 	}
 
 	//////// allocation and subseqs
