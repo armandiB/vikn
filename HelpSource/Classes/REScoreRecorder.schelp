@@ -1,0 +1,79 @@
+TITLE:: REScoreRecorder
+summary:: Records what you do to a song into an REScore
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REScore, Classes/RETap, Classes/RCSong
+
+DESCRIPTION::
+One per song, through link::Classes/RCSong#-scoreRecorder::. Off (not armed): nothing installed, nothing checked beyond code::RETap.active::. Armed: the taps reach it, nothing is kept. Recording: events are appended; the file is written at code::stop::. The recorder only observes: no random draw, no scheduling beyond the quantized start (one Function on the song's clock), no server message. See the reCording guide, "Scores".
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: song
+argument:: root
+The folder of the take files, nil to keep the score in code::lastScore:: only.
+argument:: version
+The wersion in the file name.
+argument:: piece
+
+METHOD:: allInputs
+code::[\midi, \osc, \keyboard, \actions, \code]::.
+
+METHOD:: unsafeCode
+A code line containing one of these strings is kept but marked code::replay: false::.
+
+INSTANCEMETHODS::
+
+METHOD:: arm
+argument:: scope
+nil (the whole song), or objects (layers, beats, batches, orgnsms, fobjects, crawlers, the song's code::midi::, code::osc:: or code::keyboard::) and mapping or def names. An event is kept when its object, or what holds it, is in the scope.
+argument:: inputs
+The kinds of event, all by default.
+argument:: voices
+An Event: voice name → the objects and names grouped under it.
+
+METHOD:: disarm
+Stops a recording, removes the hooks.
+
+METHOD:: record
+argument:: quant
+nil: now; else the take starts on that grid of the song's clock.
+argument:: snapshotAtStart
+Sets link::#-startSnapshot::.
+
+METHOD:: stop
+returns:: The link::Classes/REScore::, written to code::<root>/<stamp>_<song> <version>.json:: when root is set.
+
+METHOD:: snapshot
+argument:: name
+The state of what is in scope: the sources of every key of the beats, the static attributes of the orgnsms, the song's seed.
+returns:: The event id.
+
+METHOD:: state
+code::\off::, code::\armed:: or code::\recording::.
+METHOD:: isArmed
+METHOD:: isRecording
+METHOD:: score
+The score being recorded.
+METHOD:: lastScore
+METHOD:: beat0
+METHOD:: time0
+METHOD:: root
+METHOD:: version
+METHOD:: piece
+METHOD:: startSnapshot
+A take starts with a snapshot named code::start:: (true by default).
+METHOD:: scope
+METHOD:: inputs
+METHOD:: voices
+
+EXAMPLES::
+
+code::
+~rec = ~song.scoreRecorder(root: ~piece_dir +/+ "Scores", version: "w1");
+~rec.arm(scope: [~song.layer(\core), ~batch], inputs: #[\midi, \actions], voices: (lead: [~beat1, ~beat2]));
+~rec.record([4, 0]);
+~rec.snapshot(\intro);
+~rec.stop;
+~rec.disarm;
+::

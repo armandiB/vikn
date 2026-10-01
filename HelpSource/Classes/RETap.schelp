@@ -1,0 +1,62 @@
+TITLE:: RETap
+summary:: The hook the recordable reCurrent methods call
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REScoreRecorder
+
+DESCRIPTION::
+The recordable methods of reCurrent hold one line, code::if(RETap.active) { RETap.action(this, \set, [key, val, seed, quant]) }::: one Boolean check when nothing is armed. Armed recorders register here and every call is forwarded to each of them under link::Classes/RCGuard::, from the main thread only (patterns, control loops and replays run in Routines and are the program's own work). Library code that reaches a recordable method from another one calls its private twin (code::RCBeat.prFree::, code::RCOrgnsm.prRPut::...), so that one action is one event; a subclass specialising a recorded method overrides the twin.
+
+An input opens a cause around its handler: the input is recorded, the actions the handler triggers are not. A code line (the interpreter's code::preProcessor:: and code::codeDump::, installed while a recorder wants code) opens a cause whose actions are recorded as its effects.
+
+CLASSMETHODS::
+
+METHOD:: active
+True while at least one recorder is armed.
+
+METHOD:: action
+argument:: obj
+argument:: method
+argument:: args
+The arguments as called.
+
+METHOD:: input
+argument:: kind
+code::\midi::, code::\osc:: or code::\keyboard::.
+argument:: song
+argument:: data
+An Event of the fields to record (code::name::, code::raw::, code::value::; code::key::, code::path::, code::args::; code::device::, code::msg::, code::chan::, code::note::, code::value::).
+argument:: func
+The handler, run inside the input's cause; nil records only.
+returns:: What func returns.
+
+METHOD:: silently
+argument:: func
+Nothing is recorded while func runs.
+
+METHOD:: add
+METHOD:: remove
+argument:: recorder
+
+METHOD:: enableCode
+METHOD:: disableCode
+argument:: user
+The interpreter hooks are installed while at least one user wants them.
+
+METHOD:: codeHooksInstalled
+
+METHOD:: mainThreadOnly
+True by default; false lets tests drive actions from a Routine.
+
+METHOD:: frames
+The open causes, innermost last.
+
+METHOD:: beginCode
+METHOD:: endCode
+Called by the interpreter hooks.
+
+EXAMPLES::
+
+code::
+// in a piece that automates with clock-scheduled Functions (they run on the main thread):
+clock.sched(1, { RETap.silently { ~beat.set(\amp, 0.2) }; nil });
+::

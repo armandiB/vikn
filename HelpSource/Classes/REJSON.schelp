@@ -1,0 +1,47 @@
+TITLE:: REJSON
+summary:: JSON for the score files: a writer, and a reader that types what parseJSON returns
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REScore
+
+DESCRIPTION::
+sclang has no JSON writer, and code::String:parseJSON:: hands every scalar back as a String. REJSON writes nil, Booleans, Integers, Floats (the shortest string that reads back to the same Float, code::.0:: kept on integral ones; a non-finite number as null, with a warning), escaped Strings (UTF-8 through), Symbols as strings with a leading backslash (code::"\\amp"::), Arrays and Lists, Dictionaries and Events (keys as strings); and reads them back to the same classes. A String that would be mistaken for a number, a Boolean or a Symbol is written as code::{"str": "..."}::. Objects read back as IdentityDictionaries with Symbol keys. Output is stable for diffs: keys in a given order first, the rest sorted; pretty-printed down to a depth, compact below.
+
+CLASSMETHODS::
+
+METHOD:: stringify
+argument:: obj
+argument:: indent
+Spaces per level; nil (the default) writes everything on one line.
+argument:: inlineDepth
+Nodes at this depth and deeper are written on one line (code::2:: with the score layout: one event per line).
+argument:: keyOrder
+Keys (Symbols or Strings) written first, in that order; the others follow sorted.
+
+METHOD:: parse
+argument:: text
+returns:: The typed value, nil for nil text or a parse error (reported).
+
+METHOD:: write
+argument:: obj
+argument:: path
+Folders are made on the way.
+argument:: indent
+argument:: inlineDepth
+argument:: keyOrder
+returns:: The standardized path written.
+
+METHOD:: read
+argument:: path
+returns:: The typed value, nil (reported) when the file is missing.
+
+METHOD:: mkdirAll
+argument:: dir
+Makes the folder and its parents.
+
+EXAMPLES::
+
+code::
+REJSON.stringify((a: 1, b: [1.5, "x", nil], s: \amp));       // {"a": 1, "b": [1.5, "x", null], "s": "\\amp"}
+REJSON.parse("{\"n\": \"42\", \"s\": \"\\\\amp\"}");         // 'n' -> 42 (an Integer), 's' -> amp (a Symbol)
+REJSON.stringify("42");                                        // {"str": "42"}: reads back as the String
+::

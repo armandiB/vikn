@@ -1,0 +1,117 @@
+TITLE:: REScore
+summary:: A score: what you did to a song, as events in a JSON file
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REScoreRecorder, Classes/RETap, Classes/REJSON
+
+DESCRIPTION::
+The events of a performance (inputs, actions on the reCurrent objects, code lines, snapshots) with the beat they happened on and the metadata that replays them, as one JSON file in the format of the reCording guide ("The take file"). Made by link::Classes/REScoreRecorder::, played by REScorePlayer, edited by its own methods.
+
+Events are IdentityDictionaries kept in their file form: the fields code::kind::, code::voice::, code::method::, code::name::, code::key:: and code::msg:: are Symbols in memory and plain strings in the file; values go through the codec (link::#*encodeValue::, link::#*decodeValue::).
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: song
+An link::Classes/RCSong:: or its name.
+argument:: piece
+argument:: wersion
+
+METHOD:: read
+argument:: path
+returns:: The score, nil (reported) for a missing file or another format.
+
+METHOD:: fromDict
+METHOD:: fromJSONString
+
+METHOD:: pathFor
+argument:: root
+argument:: song
+argument:: version
+argument:: stamp
+returns:: code::<root>/<stamp>_<song> <version>.json:: (link::Classes/RETake#*path::).
+
+METHOD:: encodeValue
+argument:: x
+returns:: The file form of a value: numbers, strings, symbols, arrays as they are; an Event as an object, another Dictionary as code::{dict: ...}::; a Pattern, a Function with source, a Ref, an Env, a Rest, a Quant, a ControlSpec, an Association, a Char, a Class, a Point, a Rect, an Interval, a Tuning or a Scale as code::{sc: <compile string>}::; a reCurrent object as its reference (link::#*rcRef::); anything else as code::{ref: <print string>}::.
+
+METHOD:: encode
+argument:: x
+returns:: code::[encoded, replayable]::: false when a code::{ref}:: appears anywhere inside.
+
+METHOD:: decodeValue
+argument:: x
+argument:: song
+The song references are resolved through (the default session's, by the reference's song name, when nil).
+returns:: The value back: code::{sc}:: compiled and run (nil, reported, when it does not compile or raises), code::{rc}:: resolved (left as the reference when it cannot be), code::{ref}:: as it is, objects as Events.
+
+METHOD:: rcRef
+argument:: obj
+returns:: code::{rc: "beat"|"layer"|"song"|"batch"|"orgnsm"|"fobject"|"crawler", name: ..., layer: ..., song: ...}::, nil for anything else.
+
+METHOD:: resolve
+argument:: ref
+argument:: song
+returns:: The live object: beats, layers, orgnsms and fobjects through the song; batches and crawlers through the current (then the top) environment, by the variable holding them.
+
+METHOD:: isRef
+
+METHOD:: gitHead
+argument:: dir
+returns:: The short commit of the checkout holding dir, nil outside one.
+
+METHOD:: keyOrder
+The field order of the file.
+
+INSTANCEMETHODS::
+
+METHOD:: add
+argument:: event
+An Event or a dictionary; copied. An absent (or already used) id is assigned.
+returns:: The id.
+
+METHOD:: remove
+argument:: id
+
+METHOD:: at
+argument:: id
+
+METHOD:: events
+METHOD:: size
+METHOD:: duration
+The recorded duration in beats, else the last event's beat.
+
+METHOD:: eventsOf
+argument:: voice
+METHOD:: ofKind
+argument:: kind
+METHOD:: between
+argument:: fromBeat
+argument:: toBeat
+From inclusive, to exclusive.
+METHOD:: causedBy
+argument:: id
+METHOD:: voiceNames
+METHOD:: kinds
+METHOD:: sort
+By beat, equal beats by id.
+
+METHOD:: meta
+METHOD:: voices
+METHOD:: controls
+METHOD:: tempoMap
+
+METHOD:: write
+argument:: path
+returns:: The path written.
+METHOD:: asDict
+METHOD:: asJSONString
+METHOD:: copy
+
+EXAMPLES::
+
+code::
+s = REScore.read(~piece_dir +/+ "Scores/261001_143012_demo w1.json");
+s.voiceNames;
+s.eventsOf('core/kick').collect { |e| [e[\beat], e[\method], e[\args]] };
+REScore.decodeValue(s.at(2)[\args], ~song);
+::
