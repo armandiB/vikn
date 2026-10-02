@@ -35,6 +35,7 @@ REScorePlayer {
 	var <state = \stopped, routine, <startBeat, <from = 0, <to, <loop = false, <passes = 0;
 	var <muted, <soloed, <deferred;
 	var <>onEvent, <>onLoop, <>onDone;
+	var <>onPlay, <>onStop;   // { |player| } as play starts, as stop ends it (onDone: the end of the take)
 	var <>followTempo = false, <>useLatency = true;
 	var <>interpolate = false, <>stepsPerBeat = 16;   // a continuous control ramps to its next point (off: the points, as played)
 	var <>alignPhase = true;   // play starts on the take's phase of the grid (quant, else the take's own, else the beat)
@@ -92,6 +93,7 @@ REScorePlayer {
 		{ atBeat.notNil } { clock.schedAbs(atBeat, routine) }
 		{ alignPhase } { clock.schedAbs(this.class.alignedStart(score, clock, quant), routine) }
 		{ routine.play(clock, quant) };
+		onPlay.value(this);
 	}
 
 	// The next beat on the grid (quant's, else the take's own, else 1) with the take's
@@ -126,6 +128,7 @@ REScorePlayer {
 		routine !? (_.stop);
 		routine = nil;
 		state = \stopped;
+		onStop.value(this);
 	}
 
 	isPlaying { ^state == \playing }

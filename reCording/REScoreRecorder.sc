@@ -42,6 +42,7 @@ REScoreRecorder {
 	var <>startSnapshot = true;
 	var <player, overdubbing;
 	var <>onEvent;   // { |recorder, event| } after each recorded event (a view's live feed)
+	var <>onStart, <>onStop;   // { |recorder| } as a take starts, { |recorder, score, path| } as it stops (written or not)
 
 	*initClass {
 		allInputs = #[\midi, \osc, \keyboard, \actions, \code, \rawMidi];
@@ -226,6 +227,7 @@ REScoreRecorder {
 		controls.keysValuesDo { |k, v| score.controls[k] = v };
 		state = \recording;
 		if(level3) { this.prInstallServerTap };
+		onStart !? { |f| RCGuard.call(\score, nil) { f.value(this) } };
 		if(startSnapshot) { this.snapshot(\start) };
 		RCLog.post(\score, "% recording from beat %".format(song.name, beat0));
 	}
@@ -281,6 +283,7 @@ REScoreRecorder {
 		};
 		RCLog.post(\score, "% stopped: % events over % beats".format(song.name, s.size, s.duration.round(0.01)));
 		lastCheck.do { |text| RCLog.warn(\score, "check: " ++ text) };
+		onStop !? { |f| RCGuard.call(\score, nil) { f.value(this, s, lastPath) } };
 		^s
 	}
 

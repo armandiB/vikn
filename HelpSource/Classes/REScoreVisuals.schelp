@@ -1,0 +1,56 @@
+TITLE:: REScoreVisuals
+summary:: The visuals feed of a score: what is recorded and what replays, to HomewareVisuals
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REScoreRecorder, Classes/REScorePlayer, Classes/RCVisuals
+
+DESCRIPTION::
+Sends what a song's link::Classes/REScoreRecorder:: records and what an link::Classes/REScorePlayer:: plays to HomewareVisuals through link::Classes/RCVisuals:: (OSC 57121, the bridge, a page), so that a page draws the performance's score as it is made and as it replays (HomewareVisuals' code::public/lib/score-viz.js::, the page code::public/score/::). The protocol is the header of the class file: one JSON string per message under code::/score:: (code::take::, code::events::, code::event::, code::played::, code::head::, code::stop::, code::stopPlay::). It chains the recorder's and the player's hooks (their own keep running) and records nothing.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: recorder
+An REScoreRecorder to attach to (nil: none yet).
+argument:: player
+An REScorePlayer to attach to (nil: none yet).
+
+METHOD:: prefix
+The paths' prefix, code::/score::.
+METHOD:: chunk
+Events per code::/score/events:: message (40: an OSC packet stays under 64 kB).
+METHOD:: headRate
+Head messages per second (10).
+METHOD:: textLength
+Characters of a code line kept in an event message (80).
+
+METHOD:: eventDict
+A compact event for the page: id, beat, secs, kind, level, voice, cause, the control key as words and the value it sets, the names, a code line's first characters.
+
+INSTANCEMETHODS::
+
+METHOD:: attach
+Attach to a recorder: a take's start, every event, the recording head, the stop.
+METHOD:: attachPlayer
+Attach to a player: the take it plays (its events in chunks), every event fired, the playhead, the stop.
+METHOD:: detach
+METHOD:: detachRecorder
+METHOD:: detachPlayer
+The hooks put back as they were.
+METHOD:: recorder
+METHOD:: player
+METHOD:: name
+The name of the take being fed.
+METHOD:: send
+A message under the prefix, its dictionary as JSON (Symbols as plain strings).
+
+EXAMPLES::
+
+code::
+~viz = REScoreVisuals(~song.scoreRecorder);
+~rec.record([4, 0]);              // the page sees the take grow
+~rec.stop;
+~p = REScorePlayer(REScore.read(path), ~song);
+~viz.attachPlayer(~p);
+~p.play([4, 0]);                  // the page draws the take and follows the playhead
+~viz.detach;
+::
