@@ -207,6 +207,9 @@ REScoreRecorder {
 		score.meta[\latency] = song.server.latency;
 		// the grid the take started on: a replay starts on the same phase of it (REScorePlayer.alignedStart)
 		recordQuant !? { |q| score.meta[\quant] = q.asQuant.quant };
+		// the main thread's random state: a replay draws from it, so a typed `rand` gives what it gave
+		score.meta[\randData] = Array.newFrom(thisProcess.mainThread.randData);
+		score.meta[\inputs] = inputs.asArray.collect(_.asString).sort;
 		score.tempoMap.add([0, lastTempo]);
 		voices.keysValuesDo { |k, v| score.voices[k] = v };
 		controls.keysValuesDo { |k, v| score.controls[k] = v };

@@ -84,6 +84,9 @@ REScorePlayer {
 		this.prIndexControls(events);
 		this.prCheckCommits;
 		routine = Routine { this.prRun(events) };
+		// the take's random state (the main thread's at its start): a replayed line that draws
+		// draws what it drew, as long as the same lines and inputs run in the same order
+		score.meta[\randData] !? { |d| RCGuard.call(\player, nil) { routine.randData = Int32Array.newFrom(d) } };
 		state = \playing;
 		case
 		{ atBeat.notNil } { clock.schedAbs(atBeat, routine) }

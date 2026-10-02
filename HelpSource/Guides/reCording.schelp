@@ -103,7 +103,7 @@ A take has two levels. strong::Level 1:: is what a human did: the inputs, the co
 
 At replay a level 2 event plays only when the level 1 event it descends from was strong::deferred:: (code::player.defer([\code])::, or code::defer: true:: on the event) or failed without doing anything first: the source is not fired, its effects and its program events are, so a line's work can be edited event by event. Under a fired source the program does its own work and the recorded level 2 events stay silent; an orphan (no root) plays only with code::playOrphans::.
 
-The strong::check:: (link::Classes/REScore#-check::, run at code::stop:: and written as the take's code::check::) lists what threatens an exact replay: lines not replayed, lines that raised, lines drawing random numbers or reading the clock (the song seed seeds the patterns, not the interpreter: a bare code::rand:: in a line differs at replay), program actions not recorded.
+The strong::check:: (link::Classes/REScore#-check::, run at code::stop:: and written as the take's code::check::) lists what threatens an exact replay: lines not replayed, lines that raised, lines drawing random numbers or reading the clock, program actions not recorded, actions recorded without code lines among the inputs (a scheduled one plays twice). A take holds the main thread's random state at its start (code::randData::) and the player's Routine starts from it, so a line that draws draws what it drew, as long as the same lines and inputs run in the same order; a draw elsewhere on the main thread in between (a clock-scheduled Function, a GUI) breaks the sequence from there on.
 
 subsection:: Replay (link::Classes/REScorePlayer::)
 
@@ -195,6 +195,7 @@ table::
 ## code::by:: || on a level 2 event, the object whose loop did it (a reference or a name)
 ## code::defer:: || code::true:: on a source: it is not fired at replay, its effects and program events are
 ## code::levels::, code::unrecorded::, code::check:: (in the metadata) || the levels written ([1, 2] when a companion exists), the program actions seen while level 2 was off, what threatens an exact replay
+## code::inputs::, code::randData:: (in the metadata) || the kinds of input recorded; the main thread's random state at the start (three integers), given to the player's Routine
 ::
 
 Values: numbers and strings as JSON; a Symbol as a string with a leading backslash (code::"\\amp"::, the pick-file convention); a Boolean and null as themselves; an Array as an array; an Event or Dictionary as an object. A Pattern, a Function with source, a Ref or any object with a meaningful compile string becomes code::{"sc": "Pseq([1, 2], inf)"}::, replayable in sclang and shown as text elsewhere; a string that would be read as something else (code::"42"::, code::"true"::, a leading backslash) is wrapped as code::{"str": "42"}::; a reCurrent object as its code::rc:: reference; anything else as code::{"ref": "<print string>"}::, which marks the event code::replay: false::. Floats are written with 17 significant digits; a non-finite number is written as null with a warning. Integers above 2^31 do not exist in sclang: ids count from 1 and times are floats.

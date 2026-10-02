@@ -262,6 +262,28 @@ TestREScorePlayer : UnitTest {
 		currentEnvironment[\reTestDefer] = nil;
 	}
 
+	// A replayed line that draws random numbers draws what it drew: the player's Routine takes
+	// the take's random state (the main thread's at the take's start).
+	test_random_state {
+		var s = REScore(\pl);
+		var p = REScorePlayer(s, song);
+		var r = Routine { thisThread.randSeed = 4242; thisThread.randData.asArray.yield; 1000.rand.yield; 1000.rand.yield };
+		var data = r.next, live1 = r.next, live2 = r.next;
+		s.meta[\randData] = data;
+		s.add((beat: 0, kind: \code, voice: \code, text: "~reTestRand1 = 1000.rand"));
+		s.add((beat: 0.5, kind: \code, voice: \code, text: "~reTestRand2 = 1000.rand"));
+		s.meta[\duration] = 1;
+		2.do { |i|
+			currentEnvironment[\reTestRand1] = nil;
+			p.play;
+			(2.5 / clock.tempo).wait;
+			this.assertEquals(currentEnvironment[\reTestRand1], live1, "pass %: the first draw as recorded".format(i));
+			this.assertEquals(currentEnvironment[\reTestRand2], live2, "pass %: the second too (the same order)".format(i));
+		};
+		currentEnvironment[\reTestRand1] = nil;
+		currentEnvironment[\reTestRand2] = nil;
+	}
+
 	// A replay starts on the take's own phase of the grid: what the take quantized lands as it did.
 	test_phase_alignment {
 		var s = REScore(\pl);

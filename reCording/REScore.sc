@@ -27,11 +27,11 @@ REScore {
 
 	*initClass {
 		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \beat0, \time0, \tempo, \latency, \quant,
-			\duration, \levels, \level1, \unrecorded, \check, \tempoMap, \voices, \controls, \events,
+			\duration, \inputs, \randData, \levels, \level1, \unrecorded, \check, \tempoMap, \voices, \controls, \events,
 			\id, \beat, \secs, \kind, \level, \voice, \cause, \by, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
 			\value, \text, \replay, \defer, \raised, \fallback, \loopback, \loopbackOf, \state];
 		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \beat0, \time0, \tempo, \latency, \quant, \duration, \overdubs,
-			\levels, \unrecorded, \check];
+			\inputs, \randData, \levels, \unrecorded, \check];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
 		// classes whose compile string is the value itself (a Function needs its source, see prEncode)
 		scClasses = [Pattern, Ref, Env, Rest, Quant, ControlSpec, Association, Char, Class, Point, Rect, Interval, Tuning, Scale];
@@ -668,7 +668,10 @@ REScore {
 		if(unsafe.notEmpty) { out.add("% code line(s) not replayed (%): their effects play instead".format(unsafe.size, unsafe.collect(_[\id]))) };
 		if(loops.notEmpty) { out.add("% code line(s) sent a message to this song (%): the input replays, not the line".format(loops.size, loops.collect(_[\id]))) };
 		if(raised.notEmpty) { out.add("% code line(s) raised (%): their effects are what they did before".format(raised.size, raised.collect(_[\id]))) };
-		if(random.notEmpty) { out.add("% code line(s) draw random numbers or read the clock (%): seed them (thisThread.randSeed) or their results differ at replay".format(random.size, random.collect(_[\id]))) };
+		if(random.notEmpty) { out.add("% code line(s) draw random numbers or read the clock (%): a draw is replayed from the take's random state as long as the same lines and inputs run in the same order (a draw elsewhere on the main thread in between breaks it: seed such lines yourself); the clock is not".format(random.size, random.collect(_[\id]))) };
+		if((meta[\inputs] ? []).includes("code").not and: { this.ofKind(\action).any { |e| e[\cause].isNil and: { (e[\level] ? 1) == 1 } } }) {
+			out.add("actions recorded without code lines among the inputs: a clock-scheduled one is the program's work and plays twice at replay; arm with \\code to tell typed actions from scheduled ones");
+		};
 		if(routines.notEmpty) { out.add("% code line(s) start a plain Routine or Task (%): its work is seen by no one; RETap.routine { } or RETap.task makes it level 2 under the line".format(routines.size, routines.collect(_[\id]))) };
 		if(played.notEmpty) { out.add("% code line(s) play a pattern by hand (%): its events belong to no beat; play it through a beat (RCBeat) or a tagged player".format(played.size, played.collect(_[\id]))) };
 		(meta[\unrecorded] ? 0) !? { |n| if(n > 0) { out.add("% program action(s) on the main thread were not recorded (level 2 off): the program does them again at replay".format(n)) } };

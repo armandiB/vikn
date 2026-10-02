@@ -403,8 +403,16 @@ TestREScoreRecorder : UnitTest {
 		this.assert(s.events.every { |e| e[\level] == 1 }, "every event is level 1");
 		this.assertEquals(s.meta[\unrecorded], 1, "the program action was counted");
 		this.assertEquals(s.meta[\levels], nil, "no companion");
+		this.assertEquals(s.meta[\randData].size, 3, "the main thread's random state");
+		this.assertEquals(s.meta[\inputs], ["actions", "code"], "the inputs recorded");
 		this.assert(s.meta[\check].notNil and: { s.meta[\check].any { |t| t.contains("not recorded") } }, "the check says so: " ++ s.meta[\check]);
 		this.assert(s.meta[\check].any { |t| t.contains("random") }, "and names the line drawing random numbers");
+		this.assert(s.meta[\check].any { |t| t.contains("without code lines") }.not, "code lines were among the inputs");
+		rec.arm(inputs: #[\actions]);
+		rec.record(snapshotAtStart: false);
+		b.set(\amp, 0.2);
+		s = rec.stop;
+		this.assert(s.meta[\check].any { |t| t.contains("without code lines") }, "actions without code lines: the check warns of scheduled ones: " ++ s.meta[\check]);
 		this.assert(this.logHas("check:"), "the check is posted");
 		this.assertEquals(rec.lastCheck, s.meta[\check]);
 		rec.arm(level2: true);
