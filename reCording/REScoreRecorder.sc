@@ -33,6 +33,9 @@ REScoreRecorder {
 	var <>level2 = false;   // record the program's work too (level 2, the companion file): off, it is only counted
 	var unrecorded = 0;     // program actions seen on the main thread while level 2 is off
 	var <lastCheck;         // what threatened the last take's exact replay (REScore.check)
+	var <>rateGuard;        // events per second a doer may write at level 2 before it is sub-sampled (nil: no guard)
+	var <>rateQuantum = 0.0625;   // beats: under the guard, one event per object, method and key per quantum
+	var rateCounts, rateKept, rateWarned;
 	var <>startSnapshot = true;
 	var <player, overdubbing;
 	var <>onEvent;   // { |recorder, event| } after each recorded event (a view's live feed)
@@ -180,6 +183,9 @@ REScoreRecorder {
 		recordQuant = quant;
 		loopbackLine = nil;
 		unrecorded = 0;
+		rateCounts = IdentityDictionary.new;
+		rateKept = IdentityDictionary.new;
+		rateWarned = IdentitySet.new;
 		case
 		{ atBeat.notNil } { this.clock.schedAbs(atBeat, { this.prStart(offsetBeat); nil }) }
 		{ quant.isNil } { this.prStart(offsetBeat) }
@@ -383,13 +389,39 @@ REScoreRecorder {
 	// The program's work (level 2): recorded in the companion when level2 is on, else counted
 	// for the check. thread: the tagged Routine it ran in, when it did (its cause and doer).
 	tapProgram { |obj, method, args, thread|
-		var ev;
+		var ev, by;
 		if(state != \recording) { ^this };
 		if(level2.not) { unrecorded = unrecorded + 1; ^this };
 		if(this.prInScope(obj).not) { ^this };
+		by = thread !? (_.by);
+		if(rateGuard.notNil and: { this.prRateExceeded(by, obj, method, args) }) { ^this };
 		ev = this.prActionEvent(obj, method, args, 2, thread !? (_.cause));
-		thread !? { |t| t.by !? { |b| ev[\by] = REScore.rcRef(b) ?? { b.asString } } };
+		by !? { |b| ev[\by] = REScore.rcRef(b) ?? { b.asString } };
 		this.prAdd(ev);
+	}
+
+	// The rate guard (off unless rateGuard is set): a doer writing more than rateGuard events
+	// in a second of the clock is sub-sampled from then on in that second, one event per
+	// object, method and first argument (the key) per rateQuantum beat; said once per doer.
+	prRateExceeded { |by, obj, method, args|
+		var c = this.clock;
+		var doer = by ? \program;
+		var second = c.seconds.floor;
+		var counts = rateCounts[doer] ?? { rateCounts[doer] = [second, 0] };
+		var key, last, beat;
+		if(counts[0] != second) { counts[0] = second; counts[1] = 0 };
+		counts[1] = counts[1] + 1;
+		if(counts[1] <= rateGuard) { ^false };
+		if(rateWarned.includes(doer).not) {
+			rateWarned.add(doer);
+			RCLog.warn(\score, "rate guard: % writes more than % events/s: one per % beat per control kept".format(doer, rateGuard, rateQuantum));
+		};
+		key = (obj.identityHash.asString ++ "/" ++ method ++ "/" ++ (args !? (_[0]))).asSymbol;
+		beat = c.beats;
+		last = rateKept[key];
+		if(last.notNil and: { (beat - last) < rateQuantum }) { ^true };
+		rateKept[key] = beat;
+		^false
 	}
 
 	prActionEvent { |obj, method, args, level, frame|

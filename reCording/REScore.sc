@@ -657,14 +657,20 @@ REScore {
 		var out = List.new;
 		var code = this.ofKind(\code);
 		var randoms = #["rand", "coin", "choose", "scramble", "wchoose", "Date.", "elapsedTime", "SystemClock.seconds", "thisThread.seconds"];
+		var untagged = #["Routine {", "Routine(", "Routine.new", "Task {", "Task(", "Task.new", "fork {", ".fork"];
+		var patterns = #["Pbind", "Pmono", "Ppar", "Ptpar", "Pseq", "Pdef", "Pfindur", "Pn("];
 		var unsafe = code.select { |e| e[\replay] == false and: { e[\loopback].isNil } };
 		var loops = code.select { |e| e[\loopback].notNil };
 		var raised = code.select { |e| e[\raised] == true };
 		var random = code.select { |e| randoms.any { |p| e[\text].asString.contains(p) } };
+		var routines = code.select { |e| untagged.any { |p| e[\text].asString.contains(p) } };
+		var played = code.select { |e| var t = e[\text].asString; t.contains(".play(") and: { patterns.any { |p| t.contains(p) } } };
 		if(unsafe.notEmpty) { out.add("% code line(s) not replayed (%): their effects play instead".format(unsafe.size, unsafe.collect(_[\id]))) };
 		if(loops.notEmpty) { out.add("% code line(s) sent a message to this song (%): the input replays, not the line".format(loops.size, loops.collect(_[\id]))) };
 		if(raised.notEmpty) { out.add("% code line(s) raised (%): their effects are what they did before".format(raised.size, raised.collect(_[\id]))) };
 		if(random.notEmpty) { out.add("% code line(s) draw random numbers or read the clock (%): seed them (thisThread.randSeed) or their results differ at replay".format(random.size, random.collect(_[\id]))) };
+		if(routines.notEmpty) { out.add("% code line(s) start a plain Routine or Task (%): its work is seen by no one; RETap.routine { } or RETap.task makes it level 2 under the line".format(routines.size, routines.collect(_[\id]))) };
+		if(played.notEmpty) { out.add("% code line(s) play a pattern by hand (%): its events belong to no beat; play it through a beat (RCBeat) or a tagged player".format(played.size, played.collect(_[\id]))) };
 		(meta[\unrecorded] ? 0) !? { |n| if(n > 0) { out.add("% program action(s) on the main thread were not recorded (level 2 off): the program does them again at replay".format(n)) } };
 		^out.asArray
 	}

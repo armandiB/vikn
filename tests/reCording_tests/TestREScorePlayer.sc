@@ -257,7 +257,7 @@ TestREScorePlayer : UnitTest {
 		p.undefer;
 		p.playOrphans = true;
 		p.play;
-		(2.5 / clock.tempo).wait;
+		(3.5 / clock.tempo).wait;   // the start waits for the next beat; the orphan is at 1.6
 		this.assertEquals(b.keyProxy(\amp).source, 0.9, "playOrphans: the orphan too");
 		currentEnvironment[\reTestDefer] = nil;
 	}

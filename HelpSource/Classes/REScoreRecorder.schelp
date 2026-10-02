@@ -43,6 +43,10 @@ argument:: level2
 Record the program's work too (false by default): the actions of tagged Routines and of clock-scheduled Functions, into the companion file. Off, they are counted and the check reports them.
 
 METHOD:: level2
+METHOD:: rateGuard
+Events per second a doer may write at level 2 before it is sub-sampled (nil by default: no guard).
+METHOD:: rateQuantum
+Beats (1/16): under the guard, one event per object, method and key per quantum.
 METHOD:: lastCheck
 What threatened the last take's exact replay (link::Classes/REScore#-check::), posted at stop and written into the take.
 

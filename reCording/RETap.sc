@@ -50,7 +50,14 @@ RETap {
 	// An action on a reCurrent object: receiver, method, arguments as called.
 	// Not from a Routine, not inside silently, not as the effect of a message.
 	*action { |obj, method, args|
-		var frame;
+		var frame, tagged;
+		// in (or resumed by) a tagged Routine (RETap.routine): the program's work, level 2,
+		// under the Routine's cause
+		tagged = this.taggedThread;
+		if(tagged.notNil) {
+			if(silent == 0) { recorders.do { |r| RCGuard.call(\tap, nil) { r.tapProgram(obj, method, args, tagged) } } };
+			^this
+		};
 		if(this.isMainThread.not) { ^this };
 		if(observers.notEmpty) { observers.do { |o| RCGuard.call(\tap, nil) { o.value(obj, method, args) } } };
 		if(silent > 0) { ^this };
@@ -58,6 +65,27 @@ RETap {
 		if(frame.notNil and: { frame[\kind] != \code }) { ^this };
 		recorders.do { |r| RCGuard.call(\tap, nil) { r.tapAction(obj, method, args, frame) } };
 	}
+
+	// The tagged Routine this call runs in: thisThread, or the nearest thread that resumed it
+	// (a key's stream inside a beat's player, a seeded draw inside a loop), the first one with
+	// a cause or a doer, else the first tagged one; nil on the main thread or under plain
+	// Routines only (a Routine the clock resumes has the main thread as parent).
+	*taggedThread {
+		var t = thisThread, main = thisProcess.mainThread, first;
+		while { t.notNil and: { t !== main } } {
+			if(t.isKindOf(RERoutine)) {
+				if(t.by.notNil or: { t.cause.notNil }) { ^t };
+				first = first ? t;
+			};
+			t = t.parent;
+		};
+		^first
+	}
+
+	// A Routine or a Task the recorder can see (RERoutine, RETask): created under the cause
+	// open now, doing the work of `by` (an object, a name) when given.
+	*routine { |func, by, stackSize = 512| ^RERoutine(func, stackSize, by) }
+	*task { |func, clock, by| ^RETask(func, clock, by) }
 
 	// observer ({ |obj, method, args| }) sees the actions func triggers, recorded or not: the
 	// taps are active meanwhile (the recorders are not reached when silent). A replay counts

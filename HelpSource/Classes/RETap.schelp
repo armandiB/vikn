@@ -33,6 +33,19 @@ METHOD:: silently
 argument:: func
 Nothing is recorded while func runs.
 
+METHOD:: routine
+argument:: func
+argument:: by
+The object (or name) whose work the Routine does.
+argument:: stackSize
+returns:: An link::Classes/RERoutine::: its actions are the program's work (level 2) under the cause open now.
+
+METHOD:: task
+argument:: func
+argument:: clock
+argument:: by
+returns:: A Task whose Routine is tagged (link::Classes/RERoutine::).
+
 METHOD:: observe
 argument:: observer
 code::{ |obj, method, args| }::, called for every action func triggers, recorded or not (the taps are active meanwhile; the recorders are not reached when silent).

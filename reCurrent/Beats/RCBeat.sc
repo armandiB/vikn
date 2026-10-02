@@ -541,11 +541,15 @@ RCBeat {
 		^this.prPlay(quant)
 	}
 
+	// The player and its stream are tagged (reCording's RERoutine): what the pattern and its
+	// events do to the reCurrent objects is this beat's work (level 2), under the cause open now.
 	prPlay { |quant|
+		var pat = pattern;
 		if(isFreed) { RCLog.warn(tag, "cannot play a freed beat"); ^this };
 		if(this.isPlaying) { RCLog.warn(tag, "already playing"); ^this };
 		if(quant.notNil) { playQuant = this.prCheckQuant(quant) };
-		player = pattern.play(layer.clock, quant: playQuant);
+		player = REEventStreamPlayer(RERoutine({ |inval| pat.embedInStream(inval) }, by: this), nil, by: this);
+		player.play(layer.clock, false, playQuant);
 		^this
 	}
 

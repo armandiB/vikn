@@ -1,0 +1,30 @@
+TITLE:: RERoutine
+summary:: A Routine the score recorder can see
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/RETap, Classes/REScoreRecorder
+
+DESCRIPTION::
+A Routine made with code::RETap.routine { }:: (or this class) carries the cause open when it was created (the code line or the input being recorded, link::Classes/RETap#*frame::) and the object whose work it does (code::by::). What it does to the reCurrent objects is the program's work, level 2: recorded under that cause when link::Classes/REScoreRecorder#-level2:: is on, and a replay that defers the cause plays it from the take instead of running the Routine (the reCording guide, "Levels"). A plain Routine's actions are seen by no one. With nothing armed it is a Routine like any other.
+
+code::RETask:: is a Task whose Routine is tagged (code::RETap.task::); code::REEventStreamPlayer:: an EventStreamPlayer whose playing Routine is tagged (link::Classes/RCBeat:: plays its pattern through one, the beat as doer).
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: func
+argument:: stackSize
+argument:: by
+argument:: cause
+The frame (nil: the one open now). Made inside a tagged Routine, a new one inherits its cause and doer: a seeded draw (link::Classes/RCUtil#*seeded::), a worker a loop spawns.
+
+INSTANCEMETHODS::
+
+METHOD:: cause
+METHOD:: by
+
+EXAMPLES::
+
+code::
+RETap.routine { 8.do { |i| ~b.set(\amp, i / 8); 1.wait } }.play(~song.clock);
+RETap.task({ loop { ~batch.editAttr("gain", 1.0.rand); 4.wait } }, ~song.clock, by: ~batch).play;
+::

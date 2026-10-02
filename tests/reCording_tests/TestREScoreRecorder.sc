@@ -438,6 +438,64 @@ TestREScoreRecorder : UnitTest {
 		this.assert(this.logHas("program file"), "warned");
 	}
 
+	// A tagged Routine's actions are level 2 under the line that made it; a beat's player tags
+	// what its pattern does with the beat; a plain Routine is seen by no one; the rate guard
+	// sub-samples a doer that writes too fast.
+	test_tagged_routines_and_rate_guard {
+		var interp = thisProcess.interpreter;
+		var b = this.restBeat(layer, \k, [amp: 0.1]);
+		var b2 = this.restBeat(layer, \j, [amp: Pfunc { b.set(\legato, 0.3); 0.1 }]);
+		var s, program, byBeat, byLine, r, lineId;
+		currentEnvironment[\reTestBeat] = b;
+		b2.stop;   // a beat plays from its creation: the line below plays it again, under its own cause
+		rec.arm(inputs: #[\code, \actions], level2: true);
+		rec.record(snapshotAtStart: false);
+		interp.preProcessor.value("~reTestR = RETap.routine { ~reTestBeat.set(\\amp, 0.5); 0.05.wait; ~reTestBeat.set(\\amp, 0.6) }.play(clock)", interp);
+		r = RETap.routine({ b.set(\amp, 0.5); 0.05.wait; b.set(\amp, 0.6) }).play(clock);
+		interp.codeDump.value("~reTestR = ...", nil, { }, interp);
+		lineId = rec.score.events.last[\id];
+		interp.preProcessor.value("b2.play", interp);
+		b2.play;
+		interp.codeDump.value("b2.play", nil, { }, interp);
+		RETap.mainThreadOnly = true;   // the real rule while the Routines run: a plain one is not the main thread
+		Routine({ b.set(\amp, 0.7) }).play(clock);                    // plain: seen by no one
+		0.5.wait;
+		RETap.mainThreadOnly = false;
+		b2.stop;
+		s = rec.stop;
+		program = s.ofLevel(2);
+		byLine = program.select { |e| e[\cause] == lineId };
+		byBeat = program.select { |e| e[\by].notNil };
+		this.assertEquals(byLine.collect { |e| e[\args][1] }, [0.5, 0.6], "the tagged Routine's actions, level 2 under the line that made it");
+		this.assertEquals(byLine[0][\by], nil, "no doer given");
+		this.assert(program.every { |e| e[\args][1] != 0.7 }, "the plain Routine's action is seen by no one");
+		this.assert(byBeat.size >= 2, "the beat's pattern acted, tagged: " ++ byBeat.size);
+		this.assertEquals(byBeat[0][\by], IdentityDictionary[\rc -> "beat", \song -> "rec", \layer -> "core", \name -> "j"], "by the beat");
+		this.assertEquals(byBeat[0][\method], \set);
+		this.assertEquals(s.rootOf(byBeat[0]), s.events.detect { |e| e[\text] == "b2.play" }, "under the line that played the beat");
+		this.assertEquals(s.ofLevel(1).select { |e| e[\kind] == \action }.collect { |e| e[\method] }, [\play], "level 1: the play, the line's effect");
+		this.assertEquals(s.meta[\check], nil, "nothing to report");
+		rec.rateGuard = 10;
+		rec.record(snapshotAtStart: false);
+		RETap.routine({ 40.do { |i| b.set(\amp, i / 40) }; 0.2.wait; b.set(\amp, 1) }, by: \burst).play(clock);   // 0.2 beat: past the quantum
+		0.3.wait;
+		s = rec.stop;
+		program = s.ofLevel(2);
+		this.assert(program.size < 20 and: { program.size >= 11 }, "the guard let the first 10 through, then one per quantum: " ++ program.size);
+		this.assertEquals(program.last[\args][1], 1, "the later event, past the quantum, kept: " ++ program.collect { |e| [e[\beat].round(0.01), e[\args][1]] });
+		this.assertEquals(program.last[\by], "burst", "a doer by name");
+		this.assert(this.logHas("rate guard"), "said once");
+		rec.rateGuard = nil;
+		rec.record(snapshotAtStart: false);
+		interp.preProcessor.value("Routine { 1.wait }.play(clock); Pbind(\\degree, 1).play(clock)", interp);
+		interp.codeDump.value("Routine { 1.wait }.play(clock); Pbind(\\degree, 1).play(clock)", nil, { }, interp);
+		s = rec.stop;
+		this.assert(s.meta[\check].any { |t| t.contains("plain Routine") }, "the check flags a plain Routine: " ++ s.meta[\check]);
+		this.assert(s.meta[\check].any { |t| t.contains("pattern by hand") }, "and a pattern played by hand");
+		currentEnvironment[\reTestBeat] = nil;
+		currentEnvironment[\reTestR] = nil;
+	}
+
 	test_main_thread_rule_and_silently {
 		var b = this.restBeat(layer, \k);
 		var s;
