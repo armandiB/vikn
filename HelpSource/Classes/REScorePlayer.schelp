@@ -80,6 +80,16 @@ nil unmutes all.
 METHOD:: solo
 argument:: voices
 nil clears the solo.
+METHOD:: defer
+argument:: voices
+Their sources are not fired: their effects play, and the program events (level 2) under them when the take holds its companion. An event can say so itself with code::defer: true::.
+METHOD:: undefer
+argument:: voices
+nil undefers all.
+METHOD:: playOrphans
+Program events with no cause play too (false by default: the program does them).
+METHOD:: deferredCount
+Sources deferred so far.
 
 METHOD:: onEvent
 code::{ |player, event| }:: after each fired event.
@@ -92,7 +102,7 @@ METHOD:: alignPhase
 Start on the take's phase of the grid (true by default): what the take quantized lands as it did. false: the plain grid.
 
 METHOD:: interpolate
-Between two points of an input control (MIDI, OSC, raw MIDI, keyboard), fire interpolated values along the control's spec (true by default); actions on objects are never ramped.
+Between two points of an input control (MIDI, OSC, raw MIDI, keyboard), fire interpolated values along the control's spec (false by default: the points, as played); actions on objects are never ramped.
 METHOD:: stepsPerBeat
 The rate of the ramps (16).
 METHOD:: interpolated

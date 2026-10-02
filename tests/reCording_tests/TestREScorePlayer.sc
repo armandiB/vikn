@@ -76,6 +76,8 @@ TestREScorePlayer : UnitTest {
 		s.meta[\duration] = 3;
 		s.controls[\knob] = IdentityDictionary[\min -> 0, \max -> 1, \warp -> "lin"];
 		p = REScorePlayer(s, song);
+		this.assertEquals(p.interpolate, false, "off by default: the points, as played");
+		p.interpolate = true;
 		p.stepsPerBeat = 4;
 		p.play;
 		(4 / clock.tempo).wait;
@@ -218,6 +220,46 @@ TestREScorePlayer : UnitTest {
 		this.assertEquals(p.skipped, 3, "the three lines failed");
 		this.assertEquals(p.fired, 3, "x2 (the rest), then z1 and z2 (all, asked for)");
 		currentEnvironment[\reTestLayer] = nil;
+	}
+
+	// A deferred voice or event is not fired: its effects play, and the program events (level 2)
+	// under it; the program events under a fired line do not (the program does them), nor the
+	// orphans unless asked.
+	test_defer_and_program_events {
+		var b = this.restBeat(\k, [amp: 0.1, legato: 0.8]);
+		var s = REScore(\pl);
+		var p = REScorePlayer(s, song);
+		var id1, id2, id3;
+		currentEnvironment[\reTestDefer] = 0;
+		id1 = s.add((beat: 0, kind: \code, voice: \code, text: "~reTestDefer = ~reTestDefer + 1"));
+		s.add(this.action(0, \k, \set, [\amp, 0.3, nil, nil], (cause: id1)));
+		s.add(this.action(0.2, \k, \set, [\legato, 0.3, nil, nil], (cause: id1, level: 2, by: "loop")));
+		id2 = s.add((beat: 1, kind: \code, voice: \code, text: "~reTestDefer = ~reTestDefer + 10", defer: true));
+		s.add(this.action(1, \k, \set, [\amp, 0.5, nil, nil], (cause: id2)));
+		id3 = s.add(this.action(1.2, \k, \set, [\legato, 0.5, nil, nil], (cause: id2, level: 2, by: "loop")));
+		s.add(this.action(1.4, \k, \set, [\legato, 0.6, nil, nil], (cause: id3, level: 2, by: "loop")));   // a program event under a program event
+		s.add(this.action(1.6, \k, \set, [\amp, 0.9, nil, nil], (level: 2)));                              // an orphan
+		s.meta[\duration] = 2;
+		p.play;
+		(2.5 / clock.tempo).wait;
+		this.assertEquals(currentEnvironment[\reTestDefer], 1, "the first line fired, the deferred one not");
+		this.assertEquals(b.keyProxy(\amp).source, 0.5, "the deferred line's effect played; an orphan program event does not play");
+		this.assertEquals(b.keyProxy(\legato).source, 0.6, "and the program events under it, through the chain; not those under the fired line");
+		this.assertEquals(p.deferredCount, 1);
+		this.assertEquals(p.fired, 4, "the first line, amp 0.5, legato 0.5, legato 0.6");
+		p.defer([\code]);
+		b.set(\amp, 0.1, quant: nil);
+		p.play;
+		(2.5 / clock.tempo).wait;
+		this.assertEquals(currentEnvironment[\reTestDefer], 1, "a deferred voice: no line fired");
+		this.assertEquals(b.keyProxy(\amp).source, 0.5, "their effects played");
+		this.assertEquals(p.deferredCount, 2);
+		p.undefer;
+		p.playOrphans = true;
+		p.play;
+		(2.5 / clock.tempo).wait;
+		this.assertEquals(b.keyProxy(\amp).source, 0.9, "playOrphans: the orphan too");
+		currentEnvironment[\reTestDefer] = nil;
 	}
 
 	// A replay starts on the take's own phase of the grid: what the take quantized lands as it did.

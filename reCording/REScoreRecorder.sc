@@ -30,6 +30,9 @@ REScoreRecorder {
 	var controlGetters, controlSetters;   // name → { value } / { |value| }: snapshots and recalls of registered controls
 	var <score, <lastScore, <lastPath, <beat0, <time0, lastTempo;
 	var recordQuant, loopbackLine;
+	var <>level2 = false;   // record the program's work too (level 2, the companion file): off, it is only counted
+	var unrecorded = 0;     // program actions seen on the main thread while level 2 is off
+	var <lastCheck;         // what threatened the last take's exact replay (REScore.check)
 	var <>startSnapshot = true;
 	var <player, overdubbing;
 	var <>onEvent;   // { |recorder, event| } after each recorded event (a view's live feed)
@@ -68,12 +71,14 @@ REScoreRecorder {
 	// and \keyboard: their mappings fire again when the raw messages replay);
 	// voices: name → the objects and names grouped under it (nil keeps the
 	// voices added so far, an empty Event clears them); voicesByLayer: a
-	// beat's default voice is its layer.
-	arm { |scope, inputs, voices, voicesByLayer|
+	// beat's default voice is its layer; level2: record the program's work
+	// too (false: counted, reported by the check).
+	arm { |scope, inputs, voices, voicesByLayer, level2|
 		this.prSetScope(scope);
 		this.prSetInputs(inputs);
 		voices !? { this.prSetVoices(voices) };
 		voicesByLayer !? { |b| this.voicesByLayer = b };
+		level2 !? { |b| this.level2 = b };
 		if(state == \off) { state = \armed };
 		RETap.add(this);
 		if(this.inputs.includes(\code)) { RETap.enableCode(this) } { RETap.disableCode(this) };
@@ -174,6 +179,7 @@ REScoreRecorder {
 		score = REScore(song, piece, version);
 		recordQuant = quant;
 		loopbackLine = nil;
+		unrecorded = 0;
 		case
 		{ atBeat.notNil } { this.clock.schedAbs(atBeat, { this.prStart(offsetBeat); nil }) }
 		{ quant.isNil } { this.prStart(offsetBeat) }
@@ -223,6 +229,9 @@ REScoreRecorder {
 				REScore.merge(od[\score], s, od[\voices], od[\mode], punch, if(od[\loop]) { punch } { nil })
 			};
 		};
+		if(unrecorded > 0) { s.meta[\unrecorded] = unrecorded };
+		lastCheck = s.check;
+		if(lastCheck.notEmpty) { s.meta[\check] = lastCheck } { s.meta.removeAt(\check) };
 		lastScore = s;
 		if(root.notNil) {
 			lastPath = RCGuard.call(\score, nil) { s.write(REScore.pathFor(root, song.name, version)) };
@@ -230,6 +239,7 @@ REScoreRecorder {
 			RCLog.warn(\score, "no root folder: the score was not written (lastScore holds it: lastScore.write(path))");
 		};
 		RCLog.post(\score, "% stopped: % events over % beats".format(song.name, s.size, s.duration.round(0.01)));
+		lastCheck.do { |text| RCLog.warn(\score, "check: " ++ text) };
 		^s
 	}
 
@@ -346,6 +356,7 @@ REScoreRecorder {
 			ev[\secs] = now - time0;
 		};
 		ev[\kind] = kind;
+		ev[\level] = 1;
 		voice !? { ev[\voice] = voice };
 		^ev
 	}
@@ -357,18 +368,40 @@ REScoreRecorder {
 		^id
 	}
 
+	// An action on the main thread. Under a code line: its effect (level 1). With no cause
+	// while code lines are recorded, it is the program's work (a clock-scheduled Function, a
+	// handler of a server reply): level 2, so that level 1 holds only what a human did.
+	// Without code lines among the inputs, a typed action cannot be told from a scheduled
+	// one: it stays a level 1 action, as asked.
 	tapAction { |obj, method, args, frame|
-		var ev, enc;
 		if(state != \recording or: { inputs.includes(\actions).not }) { ^this };
+		if(frame.isNil and: { inputs.includes(\code) }) { ^this.tapProgram(obj, method, args, nil) };
 		if(this.prInScope(obj).not) { ^this };
-		enc = REScore.encode(args);
-		ev = this.prEvent(\action, this.prVoiceFor(obj));
+		this.prAdd(this.prActionEvent(obj, method, args, 1, frame));
+	}
+
+	// The program's work (level 2): recorded in the companion when level2 is on, else counted
+	// for the check. thread: the tagged Routine it ran in, when it did (its cause and doer).
+	tapProgram { |obj, method, args, thread|
+		var ev;
+		if(state != \recording) { ^this };
+		if(level2.not) { unrecorded = unrecorded + 1; ^this };
+		if(this.prInScope(obj).not) { ^this };
+		ev = this.prActionEvent(obj, method, args, 2, thread !? (_.cause));
+		thread !? { |t| t.by !? { |b| ev[\by] = REScore.rcRef(b) ?? { b.asString } } };
+		this.prAdd(ev);
+	}
+
+	prActionEvent { |obj, method, args, level, frame|
+		var enc = REScore.encode(args);
+		var ev = this.prEvent(\action, this.prVoiceFor(obj));
+		ev[\level] = level;
 		ev[\rc] = REScore.rcRef(obj) ?? { REScore.encodeValue(obj) };
 		ev[\method] = method;
 		ev[\args] = enc[0];
 		if(enc[1].not) { ev[\replay] = false };
 		frame !? { |f| f[\ids][this] !? { |id| ev[\cause] = id } };
-		this.prAdd(ev);
+		^ev
 	}
 
 	tapInput { |kind, inputSong, data, parentFrame, frame|

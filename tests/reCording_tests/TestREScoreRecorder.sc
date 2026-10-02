@@ -53,6 +53,10 @@ TestREScoreRecorder : UnitTest {
 		this.assert(RETap.active, "armed: the tap is active");
 		this.assertEquals(rec.state, \armed);
 		this.assert(RETap.codeHooksInstalled, "code hooks installed with \\code among the inputs");
+		// the actions below are called by hand, not typed: without code lines among the inputs
+		// they are level 1 actions (with code lines, an action with no cause is the program's)
+		rec.arm(inputs: #[\actions, \midi, \osc, \keyboard]);
+		this.assert(RETap.codeHooksInstalled.not, "no code hooks without \\code");
 		b = this.restBeat(layer, \k, [amp: 0.1]);
 		this.assertEquals(rec.score, nil, "armed, not recording: nothing kept");
 		rec.record;
@@ -376,6 +380,64 @@ TestREScoreRecorder : UnitTest {
 		this.assertEquals(s.meta[\beat0] mod: 2, 0.0, "on that grid");
 	}
 
+	// Level 1 holds what a human did: with code lines recorded, an action with no cause (a
+	// clock-scheduled Function) is the program's work, level 2: counted when level 2 is off,
+	// written to the companion file when on; the check says what threatens an exact replay.
+	test_levels_and_check {
+		var interp = thisProcess.interpreter;
+		var b = this.restBeat(layer, \k, [amp: 0.1]);
+		var s, path, loaded, program;
+		rec.root = dir;
+		rec.arm(inputs: #[\code, \actions]);
+		rec.record(snapshotAtStart: false);
+		interp.preProcessor.value("b.set(\\amp, 0.5)", interp);
+		b.set(\amp, 0.5);
+		interp.codeDump.value("b.set(\\amp, 0.5)", nil, { }, interp);
+		interp.preProcessor.value("b.set(\\amp, 1.0.rand)", interp);
+		b.set(\amp, 0.4);
+		interp.codeDump.value("b.set(\\amp, 1.0.rand)", nil, { }, interp);
+		clock.sched(0, { b.set(\legato, 0.5); nil });
+		0.3.wait;
+		s = rec.stop;
+		this.assertEquals(s.size, 4, "two lines and their effects; the scheduled action is not in level 1");
+		this.assert(s.events.every { |e| e[\level] == 1 }, "every event is level 1");
+		this.assertEquals(s.meta[\unrecorded], 1, "the program action was counted");
+		this.assertEquals(s.meta[\levels], nil, "no companion");
+		this.assert(s.meta[\check].notNil and: { s.meta[\check].any { |t| t.contains("not recorded") } }, "the check says so: " ++ s.meta[\check]);
+		this.assert(s.meta[\check].any { |t| t.contains("random") }, "and names the line drawing random numbers");
+		this.assert(this.logHas("check:"), "the check is posted");
+		this.assertEquals(rec.lastCheck, s.meta[\check]);
+		rec.arm(level2: true);
+		rec.record(snapshotAtStart: false);
+		interp.preProcessor.value("b.set(\\amp, 0.6)", interp);
+		b.set(\amp, 0.6);
+		interp.codeDump.value("b.set(\\amp, 0.6)", nil, { }, interp);
+		clock.sched(0, { b.set(\legato, 0.7); nil });
+		0.3.wait;
+		s = rec.stop;
+		path = rec.lastPath;
+		program = s.ofLevel(2);
+		this.assertEquals(s.size, 3, "the line, its effect, the program action");
+		this.assertEquals(program.size, 1);
+		this.assertEquals(program[0][\method], \set);
+		this.assertEquals(program[0][\cause], nil, "a scheduled Function: no cause (level 2 with a cause comes with the tagged Routines)");
+		this.assertEquals(s.meta[\levels], [1, 2]);
+		this.assertEquals(s.meta[\unrecorded], nil);
+		this.assertEquals(s.meta[\check], nil, "nothing to report");
+		this.assert(File.exists(REScore.companionPath(path)), "the companion file next to the take");
+		loaded = REScore.read(path, levels: 1);
+		this.assertEquals(loaded.size, 2, "level 1 alone");
+		loaded = REScore.read(path);
+		this.assertEquals(loaded.size, 3, "with the companion");
+		this.assertEquals(loaded.ofLevel(2).size, 1);
+		this.assertEquals(loaded.ofLevel(2)[0][\id], program[0][\id], "one id space");
+		this.assertEquals(loaded.rootOf(loaded.ofLevel(2)[0]), nil, "an orphan has no root");
+		this.assertEquals(loaded.rootOf(loaded.at(2)), loaded.at(1), "an effect's root is its line");
+		File.delete(REScore.companionPath(path));
+		this.assertEquals(REScore.read(path).size, 2, "a missing companion: level 1 alone, warned");
+		this.assert(this.logHas("program file"), "warned");
+	}
+
 	test_main_thread_rule_and_silently {
 		var b = this.restBeat(layer, \k);
 		var s;
@@ -404,7 +466,7 @@ TestREScoreRecorder : UnitTest {
 		var b1 = this.restBeat(layer, \a, [amp: 0.1]);
 		var b2 = this.restBeat(layer, \b);
 		var s;
-		rec.arm(voices: (lead: [b1, b2], fx: [\knob]));
+		rec.arm(voices: (lead: [b1, b2], fx: [\knob]), inputs: #[\actions, \midi]);   // actions by hand: no code lines
 		rec.record(snapshotAtStart: false);
 		b1.set(\amp, 0.2);
 		b2.set(\amp, 0.3);
@@ -481,7 +543,7 @@ TestREScoreRecorder : UnitTest {
 		var b = this.restBeat(l, \k, [amp: Pwhite(0.1, 0.3)]);
 		var r = sng.scoreRecorder;
 		var res;
-		if(record) { r.arm; r.record(snapshotAtStart: true) };
+		if(record) { r.arm(inputs: #[\actions, \midi, \osc, \keyboard]); r.record(snapshotAtStart: true) };   // actions by hand: no code lines
 		b.set(\amp, Pseq([0.2, 0.4], inf), seed: 3);
 		b.setAll([legato: 0.5]);
 		this.restBeat(l, \k2);

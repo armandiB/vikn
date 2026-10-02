@@ -97,6 +97,14 @@ subsection:: Voices
 
 Every event belongs to a strong::voice::, the unit of overdubbing and of the lanes in the view: by default the object's name (code::core/kick::, the batch's name, the orgnsm's name), the mapping's or def's key, the keyboard's device, or code::code::. code::arm(voices: (lead: [~beat1, ~beat2], fx: [\knob_mix])):: groups objects and mapping names under names of your own.
 
+subsection:: Levels
+
+A take has two levels. strong::Level 1:: is what a human did: the inputs, the code lines, the snapshots, with the actions a code line triggered as its effects (the fallback). Replaying level 1 alone gives the performance again, the program regenerating its own work from the seed. strong::Level 2:: is the program's work: the actions of the Routines and loops (the tagged ones, see below), and an action on the main thread with no cause (a clock-scheduled Function, a handler of a server reply) while code lines are recorded. Level 2 is off by default (code::arm(level2: true):: turns it on): its events are counted and the check reports them. On, they go to a companion file next to the take, code::<take>.l2.json::, in the same id space, each with its code::cause:: (the level 1 event, or the level 2 event, it descends from) and its code::by:: (the object whose loop did it), and code::REScore.read:: loads both (code::levels: 1:: the take alone). Edits apply to the whole and code::write:: splits the levels again.
+
+At replay a level 2 event plays only when the level 1 event it descends from was strong::deferred:: (code::player.defer([\code])::, or code::defer: true:: on the event) or failed without doing anything first: the source is not fired, its effects and its program events are, so a line's work can be edited event by event. Under a fired source the program does its own work and the recorded level 2 events stay silent; an orphan (no root) plays only with code::playOrphans::.
+
+The strong::check:: (link::Classes/REScore#-check::, run at code::stop:: and written as the take's code::check::) lists what threatens an exact replay: lines not replayed, lines that raised, lines drawing random numbers or reading the clock (the song seed seeds the patterns, not the interpreter: a bare code::rand:: in a line differs at replay), program actions not recorded.
+
 subsection:: Replay (link::Classes/REScorePlayer::)
 
 code::
@@ -183,6 +191,10 @@ table::
 ## code::fallback:: || on a root event, what plays when it fails at replay: absent, the effects it did not reach again; code::false::, none; code::true::, all
 ## code::loopback::, code::loopbackOf:: || a line that sent a message to this song and the input it came back as, each naming the other
 ## code::quant:: (in the metadata) || the grid the take started on; a replay starts on the take's phase of it
+## code::level:: || 1 (a human's act and its effects), 2 (the program's work: the companion file, see link::#Levels::)
+## code::by:: || on a level 2 event, the object whose loop did it (a reference or a name)
+## code::defer:: || code::true:: on a source: it is not fired at replay, its effects and program events are
+## code::levels::, code::unrecorded::, code::check:: (in the metadata) || the levels written ([1, 2] when a companion exists), the program actions seen while level 2 was off, what threatens an exact replay
 ::
 
 Values: numbers and strings as JSON; a Symbol as a string with a leading backslash (code::"\\amp"::, the pick-file convention); a Boolean and null as themselves; an Array as an array; an Event or Dictionary as an object. A Pattern, a Function with source, a Ref or any object with a meaningful compile string becomes code::{"sc": "Pseq([1, 2], inf)"}::, replayable in sclang and shown as text elsewhere; a string that would be read as something else (code::"42"::, code::"true"::, a leading backslash) is wrapped as code::{"str": "42"}::; a reCurrent object as its code::rc:: reference; anything else as code::{"ref": "<print string>"}::, which marks the event code::replay: false::. Floats are written with 17 significant digits; a non-finite number is written as null with a warning. Integers above 2^31 do not exist in sclang: ids count from 1 and times are floats.

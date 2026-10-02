@@ -18,7 +18,13 @@ argument:: wersion
 
 METHOD:: read
 argument:: path
+argument:: levels
+2 loads the companion (the program's events, link::#*companionPath::) when there is one, 1 the take alone.
 returns:: The score, nil (reported) for a missing file or another format.
+
+METHOD:: companionPath
+argument:: path
+returns:: code::<take>.l2.json:: next to the take: its level 2 events.
 
 METHOD:: fromDict
 METHOD:: fromJSONString
@@ -112,6 +118,13 @@ METHOD:: eventsOf
 argument:: voice
 METHOD:: ofKind
 argument:: kind
+METHOD:: ofLevel
+argument:: level
+METHOD:: rootOf
+argument:: ev
+returns:: The source (a level 1 event with no cause) an event descends from through its causes (itself when it is one), nil for a program event with no cause.
+METHOD:: check
+returns:: Strings, one per problem that threatens an exact replay (lines not replayed, lines that raised, lines drawing random numbers or reading the clock, program actions seen but not recorded); empty for a clean take. The recorder writes them into the take as code::check::.
 METHOD:: between
 argument:: fromBeat
 argument:: toBeat
@@ -144,6 +157,8 @@ returns:: The keyboard notes of a voice as a Pbind (midinote, dur to the next no
 
 METHOD:: write
 argument:: path
+argument:: levels
+true: the level 2 events go to the companion file (link::#*companionPath::) and the take says so in its code::levels::; false: everything in one file.
 returns:: The path written.
 METHOD:: asDict
 METHOD:: asJSONString

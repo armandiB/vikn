@@ -24,19 +24,22 @@
 // watched: what ran is not played twice); fallback: true on the event plays
 // them all, fallback: false none. What cannot play is skipped with one
 // warning each. A replay starts on the take's own phase of the grid
-// (alignedStart), so what the take quantized lands as it did.
+// (alignedStart), so what the take quantized lands as it did. A deferred
+// voice (defer) or event (defer: true) is not fired: its effects play, and
+// the program's events under it (level 2) when the take holds them.
 
 REScorePlayer {
 	classvar <orgnsmIdentityKeys;
 
 	var <score, <song, <>clock;
 	var <state = \stopped, routine, <startBeat, <from = 0, <to, <loop = false, <passes = 0;
-	var <muted, <soloed;
+	var <muted, <soloed, <deferred;
 	var <>onEvent, <>onLoop, <>onDone;
 	var <>followTempo = false, <>useLatency = true;
-	var <>interpolate = true, <>stepsPerBeat = 16;   // a continuous control ramps to its next point
+	var <>interpolate = false, <>stepsPerBeat = 16;   // a continuous control ramps to its next point (off: the points, as played)
 	var <>alignPhase = true;   // play starts on the take's phase of the grid (quant, else the take's own, else the beat)
-	var <fired = 0, <skipped = 0, <interpolated = 0, warned, failedRoots, ranBeforeFail, ramps, nextOf, commitsChecked = false;
+	var <>playOrphans = false;   // program events with no cause (level 2, from nothing a human did) play too
+	var <fired = 0, <skipped = 0, <interpolated = 0, <deferredCount = 0, warned, failedRoots, ranBeforeFail, ramps, nextOf, commitsChecked = false;
 
 	*initClass {
 		orgnsmIdentityKeys = #[\orgnsm, \tribe, \o_species, \orgnsm_name, \tribe_name, \seed];
@@ -50,6 +53,7 @@ REScorePlayer {
 		clock = song.clock;
 		muted = IdentitySet.new;
 		soloed = IdentitySet.new;
+		deferred = IdentitySet.new;
 		warned = IdentitySet.new;
 		failedRoots = IdentitySet.new;
 		ranBeforeFail = IdentityDictionary.new;
@@ -71,6 +75,7 @@ REScorePlayer {
 		fired = 0;
 		skipped = 0;
 		interpolated = 0;
+		deferredCount = 0;
 		passes = 0;
 		warned.clear;
 		failedRoots.clear;
@@ -128,6 +133,10 @@ REScorePlayer {
 	mute { |voices| voices.asArray.do { |v| muted.add(v.asSymbol) } }
 	unmute { |voices| if(voices.isNil) { muted.clear } { voices.asArray.do { |v| muted.remove(v.asSymbol) } } }
 	solo { |voices| if(voices.isNil) { soloed.clear } { voices.asArray.do { |v| soloed.add(v.asSymbol) } } }
+	// A deferred voice's sources are not fired: their effects play, and the program events under
+	// them when the take holds its level 2 (an event can say so itself: defer: true).
+	defer { |voices| voices.asArray.do { |v| deferred.add(v.asSymbol) } }
+	undefer { |voices| if(voices.isNil) { deferred.clear } { voices.asArray.do { |v| deferred.remove(v.asSymbol) } } }
 
 	prRun { |events|
 		var idx, lastBeat, len, ev;
@@ -219,9 +228,19 @@ REScorePlayer {
 		var voice = ev[\voice];
 		var ok, next;
 		if(voice.notNil and: { muted.includes(voice) or: { soloed.notEmpty and: { soloed.includes(voice).not } } }) { ^this };
-		if(ev[\cause].notNil) {
-			if(failedRoots.includes(ev[\cause]).not) { ^this };   // its root played
-			if(this.prRootDidIt(ev)) { ^this };                    // its root did it again before failing
+		if((ev[\level] ? 1) >= 2) {
+			if(this.prProgramPlays(ev).not) { ^this };
+		} {
+			if(ev[\cause].notNil) {
+				if(failedRoots.includes(ev[\cause]).not) { ^this };   // its root played
+				if(this.prRootDidIt(ev)) { ^this };                    // its root did it again before failing
+			} {
+				if(this.prDeferred(ev)) {                              // not fired: its effects play instead
+					failedRoots.add(ev[\id]);
+					deferredCount = deferredCount + 1;
+					^this
+				};
+			};
 		};
 		ramps.copy.do { |r| if(r[\to] === ev) { ramps.remove(r) } };
 		ok = this.fire(ev);
@@ -264,6 +283,17 @@ REScorePlayer {
 		if(n.isNil or: { n <= 0 }) { ^false };
 		effects = score.causedBy(ev[\cause]).sort { |a, b| a[\id] <= b[\id] };
 		^(effects.indexOf(ev) ? inf) < n
+	}
+
+	prDeferred { |ev| ^ev[\defer] == true or: { ev[\voice].notNil and: { deferred.includes(ev[\voice]) } } }
+
+	// A program event (level 2) plays when the level 1 event it descends from was deferred or
+	// failed without doing anything first (else the program does its work itself); one with
+	// no root only when playOrphans is set.
+	prProgramPlays { |ev|
+		var root = score.rootOf(ev);
+		if(root.isNil) { ^playOrphans };
+		^failedRoots.includes(root[\id]) and: { (ranBeforeFail[root[\id]] ? 0) == 0 }
 	}
 
 	prWarnOnce { |key, text|

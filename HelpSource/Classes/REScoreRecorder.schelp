@@ -39,6 +39,12 @@ argument:: voices
 An Event: voice name → the objects and names grouped under it. nil keeps the voices added so far, an empty Event clears them.
 argument:: voicesByLayer
 A beat's default voice is its layer (true) or code::layer/name:: (false).
+argument:: level2
+Record the program's work too (false by default): the actions of tagged Routines and of clock-scheduled Functions, into the companion file. Off, they are counted and the check reports them.
+
+METHOD:: level2
+METHOD:: lastCheck
+What threatened the last take's exact replay (link::Classes/REScore#-check::), posted at stop and written into the take.
 
 METHOD:: addVoice
 argument:: name

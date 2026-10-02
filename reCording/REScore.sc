@@ -27,10 +27,11 @@ REScore {
 
 	*initClass {
 		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \beat0, \time0, \tempo, \latency, \quant,
-			\duration, \tempoMap, \voices, \controls, \events,
-			\id, \beat, \secs, \kind, \voice, \cause, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
-			\value, \text, \replay, \raised, \fallback, \loopback, \loopbackOf, \state];
-		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \beat0, \time0, \tempo, \latency, \quant, \duration, \overdubs];
+			\duration, \levels, \level1, \unrecorded, \check, \tempoMap, \voices, \controls, \events,
+			\id, \beat, \secs, \kind, \level, \voice, \cause, \by, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
+			\value, \text, \replay, \defer, \raised, \fallback, \loopback, \loopbackOf, \state];
+		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \beat0, \time0, \tempo, \latency, \quant, \duration, \overdubs,
+			\levels, \unrecorded, \check];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
 		// classes whose compile string is the value itself (a Function needs its source, see prEncode)
 		scClasses = [Pattern, Ref, Env, Rest, Quant, ControlSpec, Association, Char, Class, Point, Rect, Interval, Tuning, Scale];
@@ -95,6 +96,15 @@ REScore {
 	ofKind { |kind| kind = kind.asSymbol; ^events.select { |e| e[\kind] == kind } }
 	between { |fromBeat, toBeat| ^events.select { |e| e[\beat] >= fromBeat and: { e[\beat] < toBeat } } }
 	causedBy { |id| ^events.select { |e| e[\cause] == id } }
+	ofLevel { |level| ^events.select { |e| (e[\level] ? 1) == level } }
+
+	// The source (a level 1 event with no cause) an event descends from through its causes
+	// (itself when it is one), nil for a program event with no cause (an orphan).
+	rootOf { |ev|
+		var e = ev, seen = 0;
+		while { e.notNil and: { e[\cause].notNil } and: { seen < 1000 } } { e = index[e[\cause]]; seen = seen + 1 };
+		^if(e.notNil and: { (e[\level] ? 1) == 1 }) { e } { nil }
+	}
 	voiceNames { ^(events.collect { |e| e[\voice] }.reject(_.isNil) ++ voices.keys.asArray).asSet.asArray.sort { |a, b| a.asString <= b.asString } }
 	kinds { ^events.collect { |e| e[\kind] }.asSet.asArray.sort { |a, b| a.asString <= b.asString } }
 
@@ -579,14 +589,85 @@ REScore {
 	asJSONString { ^REJSON.stringify(this.asDict, 2, 2, keyOrder) }
 	*fromJSONString { |text| ^this.fromDict(REJSON.parse(text)) }
 
-	// Returns the path written.
-	write { |path|
-		var p = REJSON.write(this.asDict, path, 2, 2, keyOrder);
-		RCLog.post(\score, "wrote % events to %".format(events.size, p));
+	// Returns the path written. The level 1 events (what a human did and their effects) go to
+	// path; the program's (level 2) to the companion <path>.l2.json when there are any (the
+	// level 1 file says so in its levels), so the exact replay stays small.
+	write { |path, levels = true|
+		var program = this.ofLevel(2);
+		var d, p, cp;
+		if(levels and: { program.notEmpty }) {
+			meta[\levels] = [1, 2];
+			d = this.asDict;
+			d[\events] = events.reject { |e| (e[\level] ? 1) == 2 }.collect { |e| this.prEventOut(e) }.asArray;
+			p = REJSON.write(d, path, 2, 2, keyOrder);
+			cp = REJSON.write(this.prCompanionDict(program, p), this.class.companionPath(p), 2, 2, keyOrder);
+			RCLog.post(\score, "wrote % events to %, % program events to %".format(d[\events].size, p, program.size, cp.basename));
+		} {
+			meta.removeAt(\levels);
+			p = REJSON.write(this.asDict, path, 2, 2, keyOrder);
+			RCLog.post(\score, "wrote % events to %".format(events.size, p));
+		};
 		^p
 	}
 
-	*read { |path| ^this.fromDict(REJSON.read(path)) }
+	prCompanionDict { |program, path|
+		var d = IdentityDictionary.new;
+		d[\format] = format;
+		d[\version] = formatVersion;
+		d[\song] = meta[\song];
+		d[\level] = 2;
+		d[\level1] = path.asString.basename;
+		d[\created] = meta[\created];
+		d[\events] = program.collect { |e| this.prEventOut(e) }.asArray;
+		^d
+	}
+
+	// <take>.l2.json next to the take.
+	*companionPath { |path|
+		path = path.asString;
+		^if(path.endsWith(".json")) { path.drop(-5) ++ ".l2.json" } { path ++ ".l2.json" }
+	}
+
+	// levels: 2 loads the companion (the program's events) when there is one, 1 the take alone.
+	*read { |path, levels = 2|
+		var s = this.fromDict(REJSON.read(path));
+		var cp, d;
+		if(s.isNil or: { levels < 2 }) { ^s };
+		cp = this.companionPath(path);
+		if(File.exists(cp)) {
+			d = REJSON.read(cp);
+			if(d.notNil and: { d[\level] == 2 }) {
+				(d[\events] ? []).do { |e| s.add(this.prEventIn(e)) };
+				s.sort;
+			} {
+				RCLog.warn(\score, "% is not a level 2 companion: ignored".format(cp.basename));
+			};
+		} {
+			if((s.meta[\levels] ? []).includes(2)) { RCLog.warn(\score, "the take's program file % is missing".format(cp.basename)) };
+		};
+		^s
+	}
+
+	//////// the check: what threatens an exact replay
+
+	// Strings, one per problem seen in the take (none for a clean one): lines not replayed,
+	// lines that raised, lines whose results depend on random numbers or the clock, program
+	// actions seen but not recorded. The recorder writes them into the take (meta check).
+	check {
+		var out = List.new;
+		var code = this.ofKind(\code);
+		var randoms = #["rand", "coin", "choose", "scramble", "wchoose", "Date.", "elapsedTime", "SystemClock.seconds", "thisThread.seconds"];
+		var unsafe = code.select { |e| e[\replay] == false and: { e[\loopback].isNil } };
+		var loops = code.select { |e| e[\loopback].notNil };
+		var raised = code.select { |e| e[\raised] == true };
+		var random = code.select { |e| randoms.any { |p| e[\text].asString.contains(p) } };
+		if(unsafe.notEmpty) { out.add("% code line(s) not replayed (%): their effects play instead".format(unsafe.size, unsafe.collect(_[\id]))) };
+		if(loops.notEmpty) { out.add("% code line(s) sent a message to this song (%): the input replays, not the line".format(loops.size, loops.collect(_[\id]))) };
+		if(raised.notEmpty) { out.add("% code line(s) raised (%): their effects are what they did before".format(raised.size, raised.collect(_[\id]))) };
+		if(random.notEmpty) { out.add("% code line(s) draw random numbers or read the clock (%): seed them (thisThread.randSeed) or their results differ at replay".format(random.size, random.collect(_[\id]))) };
+		(meta[\unrecorded] ? 0) !? { |n| if(n > 0) { out.add("% program action(s) on the main thread were not recorded (level 2 off): the program does them again at replay".format(n)) } };
+		^out.asArray
+	}
 
 	// Short commit of the git checkout holding dir, nil outside one.
 	*gitHead { |dir|
