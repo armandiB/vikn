@@ -1,0 +1,84 @@
+TITLE:: REScoreEditor
+summary:: The transport and the editing of a folder of takes for a page (the lanes view)
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REScore, Classes/REScoreRecorder, Classes/REScorePlayer, Classes/REScoreVisuals
+
+DESCRIPTION::
+The live side of a page that shows, plays and edits the takes of a folder: HomewareSC's lanes view (code::scripts/rig/page/view.html::, served by the remote rig on a try's scores, and by code::scripts/take.sh view <folder>:: on a piece's Scores folder). It installs plain OSCdefs under code::<prefix>/rec/:: (never recorded), answers them on the song, keeps the take being edited as a working copy next to it (code::<take>.edit.json::, what the page shows and Play plays), and feeds the page's server back (code::/rigfeed/state:: four times a second, code::/rigfeed/edit:: after each operation, code::/rigfeed/event:: after each recorded event) unless a feed function is given. The protocol is the header of the class file:
+
+list::
+## code::<prefix>/rec/play <take|last>::, code::<prefix>/rec/stopPlay::: the take replays on the song (as edited while it is being edited); link::#-onPlayer:: receives the player.
+## code::<prefix>/rec/edit <take> <op json>::: an operation (link::Classes/REScore#-edited::) applied to the copy.
+## code::<prefix>/rec/undo <take>::: the last operation taken back (the file's score with the others applied again).
+## code::<prefix>/rec/save <take> [new]::: the copy written over the take, or as a new file (code::<stamp>_<song> <version> edit.json::); the copy dropped.
+## code::<prefix>/rec/revert <take>::: the copy dropped.
+::
+A take is named by its file name under the root or by its path; "last" is the recorder's last take.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: song
+The link::Classes/RCSong:: the takes play on.
+argument:: recorder
+The song's link::Classes/REScoreRecorder:: (its last take is "last", its version names a new file, its events reach the feed; nil: none).
+argument:: root
+The folder of the takes (the recorder's when nil).
+argument:: prefix
+The OSC paths' prefix, code::/<song name>:: by default (the remote rig uses code::/rig::).
+argument:: version
+The version in a new file's name (the recorder's, "w0").
+argument:: feed
+A function code::{ |kind, dict| }:: called instead of sending the feed (the rig's own feed); nil: the feed is sent to feedPort, with the state and the recorder's events.
+argument:: feedPort
+The page server's feed port (32347).
+
+METHOD:: workingPath
+code::<take>.edit.json:: for a take's path.
+
+INSTANCEMETHODS::
+
+METHOD:: play
+argument:: which
+A take's name, path or "last".
+argument:: quant
+Returns the link::Classes/REScorePlayer::.
+METHOD:: stopPlay
+METHOD:: edit
+argument:: which
+argument:: op
+A dictionary (link::Classes/REScore#-edited::).
+METHOD:: undo
+METHOD:: save
+argument:: which
+argument:: asNew
+Returns the path written.
+METHOD:: revert
+METHOD:: takes
+The takes under the root (companions and working copies left out), sorted.
+METHOD:: resolveTake
+A take's path from its name, path or "last"; nil (with a warning) when there is none.
+METHOD:: state
+What the page's state needs: recorder, beat, events, recBeat, position, playing, overdubbing, takes, lastTake, editing.
+METHOD:: feed
+A message of the feed (the function, else code::/rigfeed/<kind> <json>::).
+METHOD:: onPlayer
+code::{ |player| }:: when a replay starts (the remote rig attaches its visuals and its sliders' feed there).
+METHOD:: player
+METHOD:: playingPath
+METHOD:: editing
+The take being edited: code::(path:, original:, score:, ops:):: or nil.
+METHOD:: free
+The OSCdefs freed, the feed stopped and the recorder's onEvent put back, the replay stopped, the working copy dropped.
+
+EXAMPLES::
+
+code::
+// a piece: its recorder made, the page served by scripts/take.sh view "<piece>/Scores"
+~ed = REScoreEditor(~song, ~rec);          // prefix /<song name>, the recorder's folder
+// the page's Play, Stop, edit, Undo, Save, Save in new file and Revert work from here on
+~ed.play("last");                          // or from the IDE
+~ed.edit("last", (op: "moved", id: 12, beat: 8.5));
+~ed.save("last", asNew: true);
+~ed.free;
+::
