@@ -41,8 +41,13 @@ argument:: voicesByLayer
 A beat's default voice is its layer (true) or code::layer/name:: (false).
 argument:: level2
 Record the program's work too (false by default): the actions of tagged Routines and of clock-scheduled Functions, into the companion file. Off, they are counted and the check reports them.
+argument:: level3
+Record the server's messages too (false by default): an link::Classes/RETapAddr:: stands in for the song's server address while a take records, the messages that make sound go to code::<take>.l3.json:: under their cause, and the SynthDefs they name are written next to the take at stop (code::<take>.defs/::). Off, nothing is installed.
 
 METHOD:: level2
+METHOD:: level3
+METHOD:: tapServer
+A bundle to the server, from the RETapAddr: time is the bundle's offset, msgs its messages.
 METHOD:: rateGuard
 Events per second a doer may write at level 2 before it is sub-sampled (nil by default: no guard).
 METHOD:: rateQuantum

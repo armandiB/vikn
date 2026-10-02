@@ -29,7 +29,7 @@ REScore {
 		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \beat0, \time0, \tempo, \latency, \quant,
 			\duration, \inputs, \randData, \levels, \level1, \unrecorded, \check, \tempoMap, \voices, \controls, \events,
 			\id, \beat, \secs, \kind, \level, \voice, \cause, \by, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
-			\value, \text, \replay, \defer, \raised, \fallback, \loopback, \loopbackOf, \state];
+			\value, \text, \latency, \msgs, \replay, \defer, \raised, \fallback, \loopback, \loopbackOf, \state];
 		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \beat0, \time0, \tempo, \latency, \quant, \duration, \overdubs,
 			\inputs, \randData, \levels, \unrecorded, \check];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
@@ -590,18 +590,30 @@ REScore {
 	*fromJSONString { |text| ^this.fromDict(REJSON.parse(text)) }
 
 	// Returns the path written. The level 1 events (what a human did and their effects) go to
-	// path; the program's (level 2) to the companion <path>.l2.json when there are any (the
-	// level 1 file says so in its levels), so the exact replay stays small.
+	// path; the program's (level 2) to the companion <path>.l2.json and the server's messages
+	// (level 3) to <path>.l3.json when there are any (the level 1 file says so in its levels),
+	// so the exact replay stays small.
 	write { |path, levels = true|
-		var program = this.ofLevel(2);
-		var d, p, cp;
-		if(levels and: { program.notEmpty }) {
-			meta[\levels] = [1, 2];
+		var program = this.ofLevel(2), server = this.ofLevel(3);
+		var d, p, cp, written = List.new;
+		if(levels and: { program.notEmpty or: { server.notEmpty } }) {
+			meta[\levels] = [1] ++ if(program.notEmpty) { [2] } { [] } ++ if(server.notEmpty) { [3] } { [] };
 			d = this.asDict;
-			d[\events] = events.reject { |e| (e[\level] ? 1) == 2 }.collect { |e| this.prEventOut(e) }.asArray;
+			d[\events] = events.reject { |e| (e[\level] ? 1) >= 2 }.collect { |e| this.prEventOut(e) }.asArray;
 			p = REJSON.write(d, path, 2, 2, keyOrder);
-			cp = REJSON.write(this.prCompanionDict(program, p), this.class.companionPath(p), 2, 2, keyOrder);
-			RCLog.post(\score, "wrote % events to %, % program events to %".format(d[\events].size, p, program.size, cp.basename));
+			if(program.notEmpty) {
+				cp = REJSON.write(this.prCompanionDict(program, p, 2), this.class.companionPath(p, 2), 2, 2, keyOrder);
+				written.add("% program events to %".format(program.size, cp.basename));
+			} {
+				this.class.prRemoveStale(this.class.companionPath(p, 2));
+			};
+			if(server.notEmpty) {
+				cp = REJSON.write(this.prCompanionDict(server, p, 3), this.class.companionPath(p, 3), 2, 2, keyOrder);
+				written.add("% server events to %".format(server.size, cp.basename));
+			} {
+				this.class.prRemoveStale(this.class.companionPath(p, 3));
+			};
+			RCLog.post(\score, "wrote % events to %, %".format(d[\events].size, p, written.join(", ")));
 		} {
 			meta.removeAt(\levels);
 			p = REJSON.write(this.asDict, path, 2, 2, keyOrder);
@@ -610,42 +622,54 @@ REScore {
 		^p
 	}
 
-	prCompanionDict { |program, path|
+	// a companion left by an earlier write of the same file, whose level is empty now
+	*prRemoveStale { |cp| if(File.exists(cp)) { File.delete(cp) } }
+
+	prCompanionDict { |evs, path, level = 2|
 		var d = IdentityDictionary.new;
 		d[\format] = format;
 		d[\version] = formatVersion;
 		d[\song] = meta[\song];
-		d[\level] = 2;
+		d[\level] = level;
 		d[\level1] = path.asString.basename;
 		d[\created] = meta[\created];
-		d[\events] = program.collect { |e| this.prEventOut(e) }.asArray;
+		d[\events] = evs.collect { |e| this.prEventOut(e) }.asArray;
 		^d
 	}
 
-	// <take>.l2.json next to the take.
-	*companionPath { |path|
+	// <take>.l2.json (the program's events) or <take>.l3.json (the server's messages) next to the take.
+	*companionPath { |path, level = 2|
 		path = path.asString;
-		^if(path.endsWith(".json")) { path.drop(-5) ++ ".l2.json" } { path ++ ".l2.json" }
+		^(if(path.endsWith(".json")) { path.drop(-5) } { path }) ++ ".l" ++ level ++ ".json"
 	}
 
-	// levels: 2 loads the companion (the program's events) when there is one, 1 the take alone.
+	// <take>.defs/ next to the take: the SynthDefs its level 3 names, written at stop.
+	*defsPath { |path|
+		path = path.asString;
+		^(if(path.endsWith(".json")) { path.drop(-5) } { path }) ++ ".defs"
+	}
+
+	// levels: 2 loads the program's companion when there is one, 3 the server's too, 1 the take alone.
 	*read { |path, levels = 2|
 		var s = this.fromDict(REJSON.read(path));
-		var cp, d;
 		if(s.isNil or: { levels < 2 }) { ^s };
-		cp = this.companionPath(path);
+		(2..levels.min(3)).do { |level| this.prReadCompanion(s, path, level) };
+		^s
+	}
+
+	*prReadCompanion { |s, path, level|
+		var cp = this.companionPath(path, level), d;
 		if(File.exists(cp)) {
 			d = REJSON.read(cp);
-			if(d.notNil and: { d[\level] == 2 }) {
+			if(d.notNil and: { d[\level] == level }) {
 				(d[\events] ? []).do { |e| s.add(this.prEventIn(e)) };
 				s.sort;
 			} {
-				RCLog.warn(\score, "% is not a level 2 companion: ignored".format(cp.basename));
+				RCLog.warn(\score, "% is not a level % companion: ignored".format(cp.basename, level));
 			};
 		} {
-			if((s.meta[\levels] ? []).includes(2)) { RCLog.warn(\score, "the take's program file % is missing".format(cp.basename)) };
+			if((s.meta[\levels] ? []).includes(level)) { RCLog.warn(\score, "the take's % file % is missing".format(if(level == 2) { "program" } { "server" }, cp.basename)) };
 		};
-		^s
 	}
 
 	//////// the check: what threatens an exact replay

@@ -1,0 +1,43 @@
+TITLE:: RETapAddr
+summary:: The address of a song's server while its recorder records level 3
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REScoreRecorder, Classes/REScore, Classes/RECollectAddr
+
+DESCRIPTION::
+A NetAddr that forwards every message to the real address of a server and hands each bundle to a link::Classes/REScoreRecorder:: with the time it is due (code::tapServer::), which keeps the messages that make sound as level 3 events (the reCording guide, "Levels"). The recorder installs one in place of the song's server address at a take's start when code::level3:: is on and puts the real address back at stop or disarm; the server's responders match a reply by host and port, so the server stays whole meanwhile. With level 3 off nothing of it exists.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: real
+The server's address (a NetAddr), kept and forwarded to.
+argument:: recorder
+The REScoreRecorder that receives the bundles.
+
+METHOD:: commandName
+The name of a server command, as a Symbol: code::'/s_new':: for 9, for code::"/s_new":: and for code::\s_new:: alike.
+
+METHOD:: commandNames
+scsynth's numbered commands → their names.
+
+INSTANCEMETHODS::
+
+METHOD:: real
+METHOD:: recorder
+
+METHOD:: sendMsg
+METHOD:: sendBundle
+METHOD:: listSendMsg
+METHOD:: listSendBundle
+METHOD:: sync
+The messages go to the recorder, then to the real address (a sync's too, before the real address waits).
+
+EXAMPLES::
+
+code::
+~rec = ~song.scoreRecorder(root: ~piece_dir +/+ "Scores", version: "w1");
+~rec.arm(level3: true);     // every take from now on holds the server's messages, <take>.l3.json
+~rec.record([4, 0]);
+~song.server.addr;          // -> RETapAddr(a NetAddr(127.0.0.1, 57110)) while the take records
+~rec.stop;                  // the real address is back; <take>.defs/ holds the defs the take names
+::

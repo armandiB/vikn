@@ -18,6 +18,7 @@
 
 REScoreRecorder {
 	classvar <>allInputs;
+	classvar <>serverCommands;   // the server messages level 3 keeps (what makes sound: nodes, groups, buses, buffers, defs by path)
 	classvar <>unsafeCode;   // a code line containing one of these is kept but not replayed
 	classvar <>maxLag = 10;  // seconds: an input stamped earlier than that by its sender is stamped now
 	classvar <>loopbackWindow = 0.2;   // seconds: an OSC input this soon after a line that sends OSC to this song is that line's message
@@ -31,6 +32,8 @@ REScoreRecorder {
 	var <score, <lastScore, <lastPath, <beat0, <time0, lastTempo;
 	var recordQuant, loopbackLine;
 	var <>level2 = false;   // record the program's work too (level 2, the companion file): off, it is only counted
+	var <>level3 = false;   // record the server's messages too (level 3, <take>.l3.json, the defs next to it): off, nothing is installed
+	var savedAddr;          // the server's address while an RETapAddr stands in for it (level 3, recording)
 	var unrecorded = 0;     // program actions seen on the main thread while level 2 is off
 	var <lastCheck;         // what threatened the last take's exact replay (REScore.check)
 	var <>rateGuard;        // events per second a doer may write at level 2 before it is sub-sampled (nil: no guard)
@@ -43,6 +46,10 @@ REScoreRecorder {
 	*initClass {
 		allInputs = #[\midi, \osc, \keyboard, \actions, \code, \rawMidi];
 		unsafeCode = #["exit", "recompile", "boot", "quit", "unixCmd", "systemCmd", "shutdown"];
+		serverCommands = IdentitySet.newFrom(#['/s_new', '/s_newargs', '/n_set', '/n_setn', '/n_fill', '/n_map', '/n_mapn', '/n_mapa', '/n_mapan',
+			'/n_free', '/n_run', '/n_before', '/n_after', '/n_order', '/g_new', '/g_head', '/g_tail', '/g_freeAll', '/g_deepFree', '/p_new',
+			'/c_set', '/c_setn', '/c_fill', '/b_alloc', '/b_allocRead', '/b_allocReadChannel', '/b_read', '/b_readChannel', '/b_write',
+			'/b_free', '/b_close', '/b_zero', '/b_set', '/b_setn', '/b_fill', '/b_gen', '/d_load', '/d_loadDir', '/d_free']);
 	}
 
 	*new { |song, root, version = "", piece|
@@ -75,13 +82,16 @@ REScoreRecorder {
 	// voices: name → the objects and names grouped under it (nil keeps the
 	// voices added so far, an empty Event clears them); voicesByLayer: a
 	// beat's default voice is its layer; level2: record the program's work
-	// too (false: counted, reported by the check).
-	arm { |scope, inputs, voices, voicesByLayer, level2|
+	// too (false: counted, reported by the check); level3: the server's
+	// messages too (an RETapAddr stands in for the server's address while a
+	// take records, the defs it names are written next to the take).
+	arm { |scope, inputs, voices, voicesByLayer, level2, level3|
 		this.prSetScope(scope);
 		this.prSetInputs(inputs);
 		voices !? { this.prSetVoices(voices) };
 		voicesByLayer !? { |b| this.voicesByLayer = b };
 		level2 !? { |b| this.level2 = b };
+		level3 !? { |b| this.level3 = b };
 		if(state == \off) { state = \armed };
 		RETap.add(this);
 		if(this.inputs.includes(\code)) { RETap.enableCode(this) } { RETap.disableCode(this) };
@@ -91,6 +101,7 @@ REScoreRecorder {
 
 	disarm {
 		if(state == \recording) { this.stop };
+		this.prRemoveServerTap;
 		RETap.disableCode(this);
 		RETap.disableRawMidi(this);
 		RETap.remove(this);
@@ -214,8 +225,27 @@ REScoreRecorder {
 		voices.keysValuesDo { |k, v| score.voices[k] = v };
 		controls.keysValuesDo { |k, v| score.controls[k] = v };
 		state = \recording;
+		if(level3) { this.prInstallServerTap };
 		if(startSnapshot) { this.snapshot(\start) };
 		RCLog.post(\score, "% recording from beat %".format(song.name, beat0));
+	}
+
+	// Level 3: the server's address is an RETapAddr from the take's start to its stop, the
+	// real one kept and put back.
+	prInstallServerTap {
+		var srv = song.server;
+		if(srv.isNil or: { srv.addr.isKindOf(RETapAddr) }) { ^this };
+		savedAddr = srv.addr;
+		srv.addr = RETapAddr(savedAddr, this);
+		RCLog.post(\score, "% level 3: the server's messages are recorded".format(song.name));
+	}
+
+	prRemoveServerTap {
+		savedAddr !? { |a|
+			var srv = song.server;
+			if(srv.notNil and: { srv.addr.isKindOf(RETapAddr) }) { srv.addr = a };
+		};
+		savedAddr = nil;
 	}
 
 	// Ends the take: the REScore, written to <root>/<stamp>_<song> <version>.json
@@ -225,6 +255,7 @@ REScoreRecorder {
 		var s = score, od = overdubbing, stopBeat;
 		if(state != \recording) { RCLog.warn(\score, "% is not recording".format(song.name)); ^nil };
 		stopBeat = this.clock.beats - beat0;
+		this.prRemoveServerTap;
 		s.meta[\duration] = stopBeat;
 		s.meta[\commits] = this.prCommits;
 		root !? { s.meta[\root] = root };
@@ -244,6 +275,7 @@ REScoreRecorder {
 		lastScore = s;
 		if(root.notNil) {
 			lastPath = RCGuard.call(\score, nil) { s.write(REScore.pathFor(root, song.name, version)) };
+			lastPath !? { |p| if(s.ofLevel(3).notEmpty) { RCGuard.call(\score, nil) { this.prWriteDefs(s, p) } } };
 		} {
 			RCLog.warn(\score, "no root folder: the score was not written (lastScore holds it: lastScore.write(path))");
 		};
@@ -425,6 +457,57 @@ REScoreRecorder {
 		if(last.notNil and: { (beat - last) < rateQuantum }) { ^true };
 		rateKept[key] = beat;
 		^false
+	}
+
+	// A bundle to the server (level 3, on when level3 is): its messages that make sound (the
+	// serverCommands; a def's bytes, a sync, a query are left out), at the time they are due (the
+	// bundle's offset, the server latency most of the time), under the cause open on the main
+	// thread (a line, an input) or the tagged Routine's, with its doer.
+	tapServer { |time, msgs|
+		var ev, kept, thread, off = time ? 0;
+		if(state != \recording or: { level3.not }) { ^this };
+		kept = msgs.collect { |m| this.prServerMessage(m) }.reject(_.isNil);
+		if(kept.isEmpty) { ^this };
+		ev = this.prEvent(\server, nil);
+		ev[\level] = 3;
+		ev[\beat] = ev[\beat] + (off * this.clock.tempo);
+		ev[\secs] = ev[\secs] + off;
+		if(off != 0) { ev[\latency] = off };
+		ev[\msgs] = kept;
+		thread = RETap.taggedThread;
+		if(thread.notNil) {
+			thread.cause !? { |f| f[\ids][this] !? { |id| ev[\cause] = id } };
+			thread.by !? { |b| ev[\by] = REScore.rcRef(b) ?? { b.asString } };
+		} {
+			if(RETap.isMainThread) { RETap.frame !? { |f| f[\ids][this] !? { |id| ev[\cause] = id } } };
+		};
+		this.prAdd(ev);
+	}
+
+	prServerMessage { |m|
+		var name;
+		if(m.isKindOf(SequenceableCollection).not or: { m.isEmpty }) { ^nil };
+		name = RETapAddr.commandName(m[0]);
+		if(serverCommands.includes(name).not) { ^nil };
+		if(m.any { |x| x.isKindOf(Int8Array) }) { ^nil };
+		^REScore.encodeValue([name] ++ m[1..].asArray)
+	}
+
+	// The SynthDefs a take's level 3 names (/s_new), written next to it as <take>.defs/<name>.scsyndef
+	// from the library: a level 3 render loads them from there and needs nothing else of the piece.
+	prWriteDefs { |s, path|
+		var dir = REScore.defsPath(path), names = IdentitySet.new, written = 0, missing = List.new;
+		s.ofLevel(3).do { |e| (e[\msgs] ? []).do { |m|   // in memory or in file form (a score read back)
+			if(m.size > 1 and: { REScore.decodeValue(m[0]) == '/s_new' }) { names.add(REScore.decodeValue(m[1]).asString.asSymbol) };
+		} };
+		if(names.isEmpty) { ^this };
+		File.mkdir(dir);
+		names.do { |name|
+			var def = SynthDescLib.global[name] !? (_.def);
+			if(def.notNil) { def.writeDefFile(dir); written = written + 1 } { missing.add(name) };
+		};
+		RCLog.post(\score, "% level 3: % def(s) written to %".format(song.name, written, dir.basename));
+		if(missing.notEmpty) { RCLog.warn(\score, "% def(s) the take names are not in the library (not written): %".format(missing.size, missing.asArray)) };
 	}
 
 	prActionEvent { |obj, method, args, level, frame|

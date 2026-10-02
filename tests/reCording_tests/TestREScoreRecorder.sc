@@ -504,6 +504,57 @@ TestREScoreRecorder : UnitTest {
 		currentEnvironment[\reTestR] = nil;
 	}
 
+	// Level 3: the server's messages, on when asked; an RETapAddr stands in for the server's
+	// address while a take records, the messages are kept under the cause open (a line, a
+	// tagged Routine's), the ones that make no sound left out, the companion and the defs
+	// written at stop.
+	test_level3_server_messages {
+		var interp = thisProcess.interpreter;
+		var dead = Server.named[\reDead] ?? { Server(\reDead, NetAddr("127.0.0.1", 57996)) };   // nothing listens there
+		var b = this.restBeat(layer, \k, [amp: 0.1]);
+		var s, path, srv, lineId, dir3, r;
+		song.server = dead;
+		rec.root = dir;
+		rec.arm(inputs: #[\code, \actions]);
+		rec.record(snapshotAtStart: false);
+		dead.sendBundle(0.2, ['/s_new', \default, 1000, 0, 1, \freq, 440]);
+		s = rec.stop;
+		this.assertEquals(s.ofLevel(3).size, 0, "level 3 off: no server event");
+		this.assert(dead.addr.isKindOf(RETapAddr).not, "and nothing stood in for the server's address");
+		rec.arm(level3: true);
+		rec.record(snapshotAtStart: false);
+		this.assert(dead.addr.isKindOf(RETapAddr), "recording with level 3: an RETapAddr stands in");
+		interp.preProcessor.value("dead.sendBundle(0.2, [\\s_new])", interp);
+		dead.sendBundle(0.2, ['/s_new', \default, 1000, 0, 1, \freq, 440], [15, 1000, \amp, 0.1]);
+		interp.codeDump.value("dead.sendBundle(0.2, [\\s_new])", nil, { }, interp);
+		lineId = rec.score.ofKind(\code).last[\id];
+		dead.sendMsg('/sync', 7);          // makes no sound: left out
+		dead.sendMsg('/n_free', 1000);     // from no line: no cause
+		r = RETap.routine({ dead.sendBundle(nil, ['/n_set', 1000, \freq, 220]) }, b).play(clock);
+		0.2.wait;
+		s = rec.stop;
+		this.assert(dead.addr.isKindOf(RETapAddr).not, "stop puts the real address back");
+		srv = s.ofLevel(3);
+		this.assertEquals(srv.size, 3, "the bundle under the line, the free, the tagged Routine's set: " ++ srv.size);
+		this.assertEquals(srv[0][\msgs], [['/s_new', \default, 1000, 0, 1, \freq, 440], ['/n_set', 1000, \amp, 0.1]], "the messages, the numbered command named");
+		this.assertEquals(srv[0][\cause], lineId, "under the line");
+		this.assertEquals(srv[0][\latency], 0.2, "the bundle's time kept");
+		this.assert(srv[0][\secs] >= 0.2, "due at the bundle's time");
+		this.assertEquals(srv[0][\kind], \server);
+		this.assertEquals(srv[1][\msgs], [['/n_free', 1000]]);
+		this.assertEquals(srv[1][\cause], nil, "the free has no cause");
+		this.assertEquals(srv[2][\by], IdentityDictionary[\rc -> "beat", \song -> "rec", \layer -> "core", \name -> "k"], "the tagged Routine's message, by the beat");
+		this.assertEquals(s.meta[\levels], [1, 3], "the take says its levels");
+		path = rec.lastPath;
+		this.assert(File.exists(REScore.companionPath(path, 3)), "the level 3 companion next to the take");
+		this.assertEquals(REScore.read(path).ofLevel(3).size, 0, "read loads level 3 only when asked");
+		this.assertEquals(REScore.read(path, levels: 3).ofLevel(3).size, 3);
+		this.assertEquals(REScore.decodeValue(REScore.read(path, levels: 3).ofLevel(3).detect { |e| e[\msgs].size == 2 }[\msgs][0]), ['/s_new', \default, 1000, 0, 1, \freq, 440], "a message read back decodes to what was sent (its file form until then, as args; the file sorted by beat: the free, due at once, comes first)");
+		dir3 = REScore.defsPath(path);
+		this.assert(File.exists(dir3 +/+ "default.scsyndef"), "the def the take names is written next to it: " ++ dir3);
+		song.server = nil;
+	}
+
 	test_main_thread_rule_and_silently {
 		var b = this.restBeat(layer, \k);
 		var s;

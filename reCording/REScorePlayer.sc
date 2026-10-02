@@ -230,6 +230,7 @@ REScorePlayer {
 	prPlayEvent { |ev|
 		var voice = ev[\voice];
 		var ok, next;
+		if((ev[\level] ? 1) >= 3) { ^this };   // the server's messages: the program makes the sound (a render sends them, scripts/take.sh)
 		if(voice.notNil and: { muted.includes(voice) or: { soloed.notEmpty and: { soloed.includes(voice).not } } }) { ^this };
 		if((ev[\level] ? 1) >= 2) {
 			if(this.prProgramPlays(ev).not) { ^this };
