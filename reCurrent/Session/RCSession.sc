@@ -9,9 +9,16 @@
 // The LinkClock the session creates is permanent and outlives the session by
 // design (beats, Chataigne and Link peers keep following it). Stop it only on
 // purpose with stopClock, after killAll.
+//
+// clockQueueSize: the slots of the clock it creates. Every item waiting on a
+// clock takes 3 (a playing beat, a gated note until its release, a Routine), and
+// a full clock drops what is added next for good ("scheduler queue is full."):
+// a beat that cannot reschedule itself stops without a word. 32768 slots hold
+// about 10900 items. Read when the clock is created, so a change needs stopClock.
 
 RCSession {
 	classvar <default;
+	classvar <>clockQueueSize = 32768;
 	var <server, <clock, <oscPort, <localAddr, <songs;
 	var <midiInitialized = false, <booted = false, <ownsClock = false;
 
@@ -41,9 +48,9 @@ RCSession {
 			ownsClock = false;
 		} {
 			if(clock.isNil or: { clock.isRunning.not }) {
-				clock = LinkClock(nil, queueSize: 4096).latency_(server.latency).permanent_(true);
+				clock = LinkClock(nil, queueSize: clockQueueSize).latency_(server.latency).permanent_(true);
 				ownsClock = true;
-				RCLog.post(\session, "created LinkClock (tempo %)".format(clock.tempo));
+				RCLog.post(\session, "created LinkClock (tempo %, % slots)".format(clock.tempo, clock.queue.maxSize));
 			} {
 				RCLog.info(\session, "keeping the running clock");
 			};
