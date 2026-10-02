@@ -20,6 +20,7 @@ REScoreRecorder {
 	classvar <>allInputs;
 	classvar <>unsafeCode;   // a code line containing one of these is kept but not replayed
 	classvar <>maxLag = 10;  // seconds: an input stamped earlier than that by its sender is stamped now
+	classvar <>loopbackWindow = 0.2;   // seconds: an OSC input this soon after a line that sends OSC to this song is that line's message
 
 	var <song, <>root, <>version, <>piece;
 	var <state = \off;      // \off, \armed, \recording
@@ -28,6 +29,7 @@ REScoreRecorder {
 	var <controls;                 // name → spec (min, max, warp, default, unit), written into every take
 	var controlGetters, controlSetters;   // name → { value } / { |value| }: snapshots and recalls of registered controls
 	var <score, <lastScore, <lastPath, <beat0, <time0, lastTempo;
+	var recordQuant, loopbackLine;
 	var <>startSnapshot = true;
 	var <player, overdubbing;
 	var <>onEvent;   // { |recorder, event| } after each recorded event (a view's live feed)
@@ -170,6 +172,8 @@ REScoreRecorder {
 		if(state == \recording) { RCLog.warn(\score, "% already recording".format(song.name)); ^this };
 		snapshotAtStart !? { |b| startSnapshot = b };
 		score = REScore(song, piece, version);
+		recordQuant = quant;
+		loopbackLine = nil;
 		case
 		{ atBeat.notNil } { this.clock.schedAbs(atBeat, { this.prStart(offsetBeat); nil }) }
 		{ quant.isNil } { this.prStart(offsetBeat) }
@@ -189,6 +193,8 @@ REScoreRecorder {
 		score.meta[\time0] = time0;
 		score.meta[\tempo] = lastTempo;
 		score.meta[\latency] = song.server.latency;
+		// the grid the take started on: a replay starts on the same phase of it (REScorePlayer.alignedStart)
+		recordQuant !? { |q| score.meta[\quant] = q.asQuant.quant };
 		score.tempoMap.add([0, lastTempo]);
 		voices.keysValuesDo { |k, v| score.voices[k] = v };
 		controls.keysValuesDo { |k, v| score.controls[k] = v };
@@ -242,7 +248,8 @@ REScoreRecorder {
 		from = punch !? (_[0]) ? 0;
 		to = punch !? (_[1]);
 		if(loop and: { to.isNil }) { to = scorearg.duration };
-		at = quant !? { |q| q.asQuant.nextTimeOnGrid(this.clock) } ?? { this.clock.beats };
+		// on the score's own phase of the grid, so that what it quantized lands as it did
+		at = quant !? { |q| REScorePlayer.alignedStart(scorearg, this.clock, q) } ?? { this.clock.beats };
 		player = REScorePlayer(scorearg, song);
 		if(mode == \replace) { player.mute(voices ?? { scorearg.voiceNames }) };
 		overdubbing = IdentityDictionary[\score -> scorearg, \voices -> voices, \mode -> mode, \from -> from, \to -> to, \loop -> loop];
@@ -365,7 +372,7 @@ REScoreRecorder {
 	}
 
 	tapInput { |kind, inputSong, data, parentFrame, frame|
-		var ev, name;
+		var ev, name, id, line;
 		if(state != \recording or: { inputs.includes(kind).not }) { ^this };
 		if(kind != \rawMidi and: { inputSong !== song }) { ^this };   // raw MIDI belongs to no song
 		name = data[\name] ?? { data[\key] } ?? { data[\device] };
@@ -373,21 +380,58 @@ REScoreRecorder {
 		ev = this.prEvent(kind, this.prVoiceForName(name ? kind), data[\time]);
 		data.keysValuesDo { |k, v| if(k != \time) { ev[k] = REScore.encodeValue(v) } };
 		parentFrame !? { |f| f[\ids][this] !? { |id| ev[\cause] = id } };
-		frame[\ids][this] = this.prAdd(ev);
+		// a message a code line sent to this song comes back here, after the line: the line is
+		// not replayed (the input replays through its def), and both say so
+		line = this.prLoopbackLine(kind, ev, parentFrame);
+		line !? { ev[\loopbackOf] = line[\id] };
+		id = this.prAdd(ev);
+		frame[\ids][this] = id;
+		line !? { score.at(line[\id]) !? { |l| l[\replay] = false; l[\loopback] = id } };
 	}
 
 	tapCode { |text, parentFrame, frame|
-		var ev;
+		var ev, id;
 		if(state != \recording or: { inputs.includes(\code).not }) { ^this };
 		ev = this.prEvent(\code, this.prVoiceForName(\code));
 		ev[\text] = text;
 		if(unsafeCode.any { |pat| text.contains(pat) }) { ev[\replay] = false };
 		parentFrame !? { |f| f[\ids][this] !? { |id| ev[\cause] = id } };
-		frame[\ids][this] = this.prAdd(ev);
+		id = this.prAdd(ev);
+		frame[\ids][this] = id;
+		// a line that sends OSC: should its message come back as an input of this song within
+		// loopbackWindow, tapInput marks the line
+		loopbackLine = if(this.prSendsOsc(text)) { IdentityDictionary[\id -> id, \text -> text, \until -> (this.clock.seconds + loopbackWindow)] } { nil };
 	}
 
 	dropCode { |frame|
 		frame[\ids][this] !? { |id| score !? { |s| s.remove(id) } };
+	}
+
+	// A line that raised never reached codeDump (RETap closes its frame at the next line): the
+	// take says so. Its effects are what ran before the raise; the player plays, of them, only
+	// what the line does not reach again.
+	codeRaised { |frame|
+		frame[\ids][this] !? { |id| score !? { |s| s.at(id) !? { |ev| ev[\raised] = true } } };
+	}
+
+	prSendsOsc { |text| ^#["sendMsg", "sendBundle", "sendRaw"].any { |p| text.contains(p) } }
+
+	// The pending sending line when this OSC input is its message: a source (no cause), within the
+	// window, and the line names the input's path, or a loopback address (127.0.0.1, localhost,
+	// localAddr, the session's port).
+	prLoopbackLine { |kind, ev, parentFrame|
+		var line = loopbackLine;
+		if(kind != \osc or: { parentFrame.notNil } or: { line.isNil }) { ^nil };
+		if(this.clock.seconds > line[\until]) { loopbackLine = nil; ^nil };
+		if(this.prLoopsBack(line[\text], ev).not) { ^nil };
+		loopbackLine = nil;
+		^line
+	}
+
+	prLoopsBack { |text, ev|
+		var port = song.session !? { |se| se.localAddr !? (_.port) };
+		if(ev[\path].notNil and: { text.contains(ev[\path].asString) }) { ^true };
+		^#["127.0.0.1", "localhost", "localAddr"].any { |p| text.contains(p) } or: { port.notNil and: { text.contains(port.asString) } }
 	}
 
 	//////// scope and voices

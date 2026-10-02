@@ -19,6 +19,12 @@ A snapshot's state (the event's code::state:: field).
 argument:: beats
 Numeric sources ramp to their target over this many beats (0: at once).
 
+METHOD:: alignedStart
+argument:: score
+argument:: clock
+argument:: quant
+returns:: The next beat on the grid (quant's, else the score's code::quant::, else 1) that is, modulo the grid, where the score's code::beat0:: was.
+
 METHOD:: ramp
 argument:: fromValue
 argument:: toValue
@@ -46,7 +52,7 @@ INSTANCEMETHODS::
 
 METHOD:: play
 argument:: quant
-The grid on the song's clock (nil: now).
+The grid on the song's clock; the start is on the take's own phase of it (link::#*alignedStart::). nil: the grid the take was recorded on, else the next beat.
 argument:: from
 argument:: to
 Score beats (to nil: the end).
@@ -64,7 +70,7 @@ Loop passes done.
 
 METHOD:: fire
 argument:: ev
-Replays one event now.
+Replays one event now. A code line's actions are watched (link::Classes/RETap#*observe::): when the line raises, its recorded effects play from the first one it did not reach (code::fallback:: on the event: code::false:: none, code::true:: all).
 returns:: True when it was fired.
 
 METHOD:: mute
@@ -81,6 +87,9 @@ METHOD:: onLoop
 code::{ |player, pass| }:: at each new pass.
 METHOD:: onDone
 code::{ |player| }:: at the end (not for loops).
+
+METHOD:: alignPhase
+Start on the take's phase of the grid (true by default): what the take quantized lands as it did. false: the plain grid.
 
 METHOD:: interpolate
 Between two points of an input control (MIDI, OSC, raw MIDI, keyboard), fire interpolated values along the control's spec (true by default); actions on objects are never ramped.

@@ -26,11 +26,11 @@ REScore {
 	var index, nextId = 1;
 
 	*initClass {
-		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \beat0, \time0, \tempo, \latency,
+		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \beat0, \time0, \tempo, \latency, \quant,
 			\duration, \tempoMap, \voices, \controls, \events,
 			\id, \beat, \secs, \kind, \voice, \cause, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
-			\value, \text, \replay, \state];
-		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \beat0, \time0, \tempo, \latency, \duration, \overdubs];
+			\value, \text, \replay, \raised, \fallback, \loopback, \loopbackOf, \state];
+		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \beat0, \time0, \tempo, \latency, \quant, \duration, \overdubs];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
 		// classes whose compile string is the value itself (a Function needs its source, see prEncode)
 		scClasses = [Pattern, Ref, Env, Rest, Quant, ControlSpec, Association, Char, Class, Point, Rect, Interval, Tuning, Scale];

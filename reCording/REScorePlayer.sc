@@ -19,8 +19,12 @@
 // environment, a snapshot by setting the recorded sources (applyState), a
 // morph by ramping to them. An event marked replay: false is skipped. When a
 // root event cannot be fired (its mapping or def is gone, its object is not
-// found, its code raises), the effects recorded under it play instead; what
-// cannot play is skipped with one warning each.
+// found, its code raises), the effects recorded under it play instead, but
+// not the ones the root did again before failing (a code line's actions are
+// watched: what ran is not played twice); fallback: true on the event plays
+// them all, fallback: false none. What cannot play is skipped with one
+// warning each. A replay starts on the take's own phase of the grid
+// (alignedStart), so what the take quantized lands as it did.
 
 REScorePlayer {
 	classvar <orgnsmIdentityKeys;
@@ -31,7 +35,8 @@ REScorePlayer {
 	var <>onEvent, <>onLoop, <>onDone;
 	var <>followTempo = false, <>useLatency = true;
 	var <>interpolate = true, <>stepsPerBeat = 16;   // a continuous control ramps to its next point
-	var <fired = 0, <skipped = 0, <interpolated = 0, warned, failedRoots, ramps, nextOf, commitsChecked = false;
+	var <>alignPhase = true;   // play starts on the take's phase of the grid (quant, else the take's own, else the beat)
+	var <fired = 0, <skipped = 0, <interpolated = 0, warned, failedRoots, ranBeforeFail, ramps, nextOf, commitsChecked = false;
 
 	*initClass {
 		orgnsmIdentityKeys = #[\orgnsm, \tribe, \o_species, \orgnsm_name, \tribe_name, \seed];
@@ -47,13 +52,15 @@ REScorePlayer {
 		soloed = IdentitySet.new;
 		warned = IdentitySet.new;
 		failedRoots = IdentitySet.new;
+		ranBeforeFail = IdentityDictionary.new;
 		ramps = List.new;
 		nextOf = IdentityDictionary.new;
 	}
 
 	//////// transport
 
-	// quant: the grid on the song's clock (nil: now); atBeat: an absolute clock
+	// quant: the grid on the song's clock, the start on the take's own phase of it
+	// (alignPhase; nil: the take's grid, else the beat); atBeat: an absolute clock
 	// beat instead. from / to: score beats (to nil: the end); loop: play
 	// [from, to] again and again (to nil: the score's duration).
 	play { |quant, from = 0, to, loop = false, atBeat|
@@ -67,12 +74,27 @@ REScorePlayer {
 		passes = 0;
 		warned.clear;
 		failedRoots.clear;
+		ranBeforeFail.clear;
 		ramps.clear;
 		this.prIndexControls(events);
 		this.prCheckCommits;
 		routine = Routine { this.prRun(events) };
 		state = \playing;
-		if(atBeat.notNil) { clock.schedAbs(atBeat, routine) } { routine.play(clock, quant) };
+		case
+		{ atBeat.notNil } { clock.schedAbs(atBeat, routine) }
+		{ alignPhase } { clock.schedAbs(this.class.alignedStart(score, clock, quant), routine) }
+		{ routine.play(clock, quant) };
+	}
+
+	// The next beat on the grid (quant's, else the take's own, else 1) with the take's
+	// phase of it (beat0 mod the grid): a line or a Routine the take quantized to that grid
+	// lands at the same place.
+	*alignedStart { |score, clock, quant|
+		var grid = quant !? { |q| q.asQuant.quant } ?? { score.meta[\quant] } ? 1;
+		var phase;
+		if(grid.isNumber.not or: { grid <= 0 }) { ^clock.beats };
+		phase = score.meta[\beat0] !? { |b| b mod: grid } ? 0;
+		^Quant(grid, phase).nextTimeOnGrid(clock)
 	}
 
 	prSetSpan { |fromarg, toarg, looparg|
@@ -197,7 +219,10 @@ REScorePlayer {
 		var voice = ev[\voice];
 		var ok, next;
 		if(voice.notNil and: { muted.includes(voice) or: { soloed.notEmpty and: { soloed.includes(voice).not } } }) { ^this };
-		if(ev[\cause].notNil and: { failedRoots.includes(ev[\cause]).not }) { ^this };   // its root played
+		if(ev[\cause].notNil) {
+			if(failedRoots.includes(ev[\cause]).not) { ^this };   // its root played
+			if(this.prRootDidIt(ev)) { ^this };                    // its root did it again before failing
+		};
 		ramps.copy.do { |r| if(r[\to] === ev) { ramps.remove(r) } };
 		ok = this.fire(ev);
 		if(ok) {
@@ -211,7 +236,40 @@ REScorePlayer {
 			};
 		} {
 			skipped = skipped + 1;
-			if(ev[\cause].isNil) { failedRoots.add(ev[\id]) };
+			if(ev[\cause].isNil) { this.prRootFailed(ev) };
+		};
+	}
+
+	// A root that could not play: its effects play instead, but not the ones it did again
+	// before failing (prFireCode counts a line's actions); fallback: false on the event asks
+	// for none, fallback: true for all of them.
+	prRootFailed { |ev|
+		switch(ev[\fallback],
+			false, { this.prWarnOnce(("nofallback_" ++ ev[\id]).asSymbol, "% event % failed: its effects are not played (fallback: false)".format(ev[\kind], ev[\id])) },
+			true, { failedRoots.add(ev[\id]); ranBeforeFail.removeAt(ev[\id]) },
+			{
+				failedRoots.add(ev[\id]);
+				ranBeforeFail[ev[\id]] !? { |n|
+					if(n > 0) { this.prWarnOnce(("partly_" ++ ev[\id]).asSymbol, "% event % failed after % action(s): those are not played again, the rest of its effects are".format(ev[\kind], ev[\id], n)) };
+				};
+			}
+		);
+	}
+
+	// The effect's place among its root's effects (by id, as recorded) is below what the
+	// root did again before failing.
+	prRootDidIt { |ev|
+		var n = ranBeforeFail[ev[\cause]];
+		var effects;
+		if(n.isNil or: { n <= 0 }) { ^false };
+		effects = score.causedBy(ev[\cause]).sort { |a, b| a[\id] <= b[\id] };
+		^(effects.indexOf(ev) ? inf) < n
+	}
+
+	prWarnOnce { |key, text|
+		if(warned.includes(key).not) {
+			warned.add(key);
+			RCLog.warn(\player, text);
 		};
 	}
 
@@ -329,10 +387,15 @@ REScorePlayer {
 		}
 	}
 
+	// The line's actions are watched (RETap.observe): when it raises, the count of what it did
+	// first decides which of its recorded effects still play (prRootDidIt).
 	prFireCode { |ev|
 		var func = ev[\text].asString.compile;
+		var ran = 0, ok;
 		if(func.isNil) { ^this.prSkip(ev, "does not compile") };
-		^RCGuard.call(\player, false) { func.value; true }
+		ok = RETap.observe({ ran = ran + 1 }) { RCGuard.call(\player, false) { func.value; true } };
+		if(ok.not and: { ev[\id].notNil }) { ranBeforeFail[ev[\id]] = ran };
+		^ok
 	}
 
 	prFireSnapshot { |ev|

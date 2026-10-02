@@ -33,6 +33,12 @@ METHOD:: silently
 argument:: func
 Nothing is recorded while func runs.
 
+METHOD:: observe
+argument:: observer
+code::{ |obj, method, args| }::, called for every action func triggers, recorded or not (the taps are active meanwhile; the recorders are not reached when silent).
+argument:: func
+returns:: What func returns. A replay counts what a code line did before raising, to play only the effects it did not reach.
+
 METHOD:: add
 METHOD:: remove
 argument:: recorder

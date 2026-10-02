@@ -333,6 +333,49 @@ TestREScoreRecorder : UnitTest {
 		this.assert(interp.preProcessor === savedPre, "the interpreter's preProcessor is restored");
 	}
 
+	// A line that raised (codeDump never came: the next line closes its frame) is marked; a
+	// line whose OSC message came back as an input of this song is not replayed (the input
+	// is); the grid a take started on is in its file.
+	test_raised_lines_loopback_and_quant {
+		var interp = thisProcess.interpreter;
+		var b = this.restBeat(layer, \k, [amp: 0.1]);
+		var s, lines, inputs, handler;
+		song.osc.def(\scene, \init, { }, print: false);
+		handler = OSCdef(\rec_scene_init).func;
+		rec.arm(inputs: #[\code, \actions, \osc]);
+		rec.record(snapshotAtStart: false);
+		interp.preProcessor.value("b.set(\\amp, 0.5); nil.explode", interp);
+		b.set(\amp, 0.5);                                                   // what the line did before raising
+		interp.preProcessor.value("b.set(\\amp, 0.6)", interp);             // the next line closes the stale frame
+		b.set(\amp, 0.6);
+		interp.codeDump.value("b.set(\\amp, 0.6)", nil, { }, interp);
+		interp.preProcessor.value("NetAddr(\"127.0.0.1\", 32345).sendMsg(\"/rec/scene/init\", 1)", interp);
+		interp.codeDump.value("NetAddr(\"127.0.0.1\", 32345).sendMsg(\"/rec/scene/init\", 1)", nil, { }, interp);
+		handler.value(['/rec/scene/init', 1], thisThread.seconds, nil, nil);   // the message comes back
+		interp.preProcessor.value("NetAddr(\"10.0.0.5\", 9000).sendMsg(\"/other\", 1)", interp);
+		interp.codeDump.value("NetAddr(\"10.0.0.5\", 9000).sendMsg(\"/other\", 1)", nil, { }, interp);
+		handler.value(['/rec/scene/init', 2], thisThread.seconds, nil, nil);   // an input of its own
+		s = rec.stop;
+		lines = s.ofKind(\code);
+		inputs = s.ofKind(\osc);
+		this.assertEquals(lines.size, 4);
+		this.assertEquals(lines[0][\raised], true, "a line that raised is marked");
+		this.assertEquals(s.causedBy(lines[0][\id]).size, 1, "with the effect it had before raising");
+		this.assertEquals(lines[1][\raised], nil, "a line that ran through is not");
+		this.assertEquals(lines[2][\replay], false, "a line whose message came back as an input is not replayed");
+		this.assertEquals(lines[2][\loopback], inputs[0][\id], "it names the input");
+		this.assertEquals(inputs[0][\loopbackOf], lines[2][\id], "and the input names the line");
+		this.assertEquals(lines[3][\replay], nil, "a line sending elsewhere replays");
+		this.assertEquals(inputs[1][\loopbackOf], nil, "an input of its own is not a loopback");
+		this.assertEquals(RETap.frames.size, 0, "no frame left open");
+		this.assertEquals(s.meta[\quant], nil, "started now: no grid");
+		rec.record([2, 0], snapshotAtStart: false);
+		(2.5 / clock.tempo).wait;
+		s = rec.stop;
+		this.assertEquals(s.meta[\quant], 2, "the grid the take started on");
+		this.assertEquals(s.meta[\beat0] mod: 2, 0.0, "on that grid");
+	}
+
 	test_main_thread_rule_and_silently {
 		var b = this.restBeat(layer, \k);
 		var s;

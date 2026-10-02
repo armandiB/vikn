@@ -190,6 +190,57 @@ TestREScorePlayer : UnitTest {
 		this.assertEquals(p.skipped, 1);
 	}
 
+	// A line that fails at replay after doing part of its work: its effects play from where it
+	// stopped, never again what it did (the layer gets each beat once); fallback: false plays
+	// none, fallback: true all.
+	test_fallback_for_what_the_line_did_not_reach {
+		var s = REScore(\pl);
+		var p = REScorePlayer(s, song);
+		var layerRef = IdentityDictionary[\rc -> "layer", \song -> "pl", \name -> "core"];
+		var attrs = [type: \rest, dur_flex: 1];
+		var id1, id2, id3;
+		currentEnvironment[\reTestLayer] = layer;
+		id1 = s.add((beat: 0, kind: \code, voice: \code, text: "~reTestLayer.addBeat(\\x1, [type: \\rest, dur_flex: 1]); nil.explode", raised: true));
+		s.add((beat: 0, kind: \action, voice: \core, rc: layerRef, method: \addBeat, args: REScore.encodeValue([\x1, attrs]), cause: id1));
+		s.add((beat: 0, kind: \action, voice: \core, rc: layerRef, method: \addBeat, args: REScore.encodeValue([\x2, attrs]), cause: id1));
+		id2 = s.add((beat: 1, kind: \code, voice: \code, text: "nil.explode", fallback: false));
+		s.add((beat: 1, kind: \action, voice: \core, rc: layerRef, method: \addBeat, args: REScore.encodeValue([\y1, attrs]), cause: id2));
+		id3 = s.add((beat: 2, kind: \code, voice: \code, text: "~reTestLayer.addBeat(\\z1, [type: \\rest, dur_flex: 1]); nil.explode", fallback: true));
+		s.add((beat: 2, kind: \action, voice: \core, rc: layerRef, method: \addBeat, args: REScore.encodeValue([\z1, attrs]), cause: id3));
+		s.add((beat: 2, kind: \action, voice: \core, rc: layerRef, method: \addBeat, args: REScore.encodeValue([\z2, attrs]), cause: id3));
+		p.play;
+		(3.5 / clock.tempo).wait;
+		this.assert(layer.beat(\x1).notNil and: { layer.beat(\x2).notNil }, "the line's own addBeat, then the effect it did not reach");
+		this.assertEquals(layer.beats.size, 4, "x1 once (not twice), x2, z1, z2: " ++ layer.beats.collect(_.name));
+		this.assert(layer.beat(\y1).isNil, "fallback: false: no effect of that line");
+		this.assert(this.logHas("failed after 1 action"), "said once");
+		this.assert(this.logHas("fallback: false"), "and the refusal");
+		this.assertEquals(p.skipped, 3, "the three lines failed");
+		this.assertEquals(p.fired, 3, "x2 (the rest), then z1 and z2 (all, asked for)");
+		currentEnvironment[\reTestLayer] = nil;
+	}
+
+	// A replay starts on the take's own phase of the grid: what the take quantized lands as it did.
+	test_phase_alignment {
+		var s = REScore(\pl);
+		var p = REScorePlayer(s, song);
+		s.add((beat: 0, kind: \midi, voice: \nope, name: \nope, raw: 1, value: 1));
+		s.meta[\beat0] = 10.25;
+		s.meta[\quant] = 4;
+		s.meta[\duration] = 0.5;
+		p.play;                                        // the take's grid: 4, its phase 0.25
+		(4.5 / clock.tempo).wait;
+		this.assert(p.startBeat.notNil and: { ((p.startBeat - 10.25) mod: 4).abs < 1e-6 }, "on the take's phase of its grid: " ++ p.startBeat);
+		p.play(2);                                     // a grid of 2: the phase kept
+		(2.5 / clock.tempo).wait;
+		this.assert(((p.startBeat - 10.25) mod: 2).abs < 1e-6, "on the take's phase of a grid of 2: " ++ p.startBeat);
+		p.alignPhase = false;
+		p.play(2);
+		(2.5 / clock.tempo).wait;
+		this.assert((p.startBeat mod: 2).abs < 1e-6, "without alignment: the plain grid: " ++ p.startBeat);
+		this.assertEquals(REScorePlayer.alignedStart(REScore(\pl), clock, nil).frac, 0.0, "no beat0, no grid: the next beat");
+	}
+
 	test_snapshot_and_morph {
 		var b = this.restBeat(\k, [amp: 0.1, legato: 0.8]);
 		var tpl = RCOrgnsm(\sp, 0, 0, song);

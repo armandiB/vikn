@@ -21,12 +21,14 @@ RETap {
 	classvar <>mainThreadOnly = true;   // false lets tests drive actions from a Routine
 	classvar <frames;                   // open causes, innermost last: (kind:, ids: recorder → event id)
 	classvar silent = 0;
+	classvar observers;                 // { |obj, method, args| } seeing every action, silent or not (a replay watching a line)
 	classvar codeUsers, preHook, dumpHook, savedPreProcessor;
 	classvar rawUsers, rawFuncs;
 
 	*initClass {
 		recorders = [];
 		frames = [];
+		observers = [];
 		codeUsers = IdentitySet.new;
 		rawUsers = IdentitySet.new;
 	}
@@ -49,10 +51,24 @@ RETap {
 	// Not from a Routine, not inside silently, not as the effect of a message.
 	*action { |obj, method, args|
 		var frame;
-		if(silent > 0 or: { this.isMainThread.not }) { ^this };
+		if(this.isMainThread.not) { ^this };
+		if(observers.notEmpty) { observers.do { |o| RCGuard.call(\tap, nil) { o.value(obj, method, args) } } };
+		if(silent > 0) { ^this };
 		frame = frames.last;
 		if(frame.notNil and: { frame[\kind] != \code }) { ^this };
 		recorders.do { |r| RCGuard.call(\tap, nil) { r.tapAction(obj, method, args, frame) } };
+	}
+
+	// observer ({ |obj, method, args| }) sees the actions func triggers, recorded or not: the
+	// taps are active meanwhile (the recorders are not reached when silent). A replay counts
+	// what a code line did before raising, to play only the effects it did not reach.
+	*observe { |observer, func|
+		observers = observers.add(observer);
+		active = true;
+		^protect { func.value } {
+			observers = observers.reject { |o| o === observer };
+			active = recorders.notEmpty or: { observers.notEmpty };
+		}
 	}
 
 	// An input (\midi, \osc, \keyboard) with its data, recorded; then func, the
@@ -129,8 +145,13 @@ RETap {
 		if(ran.not) { recorders.do { |r| RCGuard.call(\tap, nil) { r.dropCode(frame) } } };
 	}
 
+	// A code frame still open when the next line begins (or the hooks leave) belongs to a line
+	// that raised: codeDump never came. The recorders mark its event.
 	*prCloseCodeFrames {
-		while { frames.notEmpty and: { frames.last[\kind] == \code } } { frames.pop };
+		while { frames.notEmpty and: { frames.last[\kind] == \code } } {
+			var frame = frames.pop;
+			recorders.do { |r| RCGuard.call(\tap, nil) { r.codeRaised(frame) } };
+		};
 	}
 
 	//////// raw MIDI: every message of every device, as the device sent it (MIDIFuncs installed

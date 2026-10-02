@@ -25,6 +25,9 @@ A code line containing one of these strings is kept but marked code::replay: fal
 METHOD:: maxLag
 Seconds (10). An input that carries its own time (an OSC bundle's timetag: a page stamping its gestures at the touch) is stamped there when that time lies within maxLag before now; else, or when the time is ahead of the clock, it is stamped now.
 
+METHOD:: loopbackWindow
+Seconds (0.2). An OSC input of this song arriving within it after a code line that sends OSC, when the line names the input's path or a loopback address, is that line's own message: the line is marked code::replay: false:: and code::loopback::, the input code::loopbackOf::.
+
 INSTANCEMETHODS::
 
 METHOD:: arm
@@ -68,7 +71,7 @@ Stops a recording, removes the hooks.
 
 METHOD:: record
 argument:: quant
-nil: now; else the take starts on that grid of the song's clock.
+nil: now; else the take starts on that grid of the song's clock, written as the take's code::quant:: so that a replay starts on the same phase of it.
 argument:: snapshotAtStart
 Sets link::#-startSnapshot::.
 
