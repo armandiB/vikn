@@ -1,0 +1,46 @@
+TITLE:: REOfflineClock
+summary:: A clock that runs without time, for rendering a take offline
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REScorePlayer, Classes/RCSession
+
+DESCRIPTION::
+What a song schedules on it (its beats' players, its Routines, a replay) runs when the clock is stepped (link::#-advanceTo::), so that a take renders without a server: the messages the song sends go to an code::RECollectAddr::, timed by this clock, and become a link::Classes/Score::. It keeps the TempoClock interface the reCurrent classes and the streams use. While an item runs, the main thread's clock, beats and seconds are this clock's, as AppClock does through its Scheduler: a Routine resumed then inherits them and code::n.wait:: reschedules it here. Nothing runs until advanceTo is called.
+
+code::RECollectAddr:: is a NetAddr that keeps what is sent to it (code::sendMsg::, code::sendBundle::, the list forms) as code::[seconds, msg, ...]:: with the clock's seconds plus the bundle's latency, instead of sending; code::score(defs):: answers a Score of them, the SynthDefs first.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: tempo
+
+INSTANCEMETHODS::
+
+METHOD:: advanceTo
+argument:: target
+Runs everything due up to that beat, in order, then stands there.
+METHOD:: advance
+argument:: deltaBeats
+METHOD:: beats
+METHOD:: seconds
+METHOD:: tempo
+METHOD:: nextDue
+The beat of the next item, nil when nothing is queued.
+METHOD:: wakeups
+Items run so far.
+
+EXAMPLES::
+
+code::
+c = REOfflineClock(tempo: 2);
+a = RECollectAddr("127.0.0.1", 57999, c);
+s = Server(\offline, a, ServerOptions.new.numOutputBusChannels_(2));
+Server.default = s;
+RCSession.boot(s, c, oscPort: 32397, initMidi: false);
+~song = RCSong(\offline, 1);
+~b = ~song.layer(\core).addBeat(\k, [instrument: \default, dur: 0.5, freq: 440, amp: 0.1]);
+~p = REScorePlayer(REScore.read(path), ~song);
+~p.alignPhase = false;
+~p.play(0);
+c.advanceTo(64);
+a.score([SynthDescLib.global[\default].def]).recordNRT("/tmp/take.osc", "/tmp/take.wav", duration: 32.5, action: { 0.exit });
+::
