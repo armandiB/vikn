@@ -34,15 +34,24 @@ RCCrawler {
 	val { ^state[\val] }
 	prevVal { ^state[\prevVal] }
 
+	// The moves are recorded (RETap): init, initFromBatch, setVal, jumpNext,
+	// setNextVal, createPattern, free; the crawler's own pattern runs in a
+	// Routine and is not.
 	init { |orgnsm, val|
+		if(RETap.active) { RETap.action(this, \init, [orgnsm, val]) };
+		^this.prInit(orgnsm, val)
+	}
+
+	prInit { |orgnsm, val|
 		this.setNewOrgnsm(orgnsm);
-		if(val.notNil) { this.setVal(val); state[\val] = val };
+		if(val.notNil) { this.prSetVal(val); state[\val] = val };
 		^this
 	}
 
 	// Start on the orgnsm at position idxStart under batchKey (first key by default).
 	initFromBatch { |batch, batchKey, idxStart = 0, val|
 		var list, o;
+		if(RETap.active) { RETap.action(this, \initFromBatch, [batch, batchKey, idxStart, val]) };
 		this.batch = batch;
 		batchKey = batchKey ?? { batch.keys.first };
 		list = batch.orgnsms(batchKey) ? [];
@@ -51,7 +60,7 @@ RCCrawler {
 			RCLog.error(\crawler, "initFromBatch: no live orgnsm at %/% in batch %".format(batchKey, idxStart, batch.name));
 			^this
 		};
-		^this.init(o, val)
+		^this.prInit(o, val)
 	}
 
 	setNewOrgnsm { |orgnsm|
@@ -63,6 +72,11 @@ RCCrawler {
 	// orgnsm's attributes. Keys without a value are left alone: rPut(k, nil)
 	// would delete the attribute.
 	setVal { |val|
+		if(RETap.active) { RETap.action(this, \setVal, [val]) };
+		^this.prSetVal(val)
+	}
+
+	prSetVal { |val|
 		var o = state[\orgnsm];
 		val = val ? state[\val];
 		if(val.isNil or: { o.isNil }) { ^this };
@@ -72,7 +86,7 @@ RCCrawler {
 		};
 		attrKeys.do { |k, i|
 			if(i < val.size) {
-				if(keyIsMethod[i]) { this.prCallMethod(o, k, val[i]) } { o.rPut(k, val[i]) };
+				if(keyIsMethod[i]) { this.prCallMethod(o, k, val[i]) } { o.prRPut(k, val[i]) };
 			};
 		};
 	}
@@ -110,14 +124,16 @@ RCCrawler {
 
 	jumpNext {
 		var next;
-		if(setLeaveVal) { this.setVal(this.prResolveLeaveVal) };
+		if(RETap.active) { RETap.action(this, \jumpNext, []) };
+		if(setLeaveVal) { this.prSetVal(this.prResolveLeaveVal) };
 		next = this.prResolveNext;
 		if(next.isNil) { RCLog.warn(\crawler, "jumpNext: no nextOrgnsm, staying"); ^this };
 		this.setNewOrgnsm(next);
 	}
 
 	setNextVal { |newVal|
-		this.setVal(newVal);
+		if(RETap.active) { RETap.action(this, \setNextVal, [newVal]) };
+		this.prSetVal(newVal);
 		state[\val] = newVal;
 	}
 
@@ -147,12 +163,13 @@ RCCrawler {
 	}
 
 	createPattern { |layerKey = \core, terminationKey, replaceAttrs, osc = false, pickNewNumber = true, oscNames|
-		patternInstance !? (_.free);
+		if(RETap.active) { RETap.action(this, \createPattern, [layerKey, terminationKey, replaceAttrs, osc, pickNewNumber, oscNames]) };
+		patternInstance !? (_.prFree);
 		patternInstance = nil;
 		if(this.makePatternOrgnsm.isNil) { ^nil };
-		patternInstance = patternOrgnsm.create(layerKey: layerKey, terminationKey: terminationKey, replaceAttrs: replaceAttrs,
+		patternInstance = patternOrgnsm.prCreate(layerKey: layerKey, terminationKey: terminationKey, replaceAttrs: replaceAttrs,
 			osc: osc, pickNewNumber: pickNewNumber, oscNames: oscNames);
-		patternInstance.start;
+		patternInstance.prStart;
 		^patternInstance
 	}
 
@@ -174,8 +191,9 @@ RCCrawler {
 	prSetState { |s| state = s }
 
 	free {
-		this.setVal(this.prResolveLeaveVal);
-		patternInstance !? (_.free);
+		if(RETap.active) { RETap.action(this, \free, []) };
+		this.prSetVal(this.prResolveLeaveVal);
+		patternInstance !? (_.prFree);
 		patternInstance = nil;
 	}
 

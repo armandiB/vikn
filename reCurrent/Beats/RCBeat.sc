@@ -437,13 +437,24 @@ RCBeat {
 	// runs on the main thread, so this cannot fail on a stopped TempoClock.
 	prScheduleFree {
 		if(isFreed) { ^this };
-		AppClock.sched(0, { RCGuard.call(tag, nil) { this.free(post: false) }; nil });
+		AppClock.sched(0, { RCGuard.call(tag, nil) { this.prFree(post: false) }; nil });
 	}
 
 	//////// live editing
 
 	// quant: \default → editQuant; nil → next event; number → grid in beats.
+	// Recorded (RETap); library code edits through prSet.
 	set { |key, val, seed, quant = \default|
+		if(RETap.active) { RETap.action(this, \set, [key, val, seed, quant]) };
+		^this.prSet(key, val, seed, quant)
+	}
+
+	setAll { |pairs, seeds, quant = \default|
+		if(RETap.active) { RETap.action(this, \setAll, [pairs, seeds, quant]) };
+		RCUtil.asKV(pairs).pairsDo { |key, val, i| this.prSet(key, val, this.prSeedFor(seeds, key, i div: 2), quant) };
+	}
+
+	prSet { |key, val, seed, quant|
 		key = key.asSymbol;
 		if(quant == \default) { quant = editQuant };
 		if(key == \quant) { playQuant = this.prCheckQuant(val); ^this };
@@ -454,10 +465,6 @@ RCBeat {
 		if(key == \orgnsm_out_idx) { this.prSetKey(\out, this.prResolveOut(val), quant) };
 		RCUtil.warnIfReservedKey(key, tag);
 		^this.prSetKey(key, this.prPrepareValue(key, val), quant, seed)
-	}
-
-	setAll { |pairs, seeds, quant = \default|
-		RCUtil.asKV(pairs).pairsDo { |key, val, i| this.set(key, val, this.prSeedFor(seeds, key, i div: 2), quant) };
 	}
 
 	// An existing key edits itself (RCKeyProxy.setSource, on `quant`); adding or
@@ -507,6 +514,7 @@ RCBeat {
 
 	durList_ { |array, seed|
 		durList = RCDurList(array);
+		durList.owner = this;   // its edits are recorded under this beat
 		seqOffset = 0;
 		^this.realDur_(this.prLoopPattern {
 			if(durList.size == 0) {
@@ -527,7 +535,13 @@ RCBeat {
 	//////// transport
 
 	// quant: nil → the beat's playQuant; a given quant becomes the playQuant.
+	// The transport is recorded (RETap); library code uses the pr twins.
 	play { |quant|
+		if(RETap.active) { RETap.action(this, \play, [quant]) };
+		^this.prPlay(quant)
+	}
+
+	prPlay { |quant|
 		if(isFreed) { RCLog.warn(tag, "cannot play a freed beat"); ^this };
 		if(this.isPlaying) { RCLog.warn(tag, "already playing"); ^this };
 		if(quant.notNil) { playQuant = this.prCheckQuant(quant) };
@@ -535,9 +549,12 @@ RCBeat {
 		^this
 	}
 
-	pause { player !? (_.pause) }
-	resume { player !? { |p| p.resume(layer.clock) } }
-	stop { player !? (_.stop) }
+	pause { if(RETap.active) { RETap.action(this, \pause, []) }; ^this.prPause }
+	resume { if(RETap.active) { RETap.action(this, \resume, []) }; ^this.prResume }
+	stop { if(RETap.active) { RETap.action(this, \stop, []) }; ^this.prStop }
+	prPause { ^player !? (_.pause) }
+	prResume { ^player !? { |p| p.resume(layer.clock) } }
+	prStop { ^player !? (_.stop) }
 	isPlaying { ^player.notNil and: { player.isPlaying } }
 
 	// A second stream shares the dur pipeline state (timeTrack, swing) with the player.
@@ -551,8 +568,14 @@ RCBeat {
 	// player is enough; the proxy is garbage once unreferenced.
 	free { |post = true|
 		if(isFreed) { ^this };
+		if(RETap.active) { RETap.action(this, \free, [post]) };
+		^this.prFree(post)
+	}
+
+	prFree { |post = true|
+		if(isFreed) { ^this };
 		isFreed = true;
-		RCGuard.call(tag, nil) { this.stop };
+		RCGuard.call(tag, nil) { this.prStop };
 		player = nil;
 		layer.unregisterBeat(this);
 		if(post) { RCLog.post(tag, "freed") };

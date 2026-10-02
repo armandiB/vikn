@@ -36,12 +36,22 @@ RCOsc {
 	def { |instr, names, func, print = true, inEnvir = true|
 		var key = this.key(instr, names);
 		var path = this.path(instr, names);
-		var guarded;
+		var guarded, handler;
 		if(inEnvir) { func = func.inEnvir };
 		guarded = RCGuard.wrap(key, nil, func);
+		// recorded as an input (RETap) with the message's arguments and its time (the bundle's
+		// timetag when the sender stamped it: a page stamps its gestures at the touch); the
+		// handler runs inside its cause
+		handler = { |msg, time, addr, recvPort|
+			if(RETap.active) {
+				RETap.input(\osc, song, (key: key, path: path.asString, args: msg !? { |m| m[1..] }, time: time), { guarded.value(msg, time, addr, recvPort) })
+			} {
+				guarded.value(msg, time, addr, recvPort)
+			}
+		};
 		defs[key] !? (_.free);
 		// permanent: Cmd-Period must not take the control surface down (free/freeAll do)
-		defs[key] = OSCdef(key, guarded, path, song.session.localAddr).permanent_(true);
+		defs[key] = OSCdef(key, handler, path, song.session.localAddr).permanent_(true);
 		if(print) { RCLog.post(\osc, "% at %".format(key, path)) };
 		^guarded
 	}

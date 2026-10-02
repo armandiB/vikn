@@ -12,8 +12,15 @@ RCBeatSpec {
 		^super.newCopyArgs(layer, name.asSymbol, attrDict, chan, seeds, addFirst, addFirstSeeds, terminationKey, killFunc)
 	}
 
+	// Recorded as the layer's addBeat (RETap); library code (RCOrgnsm.start) uses prStart.
 	start { |quant|
 		beat = layer.addBeat(name, attrDict, chan: chan, seeds: seeds, addFirst: addFirst,
+			addFirstSeeds: addFirstSeeds, terminationKey: terminationKey, quant: quant);
+		^beat
+	}
+
+	prStart { |quant|
+		beat = layer.prAddBeat(name, attrDict, chan: chan, seeds: seeds, addFirst: addFirst,
 			addFirstSeeds: addFirstSeeds, terminationKey: terminationKey, quant: quant);
 		^beat
 	}

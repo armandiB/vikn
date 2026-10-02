@@ -1,0 +1,106 @@
+TITLE:: REScorePlayer
+summary:: Plays an REScore back on its song
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REScore, Classes/REScoreRecorder
+
+DESCRIPTION::
+Every event at its recorded beat on the song's clock, from one Routine that waits between events; nothing it does is recorded (link::Classes/RETap#*silently::) and, with the server running, each event's messages go in a code::server.latency:: bundle. How each kind replays, and the fallback to an event's recorded effects, is in the reCording guide ("Replay"). A code::\rawMidi:: event is dispatched through link::Classes/MIDIIn:: as the device would send it, from the device of the recorded name when present.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: score
+argument:: song
+
+METHOD:: applyState
+argument:: song
+argument:: state
+A snapshot's state (the event's code::state:: field).
+argument:: beats
+Numeric sources ramp to their target over this many beats (0: at once).
+
+METHOD:: ramp
+argument:: fromValue
+argument:: toValue
+argument:: beats
+argument:: curve
+returns:: A Pseg to the target, then the target held.
+
+METHOD:: rampControl
+argument:: set
+code::{ |value| }::.
+argument:: from
+argument:: to
+argument:: beats
+argument:: spec
+A take's spec dictionary (min, max, warp), nil for linear.
+argument:: clock
+argument:: stepsPerBeat
+returns:: The Routine stepping the setter to the target along the spec's warp.
+
+METHOD:: controlSpecFor
+argument:: spec
+returns:: A link::Classes/ControlSpec:: from a take's spec dictionary.
+
+INSTANCEMETHODS::
+
+METHOD:: play
+argument:: quant
+The grid on the song's clock (nil: now).
+argument:: from
+argument:: to
+Score beats (to nil: the end).
+argument:: loop
+Play [from, to] again and again (to nil: the score's duration).
+argument:: atBeat
+An absolute clock beat instead of quant.
+
+METHOD:: stop
+METHOD:: isPlaying
+METHOD:: position
+The score beat the playhead is at, nil when stopped.
+METHOD:: passes
+Loop passes done.
+
+METHOD:: fire
+argument:: ev
+Replays one event now.
+returns:: True when it was fired.
+
+METHOD:: mute
+METHOD:: unmute
+argument:: voices
+nil unmutes all.
+METHOD:: solo
+argument:: voices
+nil clears the solo.
+
+METHOD:: onEvent
+code::{ |player, event| }:: after each fired event.
+METHOD:: onLoop
+code::{ |player, pass| }:: at each new pass.
+METHOD:: onDone
+code::{ |player| }:: at the end (not for loops).
+
+METHOD:: interpolate
+Between two points of an input control (MIDI, OSC, raw MIDI, keyboard), fire interpolated values along the control's spec (true by default); actions on objects are never ramped.
+METHOD:: stepsPerBeat
+The rate of the ramps (16).
+METHOD:: interpolated
+Interpolated values fired so far.
+
+METHOD:: followTempo
+Apply the recorded tempo events to the clock (false by default).
+METHOD:: useLatency
+Bundle each event's messages at the server's latency (true).
+METHOD:: fired
+METHOD:: skipped
+
+EXAMPLES::
+
+code::
+~p = REScorePlayer(REScore.read(~piece_dir +/+ "Scores/261001_143012_demo w1.json"), ~song);
+~p.play([4, 0]);
+~p.play(from: 8, to: 16, loop: true);
+~p.stop;
+::

@@ -1,11 +1,13 @@
 title:: reCording
-summary:: Recorders, replays and takes as objects held by a song
+summary:: Recorders, replays and takes as objects held by a song; scores of what you did
 categories:: Libraries>reCording
-related:: Classes/RERecorder, Classes/REReplay, Classes/RETake, Guides/reCurrent
+related:: Classes/RERecorder, Classes/REReplay, Classes/RETake, Classes/REScore, Classes/REScoreRecorder, Classes/RETap, Classes/REJSON, Guides/reCurrent
 
 section:: What it is
 
 The pieces recorded through global functions (code::~start_recording::, code::~stop_recording::, code::~start_playback_file::) redefined by every recorder block. reCording replaces them with objects a song holds by name: link::Classes/RERecorder:: (a set of tracks recorded together under a piece folder), link::Classes/REReplay:: (a take cued into a proxy or a bus) and link::Classes/RETake:: (paths, and the record-a-replay session used for AmbiX conversions). What is recorded varies per scene, so a song keeps a dictionary of recorders and of replays (link::Classes/RCSong#-addRecorder::, link::Classes/RCSong#-addReplay::); registering under an existing name frees the previous object, and code::clearAll:: frees them all.
+
+Next to the sound, a song can record strong::what you did:: to make it: knob and slider gestures, OSC messages, MIDI notes, actions on the reCurrent objects and the code evaluated in the IDE, as a link::Classes/REScore:: (a score, saved as JSON) that replays live, becomes patterns, or renders offline. See link::#Scores: recording what you do::.
 
 section:: Usage
 
@@ -28,3 +30,157 @@ RETake.session(~song.recorder(\ambix), ~song.replay(\take), minutes: 9, seconds:
 section:: Timing
 
 A recorder starts at a quantized beat of its clock (the song's once registered). link::Classes/Recorder#-record:: sends immediately while the replay's DiskIn synth is a latency-stamped bundle, so a conversion take starts code::server.latency:: early unless code::start(alignToLatency: true):: is used. code::stopAfter:: counts seconds on SystemClock, whatever the tempo.
+
+section:: Scores: recording what you do
+
+A score is the performance without the sound: every gesture, message, note, action and code line, with the beat it happened on. One link::Classes/REScoreRecorder:: per song, made on first use:
+
+code::
+~rec = ~song.scoreRecorder(root: ~piece_dir +/+ "Scores", version: "w1");
+~rec.arm;                                        // the whole song, every input
+~rec.record([4, 0]);                             // the take starts on the next bar
+~rec.snapshot(\intro);                           // the state of everything in scope, by name
+~rec.stop;                                       // -> an REScore, written to <root>/<stamp>_<song> w1.json
+~rec.disarm;                                     // off: nothing installed, nothing checked
+::
+
+subsection:: Off, armed, recording
+
+Recording is off by default and off means off. The reCurrent methods that can be recorded hold one line, code::if(RETap.active) { RETap.action(...) }::, and when nothing is armed that is one Boolean check: no wrapper, no indirection, nothing scheduled, nothing installed. The IDE hooks (link::#Code::) and the recorder itself exist only between code::arm:: and code::disarm::. Armed or recording, the recorder only observes: it appends to a list, never draws a random number, never touches the clock queue or the server, and writes the file at code::stop::. Every tap runs under link::Classes/RCGuard::, so an error in the recorder is logged and the action proceeds. The suite's identity test runs the same scripted session with recording off and on and asserts that the beats' sources, the random state and the clock queue are the same, the score being the only difference.
+
+subsection:: Scope and inputs
+
+code::
+~rec.arm(scope: [~song.layer(\core), ~batch, ~song.layer(\meta).beat(\k)], inputs: #[\midi, \actions]);
+::
+
+strong::scope:: is a set of objects (layers, beats, batches, orgnsms, fobjects, crawlers, MIDI mappings, OSC defs); nil means the whole song. An event is kept when its object, or the object's layer or batch, is in the scope. strong::inputs:: selects the kinds of event (all by default):
+
+table::
+## code::\midi:: || the mappings of link::Classes/RCMidi:: (code::control::, code::controlSynth::, code::controlAttribute::): the raw CC value and the mapped value
+## code::\osc:: || the defs of link::Classes/RCOsc::: the path and the message arguments (the remote page sends OSC too). A message that came in a bundle with a timetag is stamped at that time when it lies within code::REScoreRecorder.maxLag:: seconds before now (the page stamps each gesture at the touch, so the network's delay is not in the take); a timetag of now, of 1 or of a clock that is off stamps now
+## code::\keyboard:: || link::Classes/RCKeyboardState::: note on/off, bend, pressure, CC per channel
+## code::\actions:: || the public methods of the reCurrent objects listed under link::#What is recorded::
+## code::\code:: || the lines evaluated in the IDE
+## code::\rawMidi:: || every MIDI message of every device, as sent (note on/off, control, bend, touch, polytouch, program; voice: the device's name). Not on by default: it replaces code::\midi:: and code::\keyboard::, because a raw message replays by dispatching through MIDIIn again, so the piece's own MIDIdefs, the song's mappings and its keyboard fire as they did. The choice: code::\midi:: and code::\keyboard:: give editable mapped values for a piece built on code::song.midi:: and code::song.keyboard::; code::\rawMidi:: captures anything, raw.
+::
+
+Voices can be named at arm or added later: code::~rec.addVoice(\roto, ~song.midi.names("Roto-Control")):: groups a device's mappings, code::~rec.addVoice(\lead, [~beat1, ~beat2])::, code::~rec.removeVoice(\lead)::; code::arm(voicesByLayer: true):: makes a layer the default voice of its beats; code::~rec.voiceFor(obj):: tells. code::~rec.addControl(\knob_mix, ControlSpec(0, 1)):: gives the takes the spec of a control (a view scales its curve by it, a morph ramps along its warp).
+
+subsection:: Your actions, not the program's
+
+OSC and MIDI handlers, IDE code, GUI actions and clock-scheduled Functions run on sclang's main thread; patterns, control loops and replays run in Routines. The tap records a call only from the main thread: what a pattern does to its orgnsms is the program's own work and the seed regenerates it. Library code that reaches a recordable method from a scheduled Function (a beat freeing itself when its pattern ends) uses a private twin that bypasses the tap. A piece that automates with clock-scheduled Functions wraps them in code::RETap.silently { }::, or lives with those events showing up (they carry no cause and the editor lists them).
+
+Each event knows its strong::cause::. A MIDI message, an OSC message or a code line opens a cause; the actions it triggers are its effects. Effects are recorded only under a code line (its fallback at replay and its explanation in the view); under a message they are not: the message itself replays exactly, through the same mapping or handler, and a knob turning over a batch of 24 orgnsms would otherwise write 24 events per message.
+
+subsection:: What is recorded
+
+Actions, as the receiver, the method and its arguments:
+
+table::
+## link::Classes/RCBeat:: || code::set::, code::setAll::, code::play::, code::pause::, code::resume::, code::stop::, code::free::
+## link::Classes/RCLayer:: || code::addBeat::, code::deleteBeat::, code::killAll::, code::pauseAll::, code::resumeAll::
+## link::Classes/RCSong:: || code::killAllBeats::, code::pauseAllBeats::, code::resumeAllBeats::, code::clearAll::, code::seed_::
+## link::Classes/RCBatch:: || code::addCreate::, code::startPrepared::, code::editAttr::, code::apply::, code::deleteBeats::, code::free::
+## link::Classes/RCOrgnsm:: || code::rPut::, code::create::, code::start::, code::free::
+## link::Classes/RCCrawler:: || code::init::, code::initFromBatch::, code::setVal::, code::jumpNext::, code::setNextVal::, code::createPattern::, code::free::
+## link::Classes/RCFObject:: || code::create::, code::rPut::, code::setArg::, code::setArgArray::, code::setCenter::, code::setOrigin::, code::setRotationMatrix::, code::setWidth::, code::free::
+## link::Classes/RCDurList:: || code::put::, code::addHit::, code::removeHit::, code::totalDur_::, code::duplicate:: (under the beat that owns the list)
+## link::Classes/RCSwing:: || code::amount_::, code::mod_::, code::shift_:: (under the layer that holds the swing)
+::
+
+A subclass that specialises one of these overrides its private twin (link::Classes/RCPathControl:: overrides code::prStart::, not code::start::): the public method records, then dispatches.
+
+Inputs: MIDI mappings (name, raw and mapped value), OSC defs (key, path, arguments), keyboard messages (channel, note, velocity, bend, pressure, CC), code lines (text). Snapshots: the sources of every key of the beats in scope, the static attributes of the orgnsms, the registered controls' values. A take also starts with a snapshot (code::record(startSnapshot: false):: skips it) so that it replays from silence.
+
+subsection:: Voices
+
+Every event belongs to a strong::voice::, the unit of overdubbing and of the lanes in the view: by default the object's name (code::core/kick::, the batch's name, the orgnsm's name), the mapping's or def's key, the keyboard's device, or code::code::. code::arm(voices: (lead: [~beat1, ~beat2], fx: [\knob_mix])):: groups objects and mapping names under names of your own.
+
+subsection:: Replay (link::Classes/REScorePlayer::)
+
+code::
+~p = REScorePlayer(REScore.read(path), ~song);
+~p.play([4, 0]);                                   // on the next bar
+~p.play(from: 8, to: 16, loop: true);              // a span, again and again
+~p.mute(['core/kick']); ~p.solo([\lead]); ~p.stop;
+~p.onEvent = { |p, ev| ... };                      // the playhead feed of a view
+::
+
+An event replays at the recorded beat on the song's clock, from a single Routine that waits between events; with the server running, what an event sends goes in a code::server.latency:: bundle, in line with the pattern events; nothing the player does is recorded. Between two points of an input control (a MIDI, OSC, raw MIDI or keyboard value) the player ramps, code::stepsPerBeat:: times a beat, along the control's spec when the take carries one (most SynthDefs do not smooth their arguments; code::interpolate = false:: plays the points only). Before playing, the take's commits are compared with the checkouts: other code is reported once. A MIDI event calls its mapping's action with the recorded mapped value (the valFunc is not re-applied: the value is what you edit), an OSC event calls its def's function with the recorded arguments, an action calls the method on the object resolved by name, a keyboard message updates the song's keyboard, a code line is compiled and run in the current environment, a snapshot sets the recorded sources, a morph ramps to them. When a message's mapping or def no longer exists, an object is not found, or a code line raises, the event's recorded effects replay instead; what cannot replay is skipped with one warning each.
+
+A score's continuous controls (link::Classes/REScore#-controlKeys::) become patterns, code::score.curvePattern([\midi, \knob_mix])::, a Pseg between the points held at both ends; its notes a Pbind per voice, code::score.notePattern('Seaboard RISE 2')::. Rendering a take offline belongs to the rig that knows which synth each control reaches (HomewareSC's remote rig).
+
+subsection:: Overdub
+
+code::
+~rec.overdub(score, voices: [\lead], mode: \replace, punch: [8, 16], quant: [4, 0]);
+~rec.overdub(score, punch: [8, 16], loop: true);   // every voice, auto mode, each pass an overdub
+~rec.stop;                                         // -> the merged score, written as a new file
+::
+
+The old take plays (link::Classes/REScorePlayer::) while a new one is recorded on the same timeline; code::stop:: merges them (link::Classes/REScore#*merge::) and writes the merge as a new file, the original staying. Modes, per voice: strong::replace:: mutes the voice's old events from the punch-in and drops them within the punch; strong::keep:: adds the new events to the old; strong::touch:: drops, per control, the old events between the first and last touch of it; strong::nil:: (the default) is touch for continuous controls and replace for the voice's other events (notes, transport, messages): two curves on one slider would fight, two notes do not. In a loop the passes fold into the span and, unless strong::keep::, the last pass of each voice (each control, for touch) remains. New events of voices not listed are added.
+
+A snapshot recalls instantly (code::~rec.recall(\intro)::) or morphs over beats (code::~rec.morph(\intro, beats: 8)::): numeric sources ramp (link::Classes/REScorePlayer#*ramp::), the registered controls ramp through their setter along their spec's warp (link::Classes/REScorePlayer#*rampControl::), the rest switch at once; both are recorded as one strong::morph:: event pointing at the snapshot. A registered control is in a snapshot when it was given a getter: code::~rec.addControl(\knob_mix, spec, get: { ~mix }, set: { |v| ~mix = v; ~reverb.set(\mix, v) })::.
+
+subsection:: Editing
+
+code::
+s = REScore.read(path);
+s.shifted(-0.4).write(path2);                       // the whole take 0.4 beat earlier (a measured latency)
+s.quantized(0.25, voices: [\lead], strength: 0.5);
+s.trimmed(8, 16).scaled(2);                          // the second bar, twice as slow
+s.thinned(0.002).smoothed(5);                        // a knob curve without its jitter
+s.replacedSegment([\midi, \knob_mix], 4, 8, [[4, 0.2], [6, 0.9], [8, 0.2]]);
+::
+
+Every operation answers a new score (the receiver stays, ids are kept, seconds follow the beats through the tempo map): code::shifted::, code::scaled::, code::quantized::, code::retimed:: (a function of the beat), code::trimmed:: (the latest snapshot before the start kept at 0), code::thinned::, code::smoothed::, code::withoutVoices::, code::onlyVoices::, code::withoutKinds::, code::renamedVoice::, code::replacedSegment:: (what a curve editor sends: new points of one control over a span), code::valueAt::. See link::Classes/REScore#Editing::.
+
+subsection:: Code
+
+With code::\code:: among the inputs, the recorder wraps the interpreter's code::preProcessor:: (it returns the code unchanged, after opening a cause) and chains its code::codeDump:: (which closes it with the text); both are restored by code::disarm::. Lines matching code::exit::, code::recompile::, code::boot::, code::quit::, shell commands are stored but marked code::replay: false::; flip it per event when the line is harmless.
+
+section:: The take file
+
+A link::Classes/REScore:: is one JSON file, written by link::Classes/REJSON:: and read back exactly (sclang's code::parseJSON:: returns every scalar as a String: the reader types them again), readable by the Python tools and the pages. Paths follow link::Classes/RETake#*path::: code::<root>/<stamp>_<song> <version>.json::, tracked in git under the piece folder (code::<piece>/Scores/::) or the agent project (code::<try>/scores/::): scores are compositions, not audio.
+
+code::
+{
+  "format": "re-score", "version": 1,
+  "song": "demo", "piece": "HadronLake3", "wersion": "w1", "created": "261001_143012",
+  "sc": "3.14.1", "commits": {"HomewareSC": "ec10dd29", "vikn": "b21e028"},
+  "beat0": 128.0, "time0": 512.5, "tempo": 2.0, "latency": 0.2, "duration": 64.0,
+  "tempoMap": [[0, 2.0]],
+  "voices": {"core/kick": {"objects": [{"rc": "beat", "layer": "core", "name": "kick"}]}},
+  "controls": {"knob_mix": {"min": 0, "max": 1, "warp": "lin", "default": 0.3, "unit": ""}},
+  "events": [
+    {"id": 1, "beat": 0.0, "secs": 0.0, "kind": "snapshot", "name": "start", "state": {...}},
+    {"id": 2, "beat": 1.0, "secs": 0.5, "kind": "action", "voice": "core/kick",
+     "rc": {"rc": "beat", "layer": "core", "name": "kick"}, "method": "set", "args": ["\\amp", 0.5, null, "\\default"]},
+    {"id": 3, "beat": 2.0, "secs": 1.0, "kind": "midi", "voice": "knob_mix", "name": "knob_mix", "raw": 64, "value": 0.504},
+    {"id": 4, "beat": 2.5, "secs": 1.25, "kind": "osc", "voice": "demo_scene_init", "key": "demo_scene_init",
+     "path": "/demo/scene/init", "args": [1]},
+    {"id": 5, "beat": 3.0, "secs": 1.5, "kind": "keyboard", "voice": "Seaboard RISE 2", "msg": "noteOn",
+     "chan": 2, "note": 60, "value": 100},
+    {"id": 6, "beat": 4.0, "secs": 2.0, "kind": "code", "voice": "code", "text": "~kick.set(\\amp, 0.2)", "replay": true},
+    {"id": 7, "beat": 4.0, "secs": 2.0, "kind": "action", "cause": 6, "voice": "core/kick",
+     "rc": {"rc": "beat", "layer": "core", "name": "kick"}, "method": "set", "args": ["\\amp", 0.2, null, "\\default"]},
+    {"id": 8, "beat": 8.0, "secs": 4.0, "kind": "tempo", "tempo": 2.2}
+  ]
+}
+::
+
+table::
+## code::beat::, code::secs:: || on the song's clock, from code::beat0:: / code::time0:: (an OSC message stamped by its sender: at the stamp); replay follows the clock, offline rendering uses seconds through the tempo map
+## code::id:: || unique in the file, stable across edits; code::cause:: names the event that produced this one
+## code::kind:: || code::action::, code::midi::, code::osc::, code::keyboard::, code::code::, code::snapshot::, code::morph::, code::tempo::
+## code::voice:: || see link::#Voices::
+## code::rc:: || an object reference: code::{"rc": "beat"|"layer"|"song"|"batch"|"orgnsm"|"fobject"|"crawler", "name": ..., "layer": ...}::, resolved at replay through the song (beats, layers, orgnsms, fobjects) or the current environment (batches, crawlers, by the variable that holds them)
+## code::replay:: || code::false:: marks an event that must not be fired (an unsafe code line, an argument that could not be serialized); absent means true
+::
+
+Values: numbers and strings as JSON; a Symbol as a string with a leading backslash (code::"\\amp"::, the pick-file convention); a Boolean and null as themselves; an Array as an array; an Event or Dictionary as an object. A Pattern, a Function with source, a Ref or any object with a meaningful compile string becomes code::{"sc": "Pseq([1, 2], inf)"}::, replayable in sclang and shown as text elsewhere; a string that would be read as something else (code::"42"::, code::"true"::, a leading backslash) is wrapped as code::{"str": "42"}::; a reCurrent object as its code::rc:: reference; anything else as code::{"ref": "<print string>"}::, which marks the event code::replay: false::. Floats are written with 17 significant digits; a non-finite number is written as null with a warning. Integers above 2^31 do not exist in sclang: ids count from 1 and times are floats.
+
+section:: Status
+
+Written in this order, each step on its own commits: the format, link::Classes/REJSON:: and link::Classes/REScore:: (read, write, the value codec); link::Classes/RETap::, link::Classes/REScoreRecorder:: and the taps; the code input; link::Classes/REScorePlayer:: (live replay, loops, overdub, morphs, curve and note patterns); the remote rig of HomewareSC (code::scripts/rig.sh::: a phone page that plays a sound design try, records takes, replays them and renders them offline); the edit operations; the lanes view of a take (the rig's code::view.html::, a playhead from the live side). Not done yet: editing on the page itself (it would send code::replacedSegment:: operations), the visuals feed.

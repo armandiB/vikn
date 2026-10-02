@@ -121,9 +121,10 @@ RCPathControl : RCOrgnsm {
 
 	// A started path control holds its rhythm at once, so that an agent
 	// attached right after (RCCrawler.initFromBatch only finds started
-	// orgnsms) reads it instead of nil.
-	start { |quant|
-		var b = super.start(quant);
+	// orgnsms) reads it instead of nil. The override is the private twin:
+	// RCOrgnsm.start records the action, then dispatches here (see RETap).
+	prStart { |quant|
+		var b = super.prStart(quant);
 		if(b.notNil) { this.seqsInfo };
 		^b
 	}

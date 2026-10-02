@@ -111,10 +111,12 @@ RCFObject {
 
 	// A registered instance with its bus and synth. Replaces an existing fobject
 	// of that name. A synth that cannot be created leaves nothing behind.
+	// Recorded (RETap), like the setters and free.
 	create { |namearg, overrideSynthArgs, groupIdx = 0, outIdx = 0|
 		var c = this.clone;
 		var server;
-		song.registry.fobject(this.registeredName(namearg)) !? { |old| RCLog.warn(\fobject, "replacing fobject %".format(namearg)); old.free };
+		if(RETap.active) { RETap.action(this, \create, [namearg, overrideSynthArgs, groupIdx, outIdx]) };
+		song.registry.fobject(this.registeredName(namearg)) !? { |old| RCLog.warn(\fobject, "replacing fobject %".format(namearg)); old.prFree };
 		c.prSetGroup(song.fobjectGroupArray[groupIdx]);
 		if(c.group.isNil) {
 			RCLog.error(\fobject, "no fobject group at index % (song.fobjectGroupArray has %)".format(groupIdx, song.fobjectGroupArray.size));
@@ -128,7 +130,7 @@ RCFObject {
 		c.prSetSynth(RCGuard.call(\fobject, nil) { Synth(synthDefName, c.synthArgs, c.group) });
 		if(c.synth.isNil) {
 			RCLog.error(\fobject, "fobject %: synth % could not be created, freed".format(namearg, synthDefName));
-			c.free;
+			c.prFree;
 			^nil
 		};
 		^c
@@ -139,36 +141,47 @@ RCFObject {
 	prSetSynthArgs { |args| synthArgs = args }
 	prSetSynth { |s| synth = s }
 
-	setArg { |key, value| synth !? { |s| s.set(key, value) } }
-	setArgArray { |kv| synth !? { |s| s.set(kv[0], kv[1]) } }
+	setArg { |key, value| if(RETap.active) { RETap.action(this, \setArg, [key, value]) }; ^this.prSetArg(key, value) }
+	setArgArray { |kv| if(RETap.active) { RETap.action(this, \setArgArray, [kv]) }; ^synth !? { |s| s.set(kv[0], kv[1]) } }
+	prSetArg { |key, value| ^synth !? { |s| s.set(key, value) } }
 
 	setCenter { |pos|
-		this.setArg(\center, this.posToSignalWeights(pos));
-		this.setArg(\recompute_space, 1);
+		if(RETap.active) { RETap.action(this, \setCenter, [pos]) };
+		this.prSetArg(\center, this.posToSignalWeights(pos));
+		this.prSetArg(\recompute_space, 1);
 		posCenter = pos;
 	}
 
 	setOrigin { |pos|
-		this.setArg(\origin, this.posToSignalWeights(pos));
-		this.setArg(\recompute_space, 1);
+		if(RETap.active) { RETap.action(this, \setOrigin, [pos]) };
+		this.prSetArg(\origin, this.posToSignalWeights(pos));
+		this.prSetArg(\recompute_space, 1);
 		posOrigin = pos;
 	}
 
 	setRotationMatrix { |matrix|
-		this.setArg(\rotation_matrix, matrix);
-		this.setArg(\recompute_space, 1);
+		if(RETap.active) { RETap.action(this, \setRotationMatrix, [matrix]) };
+		this.prSetArg(\rotation_matrix, matrix);
+		this.prSetArg(\recompute_space, 1);
 		rotationMatrix = matrix;
 	}
 
 	setWidth { |factors|
-		this.setArg(\width_factors, factors);
-		this.setArg(\recompute_space, 1);
+		if(RETap.active) { RETap.action(this, \setWidth, [factors]) };
+		this.prSetArg(\width_factors, factors);
+		this.prSetArg(\recompute_space, 1);
 		widthFactors = factors;
 	}
 
 	// The in bus is released a little later: events already scheduled with
 	// its index are still in flight, and Bus.free returns the index at once.
 	free {
+		if(isFreed) { ^this };
+		if(RETap.active) { RETap.action(this, \free, []) };
+		^this.prFree
+	}
+
+	prFree {
 		var bus = inBus;
 		if(isFreed) { ^this };
 		isFreed = true;
@@ -268,7 +281,13 @@ RCFObject {
 		^[key.asSymbol]
 	}
 
+	// Recorded (RETap); library code (a crawler) writes through prRPut.
 	rPut { |key, val|
+		if(RETap.active) { RETap.action(this, \rPut, [key, val]) };
+		^this.prRPut(key, val)
+	}
+
+	prRPut { |key, val|
 		var keys = this.convertKey(key);
 		if(keys.size == 1) { ^this.perform(keys[0].asSetter, val) };
 		RCUtil.rPut(this.perform(keys[0]), keys[1..], val);

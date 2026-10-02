@@ -238,7 +238,8 @@ RCTestFakeSettable {
 	setWidth { |w| width = w }
 	set { |attr, val| width = val }   // Node-style set, for the MIDI tests
 	rGet { |key| ^nil }
-	rPut { |key, val| }
+	rPut { |key, val| this.prRPut(key, val) }
+	prRPut { |key, val| }   // what the crawler calls (the recorded rPut's twin, see RETap)
 	isOrgnsm { ^false }
 	name { ^\fake }
 }

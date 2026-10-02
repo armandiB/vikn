@@ -59,8 +59,10 @@ RCKeyboardState {
 
 	now { ^Main.elapsedTime }
 
+	// Every message is recorded as an input (RETap) under the device's name.
 	noteOn { |vel, note, chan|
 		var e = this.prChan(chan);
+		if(RETap.active) { RETap.input(\keyboard, song, (device: deviceName, msg: \noteOn, chan: chan, note: note, value: vel)) };
 		if(e[\note].notNil and: { e[\note] != note }) {
 			RCLog.warn(\keyboard, "chan % still held note % when note % arrived: replaced".format(chan, e[\note], note));
 		};
@@ -72,6 +74,7 @@ RCKeyboardState {
 
 	noteOff { |vel, note, chan|
 		var e = state[chan];
+		if(RETap.active) { RETap.input(\keyboard, song, (device: deviceName, msg: \noteOff, chan: chan, note: note, value: vel)) };
 		if(e.isNil) {
 			RCLog.warn(\keyboard, "noteOff on chan % with no state".format(chan));
 			^this
@@ -85,18 +88,21 @@ RCKeyboardState {
 
 	bend { |val, chan|
 		var e = this.prChan(chan);
+		if(RETap.active) { RETap.input(\keyboard, song, (device: deviceName, msg: \bend, chan: chan, value: val)) };
 		e[\bend] = (val / 8192) - 1;
 		e[\time] = this.now;
 	}
 
 	touch { |val, chan|
 		var e = this.prChan(chan);
+		if(RETap.active) { RETap.input(\keyboard, song, (device: deviceName, msg: \touch, chan: chan, value: val)) };
 		e[\touch] = val;
 		e[\time] = this.now;
 	}
 
 	cc { |val, num, chan|
 		var e = this.prChan(chan);
+		if(RETap.active) { RETap.input(\keyboard, song, (device: deviceName, msg: \cc, chan: chan, num: num, value: val)) };
 		e[\control][num] = val;
 		e[\time] = this.now;
 	}

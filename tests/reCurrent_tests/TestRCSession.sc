@@ -1,10 +1,15 @@
 // Minimal stand-in for a beat, so the session layer can be tested without RCBeat.
+// The layer reaches registered beats through the private twins (prFree,
+// prPause, prResume: the recorded public methods call them, see RETap).
 RCTestFakeBeat {
 	var <name, <freed = false, <paused = false, <freeCount = 0;
 	*new { |name| ^super.newCopyArgs(name.asSymbol) }
-	free { freed = true; freeCount = freeCount + 1 }
-	pause { paused = true }
-	resume { paused = false }
+	free { this.prFree }
+	pause { this.prPause }
+	resume { this.prResume }
+	prFree { freed = true; freeCount = freeCount + 1 }
+	prPause { paused = true }
+	prResume { paused = false }
 	lastValue { |key, default| ^if(key == \known) { 42 } { default.value } }
 }
 
