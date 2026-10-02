@@ -119,6 +119,10 @@ RECollectAddr : NetAddr {
 	sendRaw { |rawArray| }
 	sendClumpedBundles { |time ... msgs| this.sendBundle(time, *msgs) }
 	sendStatusMsg { }
+	// a sync returns at once (no server answers): the messages (NetAddr.sync's `bundles` is a
+	// list of messages sent as one bundle) go out, nothing waits
+	sync { |condition, bundles, latency| bundles !? { |msgs| this.sendBundle(latency, *msgs) } }
+	makeSyncResponder { |condition| ^0 }
 
 	// Score lines sorted by time (each bundle's messages kept together); `defs` go first.
 	score { |defs|
