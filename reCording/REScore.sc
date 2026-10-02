@@ -312,6 +312,61 @@ REScore {
 		^res
 	}
 
+	// An event moved to another beat (its seconds through the tempo map), the score sorted.
+	movedEvent { |id, beat|
+		var res = this.copy, e = res.at(id);
+		if(e.isNil) { RCLog.warn(\score, "no event %: nothing moved".format(id)); ^res };
+		e[\beat] = beat.max(0);
+		e[\secs] = res.beatsToSecs(e[\beat]);
+		res.sort;
+		^res
+	}
+
+	// Events removed by id, and what descends from them through the causes (a line's effects,
+	// the program's work under it) unless withEffects is false.
+	removedEvents { |ids, withEffects = true|
+		var res = this.copy, todo = List.newFrom(ids.asArray), seen = IdentitySet.new, id;
+		while { todo.notEmpty } {
+			id = todo.pop;
+			if(seen.includes(id).not) {
+				seen.add(id);
+				if(withEffects) { res.causedBy(id).do { |e| todo.add(e[\id]) } };
+				res.remove(id);
+			};
+		};
+		^res
+	}
+
+	// A control event with another value.
+	changedValue { |id, value|
+		var res = this.copy, e = res.at(id);
+		if(e.isNil or: { this.class.controlKey(e).isNil }) { RCLog.warn(\score, "event % controls nothing: no value changed".format(id)); ^res };
+		this.class.prSetControlValue(e, value);
+		^res
+	}
+
+	// An edit by name, from a dictionary (a page's, parsed by REJSON): the receiver untouched.
+	//   (op: "replacedSegment", id: an event of the control, from:, to:, points: [[beat, value], ...])
+	//   (op: "moved", id:, beat:)   (op: "removed", ids: [...])   (op: "changed", id:, value:)
+	//   (op: "shifted", beats:, voices:, kinds:)
+	edited { |op|
+		var d = IdentityDictionary.new, name, e;
+		op.keysValuesDo { |k, v| d[k.asSymbol] = v };
+		name = (d[\op] ? "").asSymbol;
+		switch(name,
+			\replacedSegment, {
+				e = this.at(d[\id].asInteger);
+				if(e.isNil) { RCLog.warn(\score, "no event %: nothing replaced".format(d[\id])); ^this.copy };
+				^this.replacedSegment(this.class.controlKey(e), d[\from].asFloat, d[\to].asFloat, (d[\points] ? []).collect { |p| [p[0].asFloat, p[1].asFloat] })
+			},
+			\moved, { ^this.movedEvent(d[\id].asInteger, d[\beat].asFloat) },
+			\removed, { ^this.removedEvents((d[\ids] ? []).collect(_.asInteger)) },
+			\changed, { ^this.changedValue(d[\id].asInteger, d[\value]) },
+			\shifted, { ^this.shifted(d[\beats].asFloat, d[\voices], d[\kinds]) },
+			{ RCLog.warn(\score, "unknown edit %: nothing done".format(name)); ^this.copy }
+		);
+	}
+
 	// The control's value at a beat: its last point at or before it, else its first.
 	valueAt { |controlKey, beat|
 		var points = this.curvePoints(controlKey);

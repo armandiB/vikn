@@ -138,4 +138,42 @@ TestREScoreEdit : UnitTest {
 		this.assertEquals(m.eventsOf('core/k').collect(_[\beat]), [4], "an action control replaced");
 		this.assertEquals(m.eventsOf('core/k')[0][\args], [\amp, 0.4, nil, nil], "the value in the arguments");
 	}
+
+	// The single-event edits and the named ones a page sends (REScore.edited).
+	test_moved_removed_changed_and_edited {
+		var s = this.score;
+		var knob3 = s.eventsOf(\knob).detect { |e| e[\beat] == 3 };
+		var code = s.ofKind(\code)[0];
+		var m, effect, op;
+		m = s.movedEvent(knob3[\id], 5.5);
+		this.assertEquals(m.at(knob3[\id])[\beat], 5.5, "moved");
+		this.assertEquals(m.at(knob3[\id])[\secs], 2.375, "its seconds through the tempo map (4 beats at 2, 1.5 at 4)");
+		this.assertEquals(m.events.collect(_[\beat]), m.events.collect(_[\beat]).sort, "the score sorted");
+		this.assertEquals(s.at(knob3[\id])[\beat], 3, "the receiver untouched");
+		s.add((beat: 5.1, secs: 2.275, kind: \action, voice: 'core/k', cause: code[\id], rc: IdentityDictionary[\rc -> "beat", \layer -> "core", \name -> "k"], method: \set, args: [\amp, 0.2, nil, nil]));
+		effect = s.events.last;
+		m = s.removedEvents([code[\id]]);
+		this.assertEquals(m.at(code[\id]), nil, "removed");
+		this.assertEquals(m.at(effect[\id]), nil, "and what it caused");
+		m = s.removedEvents([code[\id]], withEffects: false);
+		this.assert(m.at(effect[\id]).notNil, "the effect kept when asked");
+		m = s.changedValue(knob3[\id], 0.99);
+		this.assertEquals(m.at(knob3[\id])[\value], 0.99, "changed");
+		this.assertEquals(m.at(knob3[\id])[\raw], nil, "the raw MIDI value gone (the value is what you edit)");
+		m = s.changedValue(code[\id], 1);
+		this.assertEquals(m.at(code[\id])[\text], "x", "a code line controls nothing: unchanged, reported");
+		op = REJSON.parse("{\"op\": \"replacedSegment\", \"id\": " ++ knob3[\id] ++ ", \"from\": 2, \"to\": 6, \"points\": [[2, 0.9], [3.5, 0.8]]}");
+		m = s.edited(op);
+		this.assertEquals(m.curvePoints([\midi, \knob]), [[0, 0], [1, 0.125], [2, 0.9], [3.5, 0.8], [6, 0.75], [8, 1]], "a page's replacedSegment names an event of the control");
+		m = s.edited(REJSON.parse("{\"op\": \"moved\", \"id\": " ++ knob3[\id] ++ ", \"beat\": 2.5}"));
+		this.assertEquals(m.at(knob3[\id])[\beat], 2.5, "a page's moved");
+		m = s.edited(REJSON.parse("{\"op\": \"removed\", \"ids\": [" ++ knob3[\id] ++ "]}"));
+		this.assertEquals(m.at(knob3[\id]), nil, "a page's removed");
+		m = s.edited(REJSON.parse("{\"op\": \"changed\", \"id\": " ++ knob3[\id] ++ ", \"value\": 0.5}"));
+		this.assertEquals(m.at(knob3[\id])[\value], 0.5, "a page's changed");
+		m = s.edited(REJSON.parse("{\"op\": \"shifted\", \"beats\": 1}"));
+		this.assertEquals(m.at(knob3[\id])[\beat], 4, "a page's shifted");
+		m = s.edited(REJSON.parse("{\"op\": \"nope\"}"));
+		this.assertEquals(m.size, s.size, "an unknown edit: nothing done, reported");
+	}
 }
