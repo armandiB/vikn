@@ -96,11 +96,12 @@ RCLineControl : RCOrgnsm {
 		^kept
 	}
 
-	// The keys of the coming cycle's lines (plus the defaults'), as per-hit param names.
+	// The keys of the coming cycle's lines (plus the defaults'), as per-hit param names; `path` too
+	// when a line is curved (RCLines.subseq carries it then).
 	otherParamsKeyList { |lines|
 		var keys = IdentitySet.newFrom(RCLines.keysOf(lines));
 		(staticAttrs[\line_defaults] ? ()).keysDo { |k| keys.add(k) };
-		^RCLines.paramKeys(keys.asArray.sort { |a, b| a.asString <= b.asString })
+		^RCLines.paramKeys(keys.asArray.sort { |a, b| a.asString <= b.asString }) ++ if((lines ? []).any { |l| l[\path].notNil }) { [\path] } { [] }
 	}
 
 	// The batch keys lines go to, in order: voice_keys, else every key of the batch
@@ -181,7 +182,11 @@ RCLineControl : RCOrgnsm {
 			if(beat.notNil) {
 				keyList.difference(oldKeys).do { |k|
 					if(beat.keyProxy(k).isNil) {   // a template declaring the key reads it already
-						beat.set(k, Pfunc { |ev2| ev2[\compute_seq_params].dereference[k] ?? { Rest() } });
+						if(k == \path) {   // a straight hit among curved ones has no path: not a rest
+							beat.set(k, Pfunc { |ev2| ev2[\compute_seq_params].dereference[k] ? 0 });
+						} {
+							beat.set(k, Pfunc { |ev2| ev2[\compute_seq_params].dereference[k] ?? { Rest() } });
+						};
 					};
 				};
 				o.rPut("other_params_key_list", keyList);

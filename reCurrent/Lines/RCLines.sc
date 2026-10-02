@@ -297,9 +297,10 @@ RCLines {
 	// One voice's lines (in onset order) as an RCSubseq for the seq machinery: shift = the
 	// first onset, each hit lasting until the next line of the voice (the last one its own
 	// length), params key0 / key1 per line for every key of `keys` (the lines' union when
-	// nil; a key a line lacks is nil there), plus sustain (the line's length) and line_id.
-	// A line starting less than minGap after the previous one of the voice is dropped
-	// (warned): a zero-length hit would stall the loop. Returns nil for no lines.
+	// nil; a key a line lacks is nil there), plus sustain (the line's length), line_id and
+	// path (the line's `path`, whatever it holds: a curved line's envelopes per key; nil for a
+	// straight one). A line starting less than minGap after the previous one of the voice is
+	// dropped (warned): a zero-length hit would stall the loop. Returns nil for no lines.
 	*subseq { |lines, keys, priority = 1, minGap = 0.001, tag = \lines|
 		var sorted = (lines ? []).sort { |x, y| x[\onset] <= y[\onset] };
 		var kept = List.new, dropped = 0, last;
@@ -318,6 +319,7 @@ RCLines {
 		};
 		params[\sustain] = kept.collect { |line| line[\dur] };
 		params[\line_id] = kept.collect { |line, i| line[\id] ? i };
+		if(kept.any { |line| line[\path].notNil }) { params[\path] = kept.collect { |line| line[\path] } };   // only when a line is curved: a straight voice carries nothing more
 		^RCSubseq(priority, kept[0][\onset], durs, params, true ! kept.size, nil, [], 1)
 	}
 

@@ -10,7 +10,7 @@ A line is an Event:
 code::
 (onset: 2, dur: 4, from: (pitch: 0, amp: -20), to: (pitch: 1, amp: -10), id: 3)
 ::
-with, optionally, code::voice::, an Integer pinning the line to one voice of the batch (link::#*allocate::).
+with, optionally, code::voice::, an Integer pinning the line to one voice of the batch (link::#*allocate::), and code::path::, anything describing a curved line that link::#*subseq:: hands to the voice per hit (the Texture rig: an envelope per key).
 strong::onset:: and strong::dur:: in beats; strong::from:: and strong::to:: Events of the parameter values at the ends. A point of the score space is code::[time, params]::.
 
 Every generator is pure and returns its lines in time order; the ones that draw are seeded.

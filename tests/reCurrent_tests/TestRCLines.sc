@@ -287,6 +287,8 @@ TestRCLines : UnitTest {
 		this.assertEquals(s.params[\amp0], [-6, nil], "a key the second line lacks is nil there");
 		this.assertEquals(s.params[\sustain], [2, 3], "sustain: the lines' lengths");
 		this.assertEquals(s.params[\line_id], [\a, \b], "ids");
+		this.assertEquals(s.params[\path], nil, "straight lines: no path param at all");
+		this.assertEquals(RCLines.subseq([RCLines.line(0, 1, (pitch: 0), (pitch: 1), \c).put(\path, (pitch: \curve)), RCLines.line(2, 1, (pitch: 1), (pitch: 0), \d)]).params[\path], [(pitch: \curve), nil], "a line's path is carried per hit when any line has one");
 		this.assertEquals(s.mask, [true, true], "every hit plays");
 		this.assert(this.warnings.any { |w| w.contains("1 line(s) starting within") }, "the line 0.0001 after the previous one was dropped and reported");
 		this.assertEquals(RCLines.subseq([]), nil, "no lines, no subseq");
