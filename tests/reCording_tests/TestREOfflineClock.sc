@@ -74,6 +74,7 @@ TestREOfflineClock : UnitTest {
 		var s = Server(\re_offline_proxy_test, a);
 		var p, before, defs, synths;
 		var isCmd = { |m, num, name| m[0] == num or: { m[0].asString == name } };
+		var collected = { |from, num, name| a.bundles.copyRange(from, a.bundles.size - 1).select { |b| b[1..].any { |m| isCmd.(m, num, name) } } };
 		s.statusWatcher.serverRunning = true;   // as take_render.scd: counts as running, nothing answers
 		s.statusWatcher.notified = true;
 		p = NodeProxy.audio(s, 2);
@@ -81,12 +82,20 @@ TestREOfflineClock : UnitTest {
 		c.advanceTo(3);
 		before = a.bundles.size;
 		c.advanceTo(6);
-		defs = a.bundles.copyRange(before, a.bundles.size - 1).select { |b| b[1..].any { |m| isCmd.(m, 5, "/d_recv") } };
-		synths = a.bundles.copyRange(before, a.bundles.size - 1).select { |b| b[1..].any { |m| isCmd.(m, 9, "/s_new") } };
+		defs = collected.(before, 5, "/d_recv");
+		synths = collected.(before, 9, "/s_new");
 		this.assertEquals(defs.size, 1, "the source's definition is collected during the replay");
 		this.assertEquals(defs[0] !? (_[0]), 2.0, "at the item's seconds (beat 4 at tempo 2)");
 		this.assertEquals(synths.size, 1, "and the proxy's synth");
 		this.assertEquals(synths[0] !? (_[0]), 2.0 + s.latency, "a server latency later");
+		// as REScorePlayer fires a take's code line: inside server.bind (a BundleNetAddr around the collector)
+		c.schedAbs(8, { s.bind { p.source = { Saw.ar(220, 0.1) ! 2 } }; nil });
+		before = a.bundles.size;
+		c.advanceTo(10);
+		defs = collected.(before, 5, "/d_recv");
+		synths = collected.(before, 9, "/s_new");
+		this.assertEquals(defs.collect(_[0]), [4.0], "inside a bind: the definition at the item's seconds");
+		this.assertEquals(synths.collect(_[0]), [4.0 + s.latency], "the synth in the bind's bundle, a latency later");
 		s.remove;
 	}
 }
