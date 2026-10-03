@@ -1,5 +1,5 @@
-// RCSurface's curves (second partials, geodesics, parameter lines, the steepest ascent of a time
-// function) and RCProjection's time function.
+// RCSurface's curves and functions on the patch (second partials, geodesics, parameter lines, the
+// steepest ascent of a time function, level sets, critical points) and RCProjection's time function.
 TestRCSurface : UnitTest {
 
 	near { |a, b, tol = 1e-6| ^(a - b).abs < tol }
@@ -98,5 +98,46 @@ TestRCSurface : UnitTest {
 		this.assert(up.every { |q| this.near(q[0], 4 * q[2].sin, 1e-9) }, "each sample with its time, 4 z");
 		this.assert(down.every { |q, j| this.near(q[2], j.neg / 20, 1e-6) }, "a negative length descends");
 		this.assert(this.near(s.flow(1, 0, { |x| 4 * x[2] }, 1, 20, \length).last[2], 1, 1e-5), "a time Function: the same strand");
+	}
+
+	//////// functions on the patch
+
+	test_level_set_of_a_circle {
+		var s = RCSurface.plane;
+		var sets = s.levelSet({ |u, v| u.squared + v.squared }, 0.25, 33, 33);
+		this.assertEquals(sets.size, 1, "one curve");
+		this.assert(this.dist(sets[0].first, sets[0].last) < 1e-12, "closed: it ends on its first point");
+		this.assert(sets[0].every { |uv| this.near(uv.squared.sum.sqrt, 0.5, 0.01) }, "on the circle of radius 0.5");
+		this.assert(sets[0].size > 20, "of many points (%)".format(sets[0].size));
+		this.assert(s.levelSet({ |u, v| u }, 0.3, 9, 9).every { |l| this.dist(l.first, l.last) > 1 }, "an open one runs from border to border");
+	}
+
+	test_level_set_across_a_periodic_seam {
+		var s = RCSurface.torus;
+		var sets = s.levelSet({ |u, v| u.cos }, 0.3, 32, 16);   // two circles of the tube, at u = ±acos 0.3
+		var u0 = 0.3.acos;
+		this.assertEquals(sets.size, 2, "two loops");
+		this.assert(sets.every { |l| this.near((l.last[1] - l.first[1]).abs, 2pi, 1e-9) }, "each goes round the tube: it ends a period on from its first point");
+		this.assert(sets.every { |l| l.every { |uv| this.near(uv[0], u0, 0.01) or: { this.near(uv[0], 2pi - u0, 0.01) } } }, "at u = ±acos 0.3");
+		this.assert(sets.every { |l| (1..(l.size - 1)).every { |k| (l[k][1] - l[k - 1][1]).abs < 0.5 } }, "unwrapped: no jump across the seam");
+	}
+
+	test_critical_points_of_the_torus_height {
+		var s = RCSurface.torus(2, 1);
+		var crit = s.criticalPoints({ |u, v| s.at(u, v)[0] }, 24, 24);   // x: a top, a bottom, two saddles
+		var of = { |kind| crit.select { |c| c[\kind] == kind } };
+		this.assertEquals(crit.size, 4, "four critical points");
+		this.assert(of.(\max).size == 1 and: { this.dist(s.at(of.(\max)[0][\u], of.(\max)[0][\v]), [3, 0, 0]) < 1e-6 }, "the top at (3, 0, 0)");
+		this.assert(of.(\min).size == 1 and: { this.dist(s.at(of.(\min)[0][\u], of.(\min)[0][\v]), [-3, 0, 0]) < 1e-6 }, "the bottom at (-3, 0, 0)");
+		this.assert(of.(\saddle).size == 2 and: { of.(\saddle).collect { |c| s.at(c[\u], c[\v])[0].round(1e-6) }.sort == [-1.0, 1.0] }, "the two saddles inside the ring, x = ±1");
+	}
+
+	test_critical_points_refined_and_poles_once {
+		var s = RCSurface.plane;
+		var crit = s.criticalPoints({ |u, v| (u - 0.13).squared + (2 * (v + 0.21).squared) }, 11, 11);
+		var sphere = RCSurface.sphere.criticalPoints({ |u, v| v.sin }, 16, 9);   // height: the poles are rows of nodes
+		this.assert(crit.select { |c| c[\kind] == \min }.any { |c| this.near(c[\u], 0.13, 1e-9) and: { this.near(c[\v], -0.21, 1e-9) } }, "a minimum between nodes found where it is (a quadratic)");
+		this.assertEquals(sphere.collect { |c| c[\kind].asString }.sort, ["max", "min"], "the poles: a bottom and a top");
+		this.assertEquals(sphere.size, 2, "each counted once, not once per node of its row");
 	}
 }

@@ -7,6 +7,7 @@
 //   RCLines.projected(~s, RCProjection(3, [\pitch]), ~s.random(12, seed: 1), \ruling, cycle: 8);
 //   RCSurface.torus.geodesic(0, 0.5, 0.3pi, 4);                       // a geodesic 4 long in R^3: samples [u, v]
 //   RCSurface.torus.flow(0.5pi, 0, RCProjection(3, [\pitch]), 2);     // climbing the frame's time: [time, u, v]
+//   RCSurface.torus.levelSet({ |u, v| u.cos * v.cos }, 0.3);          // polylines of [u, v]
 //
 // A surface is a Function (u, v) → Array of dim numbers over uRange × vRange; the
 // partial derivatives come from du / dv Functions when given, else from central
@@ -21,7 +22,9 @@
 // Curves on the surface (Runge-Kutta 4 in the parameters; their equations written in R^m with
 // the metric of the first partials, so any dimension): geodesics (the straightest curves: a
 // ruling, a great circle), parameter lines, and the steepest ascent of a time function (flow:
-// the strands of a section, their time growing one unit per unit).
+// the strands of a section, their time growing one unit per unit). A function on the patch
+// has level sets (marching squares) and critical points (where strands are born, part and
+// converge).
 
 RCSurface {
 	var <func, <dim, <uRange, <vRange, <>duFunc, <>dvFunc, <>eps = 1e-4, <>name;
@@ -95,6 +98,12 @@ RCSurface {
 		var lo = range[0], hi = range[1];
 		if(n <= 1) { ^[lo] };
 		^if(periodic) { n.collect { |i| lo + ((hi - lo) * i / n) } } { n.collect { |i| lo + ((hi - lo) * i / (n - 1)) } }
+	}
+
+	// The spacing of prSpan's nodes.
+	prStep { |range, n, periodic|
+		var cells = if(periodic) { n } { (n - 1).max(1) };
+		^(range[1] - range[0]) / cells
 	}
 
 	// n samples uniform over the ranges, seeded.
@@ -203,6 +212,126 @@ RCSurface {
 			ok
 		};
 		^this.prIntegrate([u, v], f, h, steps.max(1), keep).collect { |s, j| [times[j], s[0], s[1]] }
+	}
+
+	//////// a function on the patch (u, v) → number: its level sets and critical points, on a grid of
+	// nu × nv nodes (prSpan's, wrapped where periodic)
+
+	// The level set {func(u, v) = value} by marching squares (a saddle cell decided by its centre): an
+	// Array of polylines, each an Array of [u, v] in order along the curve, unwrapped across a periodic
+	// seam (a closed one ends on its first point, or a period on from it when it goes round).
+	levelSet { |func, value = 0, nu = 32, nv = 32|
+		var us = this.prSpan(uRange, nu, uPeriodic), vs = this.prSpan(vRange, nv, vPeriodic);
+		var stepU = this.prStep(uRange, nu, uPeriodic), stepV = this.prStep(vRange, nv, vPeriodic);
+		var periods = [uRange[1] - uRange[0], vRange[1] - vRange[0]];
+		var vals = us.collect { |u| vs.collect { |v| func.value(u, v) - value } };
+		var val = { |i, j| vals[i % nu][j % nv] };
+		var key = { |i, j, dir| ((((i % nu) * nv) + (j % nv)) * 2) + dir };
+		var cross = { |e|   // the crossing on edge e: dir 0 from node (i, j) to (i + 1, j), 1 to (i, j + 1)
+			var dir = e % 2, i = (e div: 2) div: nv, j = (e div: 2) % nv;
+			var f0 = val.(i, j), f1 = if(dir == 0) { val.(i + 1, j) } { val.(i, j + 1) };
+			var t = if((f0 - f1).abs < 1e-300) { 0.5 } { f0 / (f0 - f1) };
+			if(dir == 0) { [us[i] + (t * stepU), vs[j]] } { [us[i], vs[j] + (t * stepV)] }
+		};
+		var segs = List.new, byEdge = Dictionary.new, used, walk, polylines = List.new;
+		(if(uPeriodic) { nu } { nu - 1 }).do { |i|
+			(if(vPeriodic) { nv } { nv - 1 }).do { |j|
+				var a = val.(i, j) >= 0, b = val.(i + 1, j) >= 0, c = val.(i + 1, j + 1) >= 0, d = val.(i, j + 1) >= 0;
+				var bottom = key.(i, j, 0), right = key.(i + 1, j, 1), top = key.(i, j + 1, 0), left = key.(i, j, 1);
+				var edges = [[bottom, a != b], [right, b != c], [top, c != d], [left, d != a]].select(_[1]).collect(_[0]);
+				var centre;
+				case
+				{ edges.size == 2 } { segs.add(edges) }
+				{ edges.size == 4 } {   // a saddle: the corners on the centre's side join through it
+					centre = (val.(i, j) + val.(i + 1, j) + val.(i + 1, j + 1) + val.(i, j + 1)) >= 0;
+					if(centre == a) { segs.add([bottom, right]); segs.add([top, left]) } { segs.add([left, bottom]); segs.add([right, top]) };
+				};
+			};
+		};
+		segs.do { |s, k| s.do { |e| byEdge[e] = (byEdge[e] ? []).add(k) } };
+		used = false ! segs.size;
+		walk = { |k, from|   // the edges of the polyline through segment k, entered at edge `from`
+			var keys = [from], e = from, s = k;
+			while { s.notNil } {
+				used[s] = true;
+				e = if(segs[s][0] == e) { segs[s][1] } { segs[s][0] };
+				keys = keys.add(e);
+				s = byEdge[e].detect { |q| used[q].not };
+			};
+			keys
+		};
+		// the open ones from the patch's border (an edge of one segment), then the loops
+		segs.do { |s, k| if(used[k].not) { s.detect { |e| byEdge[e].size == 1 } !? { |e| polylines.add(walk.(k, e)) } } };
+		segs.do { |s, k| if(used[k].not) { polylines.add(walk.(k, s[0])) } };
+		^polylines.collect { |keys|
+			var pts = keys.collect { |e| cross.(e) };
+			(1..(pts.size - 1)).do { |k|
+				[uPeriodic, vPeriodic].do { |periodic, c|
+					if(periodic) { pts[k][c] = pts[k][c] - (periods[c] * ((pts[k][c] - pts[k - 1][c]) / periods[c]).round) };
+				};
+			};
+			pts
+		}.asArray
+	}
+
+	// The critical points of func: a node below (above) all its neighbours is a \min (\max), one
+	// around which the neighbours' signs, relative to it, change four times or more a \saddle; an
+	// interior one is moved to the stationary point of the quadratic through its neighbours (within a
+	// cell). On the border of a patch that is not periodic only extremes, of what is there (where a
+	// section's strands begin and end on the patch). Nodes on one point of R^m (a pole) count once.
+	// Returns Events (u:, v:, value:, kind:).
+	criticalPoints { |func, nu = 32, nv = 32|
+		var us = this.prSpan(uRange, nu, uPeriodic), vs = this.prSpan(vRange, nv, vPeriodic);
+		var stepU = this.prStep(uRange, nu, uPeriodic), stepV = this.prStep(vRange, nv, vPeriodic);
+		var ring =[[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+		var vals = us.collect { |u| vs.collect { |v| func.value(u, v) } };
+		var res = List.new, seen = List.new;
+		nu.do { |i|
+			nv.do { |j|
+				var f0 = vals[i][j];
+				var n = ring.collect { |d| this.prNode(i + d[0], j + d[1], nu, nv) !? { |ij| vals[ij[0]][ij[1]] } };
+				var present = n.reject(_.isNil), interior = n.every(_.notNil);
+				var kind, u = us[i], v = vs[j], fx, fy, fxx, fyy, fxy, det, x;
+				kind = case
+					{ present.every { |y| y >= f0 } and: { present.any { |y| y > f0 } } } { \min }
+					{ present.every { |y| y <= f0 } and: { present.any { |y| y < f0 } } } { \max }
+					{ interior and: { this.prSignChanges(n.collect { |y| y - f0 }) >= 4 } } { \saddle };
+				if(kind.notNil) {
+					if(interior) {
+						fx = (n[0] - n[4]) / 2;
+						fy = (n[2] - n[6]) / 2;
+						fxx = n[0] - (2 * f0) + n[4];
+						fyy = n[2] - (2 * f0) + n[6];
+						fxy = (n[1] - n[7] - n[3] + n[5]) / 4;
+						det = (fxx * fyy) - fxy.squared;
+						if(det.abs > 1e-12) {
+							u = u + ((((fxy * fy) - (fyy * fx)) / det).clip(-1, 1) * stepU);
+							v = v + ((((fxy * fx) - (fxx * fy)) / det).clip(-1, 1) * stepV);
+						};
+					};
+					x = this.at(u, v);
+					if(seen.any { |q| (q[0] == kind) and: { (q[1] - x).squared.sum.sqrt < (1e-6 * x.abs.maxItem.max(1)) } }.not) {
+						seen.add([kind, x]);
+						res.add((u: u, v: v, value: if(interior) { func.value(u, v) } { f0 }, kind: kind));
+					};
+				};
+			};
+		};
+		^res.asArray
+	}
+
+	// A node's indices, wrapped where periodic, nil off the patch.
+	prNode { |i, j, nu, nv|
+		var ii = i, jj = j;
+		if(uPeriodic) { ii = i % nu } { if(i < 0 or: { i >= nu }) { ^nil } };
+		if(vPeriodic) { jj = j % nv } { if(j < 0 or: { j >= nv }) { ^nil } };
+		^[ii, jj]
+	}
+
+	// How many times the signs of a ring of numbers change going round it (0 counts as positive).
+	prSignChanges { |ring|
+		var signs = ring.collect { |y| y >= 0 };
+		^signs.size.collect { |k| if(signs[k] != signs.wrapAt(k + 1)) { 1 } { 0 } }.sum
 	}
 
 	// Runge-Kutta 4 from state (an Array) in steps of h: f, state → its derivative (nil: stop); keep,
