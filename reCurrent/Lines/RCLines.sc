@@ -508,7 +508,7 @@ RCLines {
 			if(span > 1e-6) {
 				pts = surface.flow(s[0], s[1], tf, speed * span, (steps * span / cycle).ceil.asInteger.max(8), \time).collect { |q|
 					var x = surface.at(q[1], q[2]);
-					[(q[0] - offset) / speed, frame.project(x)[1], x]
+					[((q[0] - offset) / speed).max(0), frame.project(x)[1], x]   // a seed a hair below the slice starts at 0, not before
 				};
 				line = if(pts.size >= 2) { RCCurve.lineFrom(pts, i, minDur) };
 				line !? {
