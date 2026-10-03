@@ -49,6 +49,11 @@ RCProjection {
 		^[(d * axes[0]).sum * scales[0], params]
 	}
 
+	// The time of a point (project's first coordinate) and its gradient in R^m (the time axis times its
+	// scale): the time function whose level sets are the hyperplanes a section cuts with.
+	timeOf { |x| ^((x - origin) * axes[0]).sum * scales[0] }
+	timeGradient { ^axes[0] * scales[0] }
+
 	timeAxis { ^axes[0] }
 	axisFor { |key| ^keys.indexOf(key.asSymbol) !? { |i| axes[i + 1] } }
 	scaleFor { |key| ^keys.indexOf(key.asSymbol) !? { |i| scales[i + 1] } }

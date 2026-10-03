@@ -21,6 +21,10 @@ INSTANCEMETHODS::
 
 METHOD:: project
 code::[time, params]:: for a point of R^m.
+METHOD:: timeOf
+The time of a point (project's first coordinate): the time function whose level sets are the hyperplanes the frame cuts R^m with (link::Classes/RCSurface#-flow:: climbs it).
+METHOD:: timeGradient
+Its gradient in R^m: the time axis times its scale.
 METHOD:: rotate
 Rotate every axis in the (i, j) coordinate plane of R^m by strong::angle:: radians.
 METHOD:: translate
