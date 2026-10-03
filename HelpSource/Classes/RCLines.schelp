@@ -124,12 +124,24 @@ code::[point, tangent]:: of a curve at tau (numerical).
 subsection:: Projected: a surface seen through a moving plane
 
 METHOD:: projected
-For each sample code::[u, v]:: of strong::surface:: (an link::Classes/RCSurface::), a segment of R^m through S(u, v): strong::direction:: code::\u:: or code::\v:: (the parameter lines), a number (an angle in the tangent plane, 0 = u, pi/2 = v), a Function code::(u, v, i) → angle::, or code::\ruling:: (the whole v-line of the sample, from vRange[0] to vRange[1]: on a ruled surface, the ruling itself). strong::length:: is the segment's length in R^m (ignored by code::\ruling::). Each end is projected by strong::frame:: (an link::Classes/RCProjection::) and the line joins the projected points. strong::timeMode::: code::\window:: keeps the lines starting within [0, cycle), code::\wrap:: wraps their onsets into the cycle, code::\sequence:: ignores the projected time and starts line i at i * cycle / n, code::\none:: keeps every line as projected. Each line remembers its code::sample:: and its code::ends::, the segment of R^m it was projected from, in the line's own order (the ends swap with the line when the second one comes first in time).
+For each sample code::[u, v]:: of strong::surface:: (an link::Classes/RCSurface::), a segment or a curve of R^m through S(u, v), projected on the score space by strong::frame:: (an link::Classes/RCProjection::). strong::direction:::
+list::
+## code::\ruling:: the whole v-line of the sample, from vRange[0] to vRange[1] (on a ruled surface, the ruling itself)
+## code::\u::, code::\v::, a number (an angle in the tangent plane, 0 = u, pi/2 = v) or a Function code::(u, v, i) → angle::: the tangent segment, bent by strong::bend:: times the surface's curvature along it (0 the tangent, 1 the geodesic to second order, 2 curling past it; a number or a Function code::(u, v, i) → number::)
+## code::\geodesic:: the geodesic through the sample at strong::angle:: (a number or a Function code::(u, v, i) → angle::): the straightest curve on the surface
+## code::\uLine::, code::\vLine:: the parameter line through the sample
+## code::\gradient:: the steepest ascent of the frame's time through the sample, the line that climbs the score fastest (none at a critical point)
+::
+strong::length:: is the segment's or the curve's length in R^m, centred on the sample (ignored by code::\ruling::); a curve is drawn in strong::steps:: steps (about 1 ms per line at 12 steps in R^3). A curve whose time turns back is cut at the turn, the part through the sample kept, and fitted as a curved line (link::Classes/RCCurve#*lineFrom::). strong::timeMode::: code::\window:: keeps the lines starting within [0, cycle), code::\wrap:: wraps their onsets into the cycle, code::\sequence:: ignores the projected time and starts line i at i * cycle / n, code::\none:: keeps every line as projected. Each line remembers its code::sample:: and its code::ends::, the segment of R^m it was projected from, in the line's own order (the ends swap with the line when the second one comes first in time); a curved one also its code::curve::, its polyline in R^m in the same order.
 code::
 ~s = RCSurface.hyperbolicParaboloid;
 ~p = RCProjection(3, [\pitch], scales: [8, 2]);   // time = 8 x beats, pitch = 2 y octaves
 ~p.rotate(1, 2, 0.3);                             // pitch reads some z too
 RCLines.projected(~s, ~p, ~s.grid(6, 1), \ruling, timeMode: \wrap, cycle: 8);
+// geodesics on a torus, and tangents hugging it
+~t = RCSurface.torus(2, 1);
+RCLines.projected(~t, ~p, ~t.random(12, 1), \geodesic, 3, \wrap, 8, angle: 0.3pi, steps: 12);
+RCLines.projected(~t, ~p, ~t.random(12, 1), 0.3pi, 1, \wrap, 8, bend: 1);
 ::
 
 subsection:: Cloud: Pithoprakta

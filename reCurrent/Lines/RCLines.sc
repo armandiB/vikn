@@ -20,9 +20,9 @@
 //   tangents   lines tangent to a curve at given touch times (the Xenakeur parabola)
 //   contact    paths touching a curve, the tangents bent by `bend` times its second derivative
 //              (0: the tangents, 1: the osculating arcs, 2: curling past the curve)
-//   projected  the tangent lines (or rulings) of an RCSurface in R^m, sampled and
-//              projected on the score space by an RCProjection; move the projection
-//              between cycles and the texture evolves
+//   projected  the tangent lines (or rulings, or curves on it: geodesics, parameter lines,
+//              steepest ascents) of an RCSurface in R^m, sampled and projected on the score
+//              space by an RCProjection; move the projection between cycles and the texture evolves
 //   cloud      Pithoprakta: short lines of Gaussian speed (temperature a)
 // Then allocate (lines → voices) and subseq (a voice's lines → an RCSubseq).
 
@@ -234,14 +234,25 @@ RCLines {
 			point[1].keysValuesDo { |k, v| params[k] = v + (h * (d1[1][k] ? 0)) + (bendOf.(k) * h.squared / 2 * (d2[1][k] ? 0)) };
 			[point[0] + (h * d1[0]) + (bendOf.(\time) * h.squared / 2 * d2[0]), params]
 		};
-		var j0 = (before / (before + after) * samples).round.asInteger.clip(0, samples), lo, hi;
-		if(pts.last[0] < pts.first[0]) { pts = pts.reverse; j0 = samples - j0 };   // a tangent running backwards in time
-		lo = j0;
-		hi = j0;
-		while { (lo > 0) and: { pts[lo - 1][0] < pts[lo][0] } } { lo = lo - 1 };
-		while { (hi < samples) and: { pts[hi + 1][0] > pts[hi][0] } } { hi = hi + 1 };
+		var run = this.prTimeRun(pts, (before / (before + after) * samples).round.asInteger.clip(0, samples));
+		^run !? { RCCurve.lineFrom(run, id, minDur) }
+	}
+
+	// The longest run of samples [time, ...] through index j0 along which time keeps the direction it
+	// has at j0, in time order (reversed when time runs backwards there); nil for fewer than two samples.
+	*prTimeRun { |pts, j0|
+		var last = pts.size - 1, lo = j0, hi = j0, up;
+		if(last < 1) { ^nil };
+		up = if(j0 < last) { pts[j0 + 1][0] >= pts[j0][0] } { pts[j0][0] >= pts[j0 - 1][0] };
+		if(up) {
+			while { (lo > 0) and: { pts[lo - 1][0] < pts[lo][0] } } { lo = lo - 1 };
+			while { (hi < last) and: { pts[hi + 1][0] > pts[hi][0] } } { hi = hi + 1 };
+		} {
+			while { (lo > 0) and: { pts[lo - 1][0] > pts[lo][0] } } { lo = lo - 1 };
+			while { (hi < last) and: { pts[hi + 1][0] < pts[hi][0] } } { hi = hi + 1 };
+		};
 		if(hi <= lo) { ^nil };
-		^RCCurve.lineFrom(pts.copyRange(lo, hi), id, minDur)
+		^if(up) { pts.copyRange(lo, hi) } { pts.copyRange(lo, hi).reverse }
 	}
 
 	// The parabola of the Xenakeur parabolas: tau → [tau, apex + curvature * (tau - apexTime)^2]
@@ -329,51 +340,86 @@ RCLines {
 		^[curve.value(tau), this.prDerivative(curve, tau, eps)]
 	}
 
-	//////// projected: the tangent lines of a surface in R^m, seen through a projection
+	//////// projected: the tangent lines and the curves of a surface in R^m, seen through a projection
 
-	// For each sample [u, v] of `surface` (an RCSurface), a segment of R^m through S(u, v):
-	// direction \u or \v (the parameter lines), a number (an angle in the tangent plane,
-	// 0 = \u, pi/2 = \v), a Function (u, v, i) → angle, or \ruling (the whole v-line of the
-	// point, from vRange[0] to vRange[1]: on a ruled surface, the ruling itself). `length`
-	// is the segment's length in R^m (ignored by \ruling). Each end is projected by `frame`
-	// (an RCProjection) to a point of the score space, and the line joins them.
+	// For each sample [u, v] of `surface` (an RCSurface), a segment or a curve of R^m through S(u, v),
+	// projected on the score space by `frame` (an RCProjection):
+	//   \ruling            the whole v-line of the point, from vRange[0] to vRange[1] (on a ruled
+	//                      surface, the ruling itself)
+	//   \u, \v, a number (an angle in the tangent plane, 0 = \u, pi/2 = \v), a Function (u, v, i) →
+	//                      angle: the tangent segment, bent by `bend` times the surface's curvature
+	//                      along it (0 the tangent, 1 the geodesic to second order, 2 curling past it;
+	//                      a number or a Function (u, v, i) → number)
+	//   \geodesic          the geodesic through the point at `angle` (a number or a Function (u, v, i)
+	//                      → angle): the straightest curve on the surface (a ruling, a great circle)
+	//   \uLine, \vLine     the parameter line through the point
+	//   \gradient          the steepest ascent of the frame's time through the point: the line that
+	//                      climbs the score fastest (none at a critical point)
+	// `length` is the segment's or the curve's length in R^m, centred on the point (ignored by \ruling);
+	// a curve is drawn in `steps` steps. A curve whose time turns back is cut at the turn, the part
+	// through the point kept, and fitted as a curved line (RCCurve.lineFrom), its R^m polyline kept in
+	// `curve` beside its `ends`, both in the line's own order (a point travelling them from the first
+	// to the last is the sound travelling the line).
 	// timeMode: \window keeps the lines starting within [0, cycle), \wrap wraps their onsets
 	// into the cycle, \sequence ignores the projected time and starts line i at
 	// i * cycle / n, \none keeps every line as projected. Returns the lines in time order.
-	*projected { |surface, frame, samples, direction = \ruling, length = 1, timeMode = \window, cycle, minDur|
+	*projected { |surface, frame, samples, direction = \ruling, length = 1, timeMode = \window, cycle, minDur, bend = 0, angle = 0, steps = 16|
 		var lines = List.new;
 		var n = samples.size;
 		samples.do { |uv, i|
 			var u = uv[0], v = uv[1];
-			var x0, x1, t, line, keep = true;
-			if(direction == \ruling) {
+			var x0, x1, curve, line, keep = true;
+			case
+			{ direction == \ruling } {
 				x0 = surface.at(u, surface.vRange[0]);
 				x1 = surface.at(u, surface.vRange[1]);
-			} {
-				var angle = case
+			}
+			{ [\geodesic, \uLine, \vLine, \gradient].includes(direction) } {
+				curve = this.prSurfaceCurve(surface, frame, u, v, direction, if(angle.isKindOf(Function)) { angle.value(u, v, i) } { angle }, length, steps);
+				if(curve.isNil) { keep = false };
+			}
+			{
+				var a = case
 					{ direction == \u } { 0 }
 					{ direction == \v } { 0.5pi }
 					{ direction.isKindOf(Function) } { direction.value(u, v, i) }
 					{ direction };
-				var tangent = surface.tangent(u, v, angle);
+				var b = if(bend.isKindOf(Function)) { bend.value(u, v, i) } { bend };
+				var tangent = surface.tangent(u, v, a);
 				var norm = tangent.squared.sum.sqrt;
 				var point = surface.at(u, v);
-				if(norm < 1e-9) {
-					keep = false;
-				} {
+				case
+				{ norm < 1e-9 } { keep = false }
+				{ b == 0 } {
 					tangent = tangent * (length / 2 / norm);
 					x0 = point - tangent;
 					x1 = point + tangent;
+				}
+				{
+					curve = this.prBentTangent(surface, u, v, a, norm, b, length, steps);
+					if(curve.isNil) { keep = false };
 				};
 			};
 			if(keep) {
-				var p0 = frame.project(x0), p1 = frame.project(x1);
-				line = this.between(p0, p1, minDur, i);
+				if(curve.isNil) {
+					var p0 = frame.project(x0), p1 = frame.project(x1);
+					line = this.between(p0, p1, minDur, i);
+					// the segment in R^m, for a picture of the surface, in the line's own order: between
+					// starts the line at the earlier end, so the ends swap with it (a point travelling the
+					// segment from ends[0] to ends[1] is the sound travelling the line)
+					line[\ends] = if(p1[0] < p0[0]) { [x1, x0] } { [x0, x1] };
+				} {
+					// [time, params, x] along the curve, cut where its time turns back
+					var run = this.prTimeRun(curve[0].collect { |x| frame.project(x) ++ [x] }, curve[1]);
+					line = run !? { RCCurve.lineFrom(run, i, minDur) };
+					if(line.isNil) { keep = false } {
+						line[\curve] = run.collect(_[2]);
+						line[\ends] = [run.first[2], run.last[2]];
+					};
+				};
+			};
+			if(keep) {
 				line[\sample] = uv;
-				// the segment in R^m, for a picture of the surface, in the line's own order: between
-				// starts the line at the earlier end, so the ends swap with it (a point travelling the
-				// segment from ends[0] to ends[1] is the sound travelling the line)
-				line[\ends] = if(p1[0] < p0[0]) { [x1, x0] } { [x0, x1] };
 				switch(timeMode,
 					\window, { if(cycle.notNil) { keep = (line[\onset] >= 0) and: { line[\onset] < cycle } } },
 					\wrap, { if(cycle.notNil) { line[\onset] = line[\onset] % cycle } },
@@ -383,6 +429,40 @@ RCLines {
 			};
 		};
 		^lines.asArray.sort { |x, y| x[\onset] <= y[\onset] }
+	}
+
+	// A curve on the surface through (u, v), `length` long in R^m and centred there: [the points of R^m
+	// along it, the index of the point], nil where it has no direction.
+	*prSurfaceCurve { |surface, frame, u, v, direction, angle, length, steps|
+		var half = (steps / 2).ceil.asInteger.max(1);
+		var walk = { |len|
+			switch(direction,
+				\geodesic, { surface.geodesic(u, v, angle, len, half) },
+				\uLine, { surface.paramLine(u, v, \u, len, half) },
+				\vLine, { surface.paramLine(u, v, \v, len, half) },
+				\gradient, { surface.flow(u, v, frame, len, half, \length).collect { |s| [s[1], s[2]] } }
+			)
+		};
+		var back = walk.(length.neg / 2), fwd = walk.(length / 2), uvs;
+		if(back.isNil or: { fwd.isNil }) { ^nil };
+		uvs = back.reverse ++ fwd.drop(1);
+		if(uvs.size < 2) { ^nil };
+		^[uvs.collect { |q| surface.at(q[0], q[1]) }, back.size - 1]
+	}
+
+	// The tangent at angle a (its length norm) bent by b times the surface's curvature along it: x(h) =
+	// S + h t + b h²/2 k for h over ±length / 2, t the unit tangent, k the acceleration of the geodesic
+	// leaving along t (the part of S_uu u'² + 2 S_uv u'v' + S_vv v'² across the surface). [points,
+	// index of the point], nil at a singular point.
+	*prBentTangent { |surface, u, v, a, norm, b, length, steps|
+		var up = a.cos / norm, vp = a.sin / norm;
+		var acc = surface.geodesicAccel(u, v, up, vp);
+		var point = surface.at(u, v), t = surface.tangent(u, v, a) / norm, k;
+		var m = steps.max(2);
+		if(acc.isNil) { ^nil };
+		k = (surface.duu(u, v) * up.squared) + (surface.duv(u, v) * (2 * up * vp)) + (surface.dvv(u, v) * vp.squared)
+			+ (surface.du(u, v) * acc[0]) + (surface.dv(u, v) * acc[1]);
+		^[(m + 1).collect { |j| var h = (length.neg / 2) + (length * j / m); point + (t * h) + (k * (b * h.squared / 2)) }, m div: 2]
 	}
 
 	//////// cloud: Pithoprakta

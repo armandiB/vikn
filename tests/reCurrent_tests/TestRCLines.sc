@@ -269,6 +269,57 @@ TestRCLines : UnitTest {
 		this.assert(this.near(RCLines.projected(s, p, [[0, 0]], \u, 0.5, \none)[0][\to][\pitch] - RCLines.projected(s, p, [[0, 0]], \u, 0.5, \none)[0][\from][\pitch], 2 * 0.5, 1e-6), "the segment has the asked length, scaled");
 	}
 
+	test_projected_geodesics_and_parameter_lines {
+		var s = RCSurface.sphere;
+		var p = RCProjection(3, [\pitch, \az], scales: [8, 2, 1]);   // time 8 x, pitch 2 y, az z
+		var lines = RCLines.projected(s, p, [[0.5pi, 0], [0.5pi, 0.3]], \geodesic, 1.5, \none, angle: 0.25pi, steps: 24);
+		var meridian;
+		this.assertEquals(lines.size, 2, "a geodesic per sample");
+		this.assert(lines.every { |l| l[\curve].size > 10 and: { l[\curve].every { |x| this.near(x.squared.sum, 1, 1e-6) } } }, "each kept as its R^3 polyline, on the sphere");
+		this.assert(lines.every { |l| (l[\path] ? ()).size > 0 }, "curved in the score: a path");
+		this.assert(lines.every { |l|
+			var a = p.project(l[\curve].first), b = p.project(l[\curve].last);
+			this.near(a[0], l[\onset], 1e-9) and: { this.near(b[0], l[\onset] + l[\dur], 1e-9) } and: { l[\ends] == [l[\curve].first, l[\curve].last] }
+		}, "the polyline runs the way the line runs (its time ran backwards: reversed), its ends the line's");
+		this.assert(lines.every { |l| l[\curve].collect { |x| p.project(x)[0] }.differentiate.drop(1).every(_ > 0) }, "time grows along it");
+		// a meridian through (0.3, 0.4): time 8 cos(0.3) cos(v) turns back at the equator, where it is cut
+		meridian = RCLines.projected(s, p, [[0.3, 0.4]], \vLine, 1, \none)[0];
+		this.assert(meridian[\curve].every { |x| this.near(x[1] / x[0], 0.3.tan, 1e-9) }, "a v-line keeps its azimuth");
+		this.assert(meridian[\curve].last[2].inRange(-1e-9, 0.1), "cut at the equator, where its time turns back (the latest point at elevation %)".format(meridian[\curve].last[2].asin.round(0.001)));
+		this.assert(meridian[\curve].first[2] > 0.75, "kept from the far end, through the sample");
+	}
+
+	test_projected_tangents_bent_towards_the_geodesic {
+		var s = RCSurface.sphere;
+		var p = RCProjection(3, [\pitch, \az], scales: [8, 2, 1]);
+		var samples = [[0.3, 0.2], [2.0, -0.4]];
+		var plain = { |ls| ls.collect { |l| [l[\onset], l[\dur], l[\from], l[\to]] } };
+		var straight = RCLines.projected(s, p, samples, 0.25pi, 0.6, \none);
+		var bent = RCLines.projected(s, p, samples, 0.25pi, 0.6, \none, bend: 1);
+		var off = { |l| l[\curve].collect { |x| (x.squared.sum.sqrt - 1).abs }.maxItem };
+		this.assertEquals(plain.(RCLines.projected(s, p, samples, 0.25pi, 0.6, \none, bend: 0)), plain.(straight), "bend 0: the tangent segments, unchanged");
+		this.assert(straight.every { |l| l[\curve].isNil }, "a straight segment carries no curve");
+		this.assert(bent.size == 2 and: { bent.every { |l| l[\curve].notNil and: { off.(l) < 0.002 } } }, "bend 1: within 0.002 of the sphere (%), where the tangent leaves it by 0.044".format(bent.collect(off)));
+		this.assert(RCLines.projected(s, p, samples, 0.25pi, 0.6, \none, bend: 2).every { |l| l[\curve].collect { |x| x.squared.sum.sqrt }.minItem < 0.97 }, "bend 2: curling inside");
+	}
+
+	test_projected_gradient_climbs_the_score {
+		var s = RCSurface.torus(2, 1);
+		var p = RCProjection(3, [\pitch], scales: [4, 1]);   // time 4 x
+		var samples = [[0.5pi, 0.3], [2.5, 1.0]];
+		var grad = RCLines.projected(s, p, samples, \gradient, 0.8, \none);
+		this.assertEquals(grad.size, 2, "a steepest ascent per sample");
+		this.assert(grad.every { |l|
+			var uv = l[\sample], steepest = s.surfaceGradient(uv[0], uv[1], p)[1].sqrt * 0.8;   // the time a straight run of 0.8 along the gradient spans
+			l[\curve].notNil and: { (l[\dur] / steepest).inRange(0.95, 1.05) }
+		}, "each a curve on the surface spanning the time of the steepest way, |grad T| × its length");
+		this.assert(samples.every { |uv|   // the tangent along the level, cos a S_u + sin a S_v with tu cos a + tv sin a = 0
+			var g = p.timeGradient, tu = (g * s.du(uv[0], uv[1])).sum, tv = (g * s.dv(uv[0], uv[1])).sum;
+			RCLines.projected(s, p, [uv], tu.neg.atan2(tv), 0.8, \none)[0][\dur] < 0.02
+		}, "where the tangent along the level spans no time (a chirp)");
+		this.assertEquals(RCLines.projected(s, p, [[0, 0]], \gradient, 0.8, \none).size, 0, "none at the top (a critical point)");
+	}
+
 	//////// surfaces
 
 	test_surface_presets_and_derivatives {
