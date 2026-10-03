@@ -116,6 +116,24 @@ TestRAOutputChain : UnitTest {
 		this.assert(outs[1].isKindOf(BinaryOpUGen) and: { outs[1].operator == '-' }, "channel 1 is mid - side: the right ear");
 	}
 
+	// The decoders' high-pass before the near-field control: two sections on each of the 16 channels
+	// at hpFreq (20 Hz by default), none with hpFreq nil.
+	test_decoders_high_pass {
+		var saved = HOABinaural.binauralIRs, hpfs;
+		var ambix = this.chain(\ambix, order: 3), plain = this.chain(\ambix, order: 3);
+		hpfs = { |func, name| SynthDef(name, { Out.ar(0, func.value) }).children.select { |u| u.isKindOf(HPF) } };
+		this.assertEquals(ambix.hpFreq, 20, "20 Hz by default");
+		this.assertEquals(hpfs.(ambix.prAmbixSource, \ra_test_hp_ambix).size, 32, "AmbiX: two sections on each of 16 channels");
+		this.assert(hpfs.(ambix.prAmbixSource, \ra_test_hp_ambix).every { |u| u.inputs[1] == 20 }, "at hpFreq");
+		plain.hpFreq = nil;
+		this.assertEquals(hpfs.(plain.prAmbixSource, \ra_test_hp_none).size, 0, "nil: none");
+		{
+			HOABinaural.binauralIRs = nil ! 7;
+			HOABinaural.binauralIRs[2] = (0..15);  // buffer numbers: the graph builds without a server
+			this.assertEquals(hpfs.(this.chain(\binaural, order: 3).prBinauralSource, \ra_test_hp_bin).size, 32, "binaural: the same");
+		}.protect { HOABinaural.binauralIRs = saved };
+	}
+
 	test_stereo_monitor {
 		var c = this.chain.build;
 		var m = RAStereoMonitor(16, 18);

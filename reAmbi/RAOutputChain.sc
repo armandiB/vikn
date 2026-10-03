@@ -19,6 +19,14 @@
 // stopped, build works client-side (tests, NRT) and sends nothing.
 // insert / remove / move re-map only the links they touch. clear frees the
 // groups first (immediate /n_free) so that the proxies send nothing late.
+//
+// Both decoders move the field from ATK's reference radius (AtkHoa.refRadius, 1.5 m) to their own
+// (HoaNFCtrl: refRadius for AmbiX, binauralRadius): order n gains up to (radius / 1.5)^n toward DC
+// (+49.5 dB on order 3 at 10 m), so the sources' sub-audio content (envelopes, offsets) left on
+// channels 9-15 as loud as the music (measured on a HadronLake3 take, Oct 2026). hpFreq: a 4th-order
+// high-pass on every channel before it (Hz; nil: none). At 20 Hz, measured through the AmbiX decoder:
+// -66 dB at 3 Hz, -25 at 10, -6 at 20, -1.6 at 30, -0.5 at 40, -0.1 at 60, nothing above; a DC step
+// of 0.05 left an offset of 3.1 on order 3 without it, 0.0001 with it.
 
 RAOutputChain {
 	classvar binauralState;      // server name → order → (status:, actions:)
@@ -26,18 +34,21 @@ RAOutputChain {
 
 	var <server, <order, <name;
 	var <decode, <outBus, <play, <useTransformer, <headphoneModel;
-	var <refRadius, <binauralRadius, <foaRefRadius, <fadeTime, <placeholder;
+	var <refRadius, <binauralRadius, <foaRefRadius, <fadeTime, <placeholder, <hpFreq;
 	var <stageNames, <proxies, <stageGroups, <stageSources, <playGroup, <parentGroup;
 	var <taps, <monitor, <isBuilt = false, <isOffline = false;
 
 	*new { |server, order = 3, name = \main, decode = \binaural, outBus = 0, play = true, useTransformer = true,
-		headphoneModel, refRadius = 10.0, binauralRadius = 3.25, foaRefRadius = 10.0, fadeTime = 1, placeholder = true|
+		headphoneModel, refRadius = 10.0, binauralRadius = 3.25, foaRefRadius = 10.0, fadeTime = 1, placeholder = true, hpFreq = 20|
 		^super.new.initRAOutputChain(server, order, name, decode, outBus, play, useTransformer, headphoneModel,
-			refRadius, binauralRadius, foaRefRadius, fadeTime, placeholder)
+			refRadius, binauralRadius, foaRefRadius, fadeTime, placeholder, hpFreq)
 	}
 
+	// The decoders' high-pass (see the header): two 2nd-order sections at freq, or the input as it is.
+	*subsonic { |in, freq| ^if(freq.isNil) { in } { HPF.ar(HPF.ar(in, freq), freq) } }
+
 	initRAOutputChain { |serverarg, orderarg, namearg, decodearg, outBusarg, playarg, useTransformerarg, headphoneModelarg,
-		refRadiusarg, binauralRadiusarg, foaRefRadiusarg, fadeTimearg, placeholderarg|
+		refRadiusarg, binauralRadiusarg, foaRefRadiusarg, fadeTimearg, placeholderarg, hpFreqarg|
 		server = serverarg ? Server.default;
 		order = orderarg;
 		name = namearg.asSymbol;
@@ -51,6 +62,7 @@ RAOutputChain {
 		foaRefRadius = foaRefRadiusarg;
 		fadeTime = fadeTimearg;
 		placeholder = placeholderarg;
+		hpFreq = hpFreqarg;
 		proxies = IdentityDictionary.new;
 		stageGroups = IdentityDictionary.new;
 		stageSources = IdentityDictionary.new;
@@ -78,6 +90,7 @@ RAOutputChain {
 	foaRefRadius_ { |r| foaRefRadius = r }
 	fadeTime_ { |t| fadeTime = t; proxies.do { |p| p.fadeTime = t } }
 	placeholder_ { |p| placeholder = p; this.prConfig(\placeholder) }
+	hpFreq_ { |f| hpFreq = f; this.prConfig(\hpFreq) }
 	useTransformer_ { |bool|
 		if(isBuilt) { RCLog.error(\ambi, "% useTransformer: clear the chain first".format(name)); ^this };
 		useTransformer = bool;
@@ -154,14 +167,14 @@ RAOutputChain {
 	// a source at az +90 deg is 5 dB louder on its channel 1): reversed into [left, right].
 	// Its headphone corrections are the same filter for both ears, so the reverse is exact.
 	prBinauralSource {
-		var n = this.numChannels, ord = order, radius = binauralRadius, model = headphoneModel;
-		^{ var in = \in.ar(0 ! n); HOABinaural.ar(ord, HoaNFCtrl.ar(in, AtkHoa.refRadius, radius, ord), headphoneCorrection: model).reverse }
+		var n = this.numChannels, ord = order, radius = binauralRadius, model = headphoneModel, hp = hpFreq;
+		^{ var in = RAOutputChain.subsonic(\in.ar(0 ! n), hp); HOABinaural.ar(ord, HoaNFCtrl.ar(in, AtkHoa.refRadius, radius, ord), headphoneCorrection: model).reverse }
 	}
 
 	prAmbixSource {
-		var n = this.numChannels, ord = order, radius = refRadius;
+		var n = this.numChannels, ord = order, radius = refRadius, hp = hpFreq;
 		var matrix = HoaMatrixDecoder.newFormat(\ambix, ord);
-		^{ var in = \in.ar(0 ! n); HoaDecodeMatrix.ar(HoaNFCtrl.ar(in, AtkHoa.refRadius, radius, ord), matrix) }
+		^{ var in = RAOutputChain.subsonic(\in.ar(0 ! n), hp); HoaDecodeMatrix.ar(HoaNFCtrl.ar(in, AtkHoa.refRadius, radius, ord), matrix) }
 	}
 
 	prSetDecoderSource { |online|
