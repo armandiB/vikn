@@ -175,6 +175,16 @@ TestRCLines : UnitTest {
 		this.assert(wrapped.every { |l| l[\onset] >= 0 and: { l[\onset] < 8 } }, "onsets wrapped into the cycle");
 		this.assertEquals(sequence.collect(_[\onset]), 12.collect { |i| i * 8 / 12 }, "a constant step of onsets");
 		this.assert(none.every { |l| l[\sample].notNil }, "each line remembers its sample");
+		// the ends in the line's order: the first projects to the line's start, the second to its end
+		// (the sphere's u tangents run backwards in time on half of the samples: their ends swap)
+		this.assert(none.every { |l|
+			var a = p.project(l[\ends][0]), b = p.project(l[\ends][1]);
+			this.near(a[0], l[\onset], 1e-9) and: { this.near(a[1][\pitch], l[\from][\pitch], 1e-9) } and: { this.near(b[1][\pitch], l[\to][\pitch], 1e-9) }
+		}, "the R^m ends run the way the line runs");
+		this.assert(none.any { |l|   // Array.normalize maps to 0..1: the unit tangent is divided by its norm
+			var e = l[\ends], uv = l[\sample], tg = s.tangent(uv[0], uv[1], 0);
+			this.near((s.at(uv[0], uv[1]) - (tg / tg.squared.sum.sqrt * 0.25) - e[1]).abs.sum, 0, 1e-6)
+		}, "some lines' ends were swapped (their tangent runs back in time)");
 		// a tangent along u at the poles has no length: no line there
 		this.assertEquals(RCLines.projected(s, p, [[0, 0.5pi]], \u, 0.5, \none).size, 0, "a vanishing tangent gives no line");
 		// the u tangent of the unit sphere has length 1 * cos(el): a segment of length 0.5 spans 0.5 of arc at the equator

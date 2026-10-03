@@ -205,9 +205,13 @@ RCLines {
 				};
 			};
 			if(keep) {
-				line = this.between(frame.project(x0), frame.project(x1), minDur, i);
+				var p0 = frame.project(x0), p1 = frame.project(x1);
+				line = this.between(p0, p1, minDur, i);
 				line[\sample] = uv;
-				line[\ends] = [x0, x1];   // the segment in R^m, for a picture of the surface
+				// the segment in R^m, for a picture of the surface, in the line's own order: between
+				// starts the line at the earlier end, so the ends swap with it (a point travelling the
+				// segment from ends[0] to ends[1] is the sound travelling the line)
+				line[\ends] = if(p1[0] < p0[0]) { [x1, x0] } { [x0, x1] };
 				switch(timeMode,
 					\window, { if(cycle.notNil) { keep = (line[\onset] >= 0) and: { line[\onset] < cycle } } },
 					\wrap, { if(cycle.notNil) { line[\onset] = line[\onset] % cycle } },
