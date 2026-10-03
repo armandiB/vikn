@@ -53,6 +53,19 @@ TestRCVisuals : UnitTest {
 		this.assertEquals(log.last, ['/later', [2]], "...with its path and args");
 	}
 
+	test_sendIn_on_an_offline_clock {
+		var c = REOfflineClock(tempo: 2);
+		var queued = thisProcess.prSchedulerQueue.size;
+		c.sched(1, { RCVisuals.sendIn(0.5, '/offline', [3]); nil });
+		c.advanceTo(1);
+		this.assertEquals(thisProcess.prSchedulerQueue.size, queued, "nothing waits on SystemClock");
+		this.assertEquals(log.size, 0, "not out before its time");
+		c.advanceTo(1.99);
+		this.assertEquals(log.size, 0, "half a second is a beat at tempo 2");
+		c.advanceTo(2);
+		this.assertEquals(log.asArray, [['/offline', [3]]], "out at the offline time it belongs to");
+	}
+
 	test_eventDelay {
 		var layer = song.layer(\core);
 		var b = RCBeat(layer, \tb, [type: \rest, dur_flex: 1, timingOffset: 2, lag: 0.01]);
