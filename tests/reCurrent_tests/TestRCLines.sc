@@ -95,6 +95,42 @@ TestRCLines : UnitTest {
 		this.assertEquals(RCLines.tangents(curve, [1], 0).size, 0, "a zero extent gives no line");
 	}
 
+	//////// contact
+
+	test_contact_bend_zero_is_tangents {
+		var curve = RCLines.parabola(4, (pitch: 1, az: 0.5), (pitch: 0.125, az: -0.05));
+		var touches = [1, 2.5, 4, 6.5];
+		var t = RCLines.tangents(curve, touches, [1, 1.5]);
+		var c = RCLines.contact(curve, touches, [1, 1.5], 0);
+		this.assert(t.size == c.size and: { t.every { |l, i| var m = c[i]; l[\onset] == m[\onset] and: { l[\dur] == m[\dur] } and: { l[\from] == m[\from] } and: { l[\to] == m[\to] } and: { m[\path].isNil } } }, "bend 0: the tangent lines themselves, line for line, no path");
+	}
+
+	test_contact_bend_one_osculates {
+		var curve = RCLines.parabola(4, (pitch: 1), 0.125);   // its osculating parabola is itself
+		var lines = RCLines.contact(curve, [2, 5], 1.5, 1);
+		this.assert(lines.every { |l| l[\path][\pitch].notNil }, "bent paths carry their pitch path");
+		this.assert(lines.every { |l| 9.collect { |j| var s = j / 8, time = l[\onset] + (s * l[\dur]); (RCCurve.at(l[\path][\pitch], s) - curve.value(time)[1][\pitch]).abs }.maxItem < 0.01 }, "bend 1 on a parabola follows the parabola over the whole extent");
+		this.assert(lines.every { |l| this.near(l[\from][\pitch], curve.value(l[\onset])[1][\pitch], 1e-4) }, "and starts on it");
+	}
+
+	test_contact_side_flips_across_one {
+		var curve = RCLines.parabola(4, (pitch: 0), 0.25);   // a bowl
+		var endOf = { |b| var l = RCLines.contact(curve, [4], 1, b)[0]; l[\to][\pitch] - curve.value(l[\onset] + l[\dur])[1][\pitch] };
+		this.assert(endOf.(0) < -1e-6, "bend 0: the tangent ends below the bowl (outside)");
+		this.assert(endOf.(1).abs < 1e-6, "bend 1: on it");
+		this.assert(endOf.(2) > 1e-6, "bend 2: above it, curled inside");
+	}
+
+	test_contact_per_key_and_time_turning {
+		var curve = RCLines.parabola(4, (pitch: 0, az: 0), (pitch: 0.25, az: 0.25));
+		var l = RCLines.contact(curve, [2], 1, (pitch: 1, az: 0))[0];
+		var circle = { |tau| [tau.sin, (pitch: tau.cos)] };   // time turns back at tau = pi / 2
+		var c = RCLines.contact(circle, [1.2], 1, (time: 1, pitch: 1))[0];
+		var turn = 1.2.sin + (1.2.cos.squared / (2 * 1.2.sin));   // the bent path's own time maximum (its Taylor polynomial's)
+		this.assert(l[\path][\pitch].notNil and: { l[\path][\az].isNil }, "a bend per key: pitch curved, az straight");
+		this.assert(c.notNil and: { c[\dur] > 0 } and: { this.near(c[\onset] + c[\dur], turn, 0.01) }, "a path whose time turns back is cut at the turn (ends at % s, the turn at %)".format(c !? { (c[\onset] + c[\dur]).round(0.001) }, turn.round(0.001)));
+	}
+
 	test_parabola_multi_key {
 		var curve = RCLines.parabola(2, (pitch: 1, az: 0), (pitch: 0.5, az: -1));
 		var p = curve.value(3);

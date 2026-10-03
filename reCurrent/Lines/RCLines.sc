@@ -10,13 +10,16 @@
 //
 // A line is an Event:
 //   (onset: beats, dur: beats, from: (pitch: 0, amp: -20), to: (pitch: 1, amp: -10), id: 3)
-// plus, optionally, voice: an Integer pinning it to one voice of the batch (allocate).
+// plus, optionally, voice: an Integer pinning it to one voice of the batch (allocate), and path:
+// a curved line's course, an Event key → Env over the note (RCCurve; a key without one is straight).
 // A point of the score space is [time, params] with params an Event.
 //
 // Generators (every one pure, seeded where it draws):
 //   rails      lines joining two rails A(u), B(u): the string-art ruled surfaces of
 //              Metastasis (affine rails, evenly spaced u: a hyperbolic paraboloid)
 //   tangents   lines tangent to a curve at given touch times (the Xenakeur parabola)
+//   contact    paths touching a curve, the tangents bent by `bend` times its second derivative
+//              (0: the tangents, 1: the osculating arcs, 2: curling past the curve)
 //   projected  the tangent lines (or rulings) of an RCSurface in R^m, sampled and
 //              projected on the score space by an RCProjection; move the projection
 //              between cycles and the texture evolves
@@ -143,6 +146,69 @@ RCLines {
 		var params = ();
 		b[1].keysValuesDo { |k, v| params[k] = (v - (a[1][k] ? v)) / (2 * eps) };
 		^[(b[0] - a[0]) / (2 * eps), params]
+	}
+
+	*prSecondDerivative { |curve, tau, eps|
+		var a = curve.value(tau - eps), m = curve.value(tau), b = curve.value(tau + eps);
+		var params = ();
+		m[1].keysValuesDo { |k, v| params[k] = ((b[1][k] ? v) - (2 * v) + (a[1][k] ? v)) / eps.squared };
+		^[(b[0] - (2 * m[0]) + a[0]) / eps.squared, params]
+	}
+
+	//////// contact: the tangential construction with bent generatrices
+
+	// Paths touching `curve` (a Function tau → point) at the touch parameters: each the curve's tangent
+	// bent by `bend` times half its second derivative, C(tau) + h C'(tau) + bend h²/2 C''(tau), h from
+	// -before to after (extent as for tangents). The curve is their envelope whatever the bend: 0 gives
+	// the tangent lines (exactly `tangents`), 1 the osculating arcs (the curve to second order), 2 arcs
+	// curling past it (the mass on the other side of the curve). bend: a number, an Event key → number
+	// (the time coordinate reads \time), or a Function (tau) → either. A bent path whose time turns back
+	// is cut at the turn, the part through the touch kept; its keys that stay straight carry no path
+	// (RCCurve.lineFrom). samples: points along each bent path. Returns the lines in time order.
+	*contact { |curve, touches, extent = 1, bend = 0, derivative, eps = 1e-4, minDur, samples = 16|
+		var lines = List.new;
+		touches.do { |tau, i|
+			var point = curve.value(tau);
+			var d1 = derivative !? (_.value(tau)) ?? { this.prDerivative(curve, tau, eps) };
+			var b = if(bend.isKindOf(Function)) { bend.value(tau) } { bend };
+			var ext = extent, before, after, line;
+			if(ext.isKindOf(Function)) { ext = ext.value(point, d1, tau) };
+			if(ext.isNumber) { ext = [ext, ext] };
+			before = ext[0];
+			after = ext[1];
+			if((before + after) > 0) {
+				line = if(this.prFlat(b)) {
+					this.between(
+						[point[0] - (before * d1[0]), this.paramsAdd(point[1], this.paramsScale(d1[1], before.neg))],
+						[point[0] + (after * d1[0]), this.paramsAdd(point[1], this.paramsScale(d1[1], after))],
+						minDur, i)
+				} {
+					this.prBentLine(point, d1, this.prSecondDerivative(curve, tau, eps * 10), b, before, after, samples, minDur, i)
+				};
+				line !? { lines.add(line) };
+			};
+		};
+		^lines.asArray.sort { |x, y| x[\onset] <= y[\onset] }
+	}
+
+	*prFlat { |b| ^if(b.isNumber) { b == 0 } { b.isNil or: { b.values.every { |v| v == 0 } } } }
+
+	// The samples of one bent path, kept in time order up to where its time turns back, as a line.
+	*prBentLine { |point, d1, d2, b, before, after, samples, minDur, id|
+		var bendOf = { |k| if(b.isNumber) { b } { b[k] ? 0 } };
+		var pts = (samples + 1).collect { |j|
+			var h = before.neg + ((before + after) * j / samples), params = ();
+			point[1].keysValuesDo { |k, v| params[k] = v + (h * (d1[1][k] ? 0)) + (bendOf.(k) * h.squared / 2 * (d2[1][k] ? 0)) };
+			[point[0] + (h * d1[0]) + (bendOf.(\time) * h.squared / 2 * d2[0]), params]
+		};
+		var j0 = (before / (before + after) * samples).round.asInteger.clip(0, samples), lo, hi;
+		if(pts.last[0] < pts.first[0]) { pts = pts.reverse; j0 = samples - j0 };   // a tangent running backwards in time
+		lo = j0;
+		hi = j0;
+		while { (lo > 0) and: { pts[lo - 1][0] < pts[lo][0] } } { lo = lo - 1 };
+		while { (hi < samples) and: { pts[hi + 1][0] > pts[hi][0] } } { hi = hi + 1 };
+		if(hi <= lo) { ^nil };
+		^RCCurve.lineFrom(pts.copyRange(lo, hi), id, minDur)
 	}
 
 	// The parabola of the Xenakeur parabolas: tau → [tau, apex + curvature * (tau - apexTime)^2]
