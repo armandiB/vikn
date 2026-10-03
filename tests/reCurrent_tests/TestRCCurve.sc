@@ -57,6 +57,13 @@ TestRCCurve : UnitTest {
 		this.assertEquals(RCCurve.clip(Env([0, 1.5], [1]), 0, 1).levels, [0, 1], "clip holds it there");
 	}
 
+	test_slice_keeps_a_cut_segments_shape {
+		var env = Env([0, 1, 0.2], [0.6, 0.4], [4, -3]);
+		var part = RCCurve.slice(env, 0.2, 0.9);
+		var errs = 21.collect { |i| var u = i / 20; (part.at(u) - env.at(0.2 + (0.7 * u))).abs };
+		this.assert(errs.maxItem < 1e-6, "a slice is the path itself between s0 and s1, inside cut segments too (max error %)".format(errs.maxItem));
+	}
+
 	test_map_levels_keeps_the_shape {
 		var env = RCCurve.fit({ |s| s.squared });
 		var mapped = RCCurve.mapLevels(env, -3, 2);

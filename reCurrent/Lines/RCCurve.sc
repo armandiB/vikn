@@ -81,18 +81,23 @@ RCCurve {
 		^Env(cuts.collect { |i| vals[i] }, cuts.differentiate.drop(1).collect(_ / m), pass.value.collect(_[0]))
 	}
 
-	// A path's part between s0 and s1 (times renormalised); cut: the part before s.
+	// A path's part between s0 and s1 (times renormalised); cut: the part before s. A segment cut keeps
+	// its shape: the part of a segment of curve c between its positions p0 and p1 (fractions of the
+	// segment) is the segment of curve c (p1 - p0) between the values there.
 	*slice { |env, s0 = 0, s1 = 1|
-		var levels = env.levels, times = env.times, curves = env.curves.asArray.wrapExtend(times.size);
-		var cum = [0] ++ times.integrate, outL = List.new, outT = List.new, outC = List.new, prevS = s0;
-		outL.add(env.at(s0));
-		cum.do { |t, i|
-			if(t > (s0 + 1e-9) and: { t < (s1 - 1e-9) }) { outL.add(levels[i]); outT.add(t - prevS); outC.add(curves[(i - 1).max(0)]); prevS = t };
+		var times = env.times, curves = env.curves.asArray.wrapExtend(times.size);
+		var cum = [0] ++ times.integrate;
+		var bounds = [s0] ++ cum.select { |t| (t > (s0 + 1e-9)) and: { t < (s1 - 1e-9) } } ++ [s1];
+		var outT = List.new, outC = List.new;
+		bounds.doAdjacentPairs { |a, b|
+			var mid = (a + b) / 2, k = 0, c;
+			while { (k < (times.size - 1)) and: { cum[k + 1] <= mid } } { k = k + 1 };
+			c = curves[k];
+			if(c.isNumber.not) { c = 0 };
+			outT.add(b - a);
+			outC.add(if(times[k] > 1e-9) { c * (b - a) / times[k] } { c });
 		};
-		outL.add(env.at(s1));
-		outT.add(s1 - prevS);
-		outC.add(curves[((cum.indexOfGreaterThan(s1) ?? { cum.size }) - 2).clip(0, curves.size - 1)]);
-		^this.env(outL.asArray, outT.asArray.collect(_.max(1e-6)), outC.asArray)
+		^this.env(bounds.collect { |s| env.at(s) }, outT.asArray.collect(_.max(1e-6)), outC.asArray)
 	}
 
 	*cut { |env, s| ^this.slice(env, 0, s) }
