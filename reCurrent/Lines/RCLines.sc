@@ -23,6 +23,9 @@
 //   projected  the tangent lines (or rulings, or curves on it: geodesics, parameter lines,
 //              steepest ascents) of an RCSurface in R^m, sampled and projected on the score
 //              space by an RCProjection; move the projection between cycles and the texture evolves
+//   sections   the slice of an RCSurface by a moving hyperplane (the projection's time swept at a
+//              speed): strands riding the surface so as to stay on it, born at its bottoms,
+//              converging at its tops
 //   cloud      Pithoprakta: short lines of Gaussian speed (temperature a)
 // Then allocate (lines → voices) and subseq (a voice's lines → an RCSubseq).
 
@@ -463,6 +466,109 @@ RCLines {
 		k = (surface.duu(u, v) * up.squared) + (surface.duv(u, v) * (2 * up * vp)) + (surface.dvv(u, v) * vp.squared)
 			+ (surface.du(u, v) * acc[0]) + (surface.dv(u, v) * acc[1]);
 		^[(m + 1).collect { |j| var h = (length.neg / 2) + (length * j / m); point + (t * h) + (k * (b * h.squared / 2)) }, m div: 2]
+	}
+
+	//////// sections: a surface cut by a moving hyperplane
+
+	// A section of `surface` by the moving hyperplane of `frame`'s time (or the hypersurface of timeFunc,
+	// a Function of R^m → number): at beat t of the cycle it is {T = offset + speed t}, and what sounds is
+	// the slice. Strands stay on it, riding the surface's steepest ascent of T at unit time
+	// (RCSurface.flow), each a curved line whose time is exactly the score's and whose other coordinates
+	// are the frame's projection of its point (pitch, az...). seeding: \slice (n strands spread by arc
+	// length along the slice at the cycle's start), \births (n strands leaving every way from each bottom
+	// of T the hyperplane reaches in the cycle), \sweep (both), \random (n strands from random points the
+	// hyperplane crosses in the cycle; seed). A strand ends at a top of T (where strands converge), at the
+	// edge of a patch, after `length` beats or at the cycle's end: the strands live within a cycle (each
+	// sample's time is its point's, so an end may pass by the integration's error). A negative speed
+	// sweeps down (births at the tops). steps: a whole cycle's strand (a shorter one fewer, at least 8);
+	// res: the grid of the slice (the bottoms on one of half as many nodes). Returns the lines in time
+	// order, each with its R^m `curve` and `ends`, its seed `sample` and how it was `born` (\slice, \min,
+	// \max, \random).
+	*sections { |surface, frame, offset = 0, speed = 1, n = 12, length, cycle = 8, seeding = \sweep, seed, timeFunc, steps = 16, res = 32, minDur|
+		var tf = timeFunc ? frame;
+		var tau = { |u, v| surface.timeAt(u, v, tf) };
+		var window = [offset, offset + (speed * cycle)].sort;   // the times the hyperplane sweeps in the cycle
+		var maxLen = (length ? cycle).min(cycle);
+		var seeds = List.new, lines = List.new;
+		if(speed == 0 or: { n < 1 }) { ^[] };
+		if([\slice, \sweep].includes(seeding)) { this.prSliceSeeds(surface, tf, offset, n, res).do { |uv| seeds.add(uv ++ [\slice]) } };
+		if([\births, \sweep].includes(seeding)) { this.prBirthSeeds(surface, tau, window, speed.sign, n, (res / 2).asInteger.max(8)).do { |s| seeds.add(s) } };
+		if(seeding == \random) {
+			RCUtil.seeded(seed, {
+				var tries = 0;
+				while { (seeds.size < n) and: { tries < (30 * n) } } {
+					var uv = [rrand(surface.uRange[0], surface.uRange[1]), rrand(surface.vRange[0], surface.vRange[1])], t = tau.(uv[0], uv[1]);
+					tries = tries + 1;
+					if((t >= window[0]) and: { t < window[1] }) { seeds.add(uv ++ [\random]) };
+				};
+			});
+		};
+		seeds.do { |s, i|
+			var t0 = ((tau.(s[0], s[1]) - offset) / speed).max(0), span = maxLen.min(cycle - t0), pts, line;
+			if(span > 1e-6) {
+				pts = surface.flow(s[0], s[1], tf, speed * span, (steps * span / cycle).ceil.asInteger.max(8), \time).collect { |q|
+					var x = surface.at(q[1], q[2]);
+					[(q[0] - offset) / speed, frame.project(x)[1], x]
+				};
+				line = if(pts.size >= 2) { RCCurve.lineFrom(pts, i, minDur) };
+				line !? {
+					line[\curve] = pts.collect(_[2]);
+					line[\ends] = [pts.first[2], pts.last[2]];
+					line[\sample] = [s[0], s[1]];
+					line[\born] = s[2];
+					lines.add(line);
+				};
+			};
+		};
+		^lines.asArray.sort { |x, y| x[\onset] <= y[\onset] }
+	}
+
+	// n points spread by arc length (in R^m) along the level set {time = value} of the time function tf,
+	// [u, v] each, brought onto it by two Newton steps along the surface's gradient (the marching
+	// squares' points lie a little off).
+	*prSliceSeeds { |surface, tf, value, n, res|
+		var tau = { |u, v| surface.timeAt(u, v, tf) };
+		var pieces = List.new, total = 0;   // [uv a, uv b, length, length before]
+		surface.levelSet(tau, value, res, res).do { |pl|
+			var xs = pl.collect { |uv| surface.at(uv[0], uv[1]) };
+			(pl.size - 1).do { |j|
+				var d = (xs[j + 1] - xs[j]).squared.sum.sqrt;
+				pieces.add([pl[j], pl[j + 1], d, total]);
+				total = total + d;
+			};
+		};
+		if(total <= 0) { ^[] };
+		^n.collect { |i|
+			var target = total * (i + 0.5) / n;
+			var p = pieces.detect { |q| target <= (q[3] + q[2]) } ? pieces.last;
+			var w = if(p[2] > 0) { ((target - p[3]) / p[2]).clip(0, 1) } { 0 };
+			var uv = p[0] + ((p[1] - p[0]) * w);
+			2.do {
+				var sg = surface.surfaceGradient(uv[0], uv[1], tf), d;
+				if(sg.notNil and: { sg[1] > 1e-12 }) {
+					d = (value - tau.(uv[0], uv[1])) / sg[1];
+					uv = uv + (sg[0] * d);
+				};
+			};
+			uv
+		}
+	}
+
+	// n points round each bottom of tau (a top when sweeping down) within the window, a fiftieth of the
+	// surface's size away, every way: [u, v, \min or \max].
+	*prBirthSeeds { |surface, tau, window, sign, n, res|
+		var kind = if(sign > 0) { \min } { \max };
+		var crit = surface.criticalPoints(tau, res, res).select { |c| (c[\kind] == kind) and: { c[\value] >= window[0] } and: { c[\value] < window[1] } };
+		var corners, radius;
+		if(crit.isEmpty) { ^[] };
+		corners = surface.grid(6, 6).collect { |uv| surface.at(uv[0], uv[1]) };
+		radius = 0.02 * (corners.flop.collect { |c| c.maxItem - c.minItem }.squared.sum.sqrt).max(1e-6);
+		^crit.collect { |c|
+			n.collect { |i|
+				var a = 2pi * i / n, t = surface.tangent(c[\u], c[\v], a), len = t.squared.sum.sqrt;
+				if(len < 1e-9) { [c[\u], c[\v], kind] } { [c[\u] + (a.cos * radius / len), c[\v] + (a.sin * radius / len), kind] }
+			}
+		}.flatten(1)
 	}
 
 	//////// cloud: Pithoprakta

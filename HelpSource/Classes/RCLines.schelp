@@ -144,6 +144,27 @@ RCLines.projected(~t, ~p, ~t.random(12, 1), \geodesic, 3, \wrap, 8, angle: 0.3pi
 RCLines.projected(~t, ~p, ~t.random(12, 1), 0.3pi, 1, \wrap, 8, bend: 1);
 ::
 
+subsection:: Sections: a surface cut by a moving hyperplane
+
+METHOD:: sections
+The slice of strong::surface:: by the moving hyperplane of strong::frame::'s time (or the hypersurface of strong::timeFunc::, a Function of R^m → number): at beat t of the cycle it is code::{T = offset + speed t}::, and what sounds is the slice. Strands stay on it, riding the surface's steepest ascent of T at unit time (link::Classes/RCSurface#-flow::), each a curved line whose time is exactly the score's (each sample's time is its point's) and whose other coordinates are the frame's projection of its point.
+argument:: seeding
+code::\slice:: (strong::n:: strands spread by arc length along the slice at the cycle's start, brought onto it by Newton steps), code::\births:: (n strands leaving every way from each bottom of T the hyperplane reaches in the cycle), code::\sweep:: (both), code::\random:: (n strands from random points the hyperplane crosses in the cycle; strong::seed::).
+argument:: length
+A strand ends at a top of T (where strands converge), at the edge of a patch, after strong::length:: beats or at the cycle's end: the strands live within a cycle.
+argument:: speed
+T units per beat; negative sweeps down (births at the tops).
+argument:: steps
+A whole cycle's strand (a shorter one fewer, at least 8).
+argument:: res
+The grid of the slice (the bottoms are found on one of half as many nodes).
+returns:: The lines in time order, each with its R^m code::curve:: and code::ends::, its seed code::sample:: and how it was code::born:: (code::\slice::, code::\min::, code::\max::, code::\random::).
+code::
+~t = RCSurface.torus(2, 1);
+~p = RCProjection(3, [\pitch, \az], scales: [1, 0.5, pi]);   // T = x
+RCLines.sections(~t, ~p, -3.5, 0.75, 8, cycle: 8);           // born at the bottom, past both saddles by the cycle's end
+::
+
 subsection:: Cloud: Pithoprakta
 
 METHOD:: cloud

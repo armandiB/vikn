@@ -320,6 +320,44 @@ TestRCLines : UnitTest {
 		this.assertEquals(RCLines.projected(s, p, [[0, 0]], \gradient, 0.8, \none).size, 0, "none at the top (a critical point)");
 	}
 
+	//////// sections
+
+	test_sections_strands_ride_the_slice {
+		var s = RCSurface.torus(2, 1);
+		var p = RCProjection(3, [\pitch, \az], scales: [1, 0.5, pi]);   // T = x, pitch y / 2, az z pi
+		var lines = RCLines.sections(s, p, -0.5, 0.25, 8, nil, 8, \slice);   // T from -0.5 to 1.5 over 8 beats (past the saddle at 1)
+		this.assertEquals(lines.size, 8, "8 strands along the slice x = -0.5 (two circles round the tube)");
+		this.assert(lines.every { |l| l[\born] == \slice and: { l[\onset] < 0.05 } }, "each from the cycle's start (onsets %)".format(lines.collect { |l| l[\onset].round(0.001) }));
+		this.assert(lines.every { |l| this.near(p.timeOf(l[\curve].first), -0.5 + (0.25 * l[\onset]), 1e-6) and: { this.near(p.timeOf(l[\curve].last), -0.5 + (0.25 * (l[\onset] + l[\dur])), 1e-6) } },
+			"its point on the hyperplane at its start and at its end: T = offset + speed t");
+		this.assert(lines.every { |l| (l[\onset] + l[\dur]) <= (8 + 1e-6) }, "within the cycle");
+		this.assert(lines.every { |l| this.near(l[\to][\pitch], p.project(l[\curve].last)[1][\pitch], 1e-9) }, "its pitch the projection of its point");
+		this.assert(lines.every { |l| l[\curve].every { |x| ((x[0].hypot(x[1]) - 2).squared + x[2].squared - 1).abs < 1e-6 } }, "on the torus");
+		this.assert(lines.count { |l| l[\path].notNil } >= 6, "curved (% of 8)".format(lines.count { |l| l[\path].notNil }));
+	}
+
+	test_sections_births_and_tops {
+		var s = RCSurface.torus(2, 1);
+		var p = RCProjection(3, [\pitch], scales: [1, 0.5]);
+		var born = RCLines.sections(s, p, -3.5, 1, 6, nil, 2, \sweep);   // the bottom, x = -3, reached half a beat in
+		var top = RCLines.sections(s, p, 2.5, 1, 6, nil, 2, \slice);      // a small loop below the top, x = 3
+		var down = RCLines.sections(s, p, 3.5, -1, 6, nil, 2, \sweep);    // sweeping down from above the top
+		this.assert(born.size == 6 and: { born.every { |l| l[\born] == \min and: { this.near(l[\onset], 0.5, 0.05) } } }, "the slice is empty at first: 6 strands born at the bottom half a beat in (%)".format(born.collect { |l| l[\onset].round(0.01) }));
+		this.assert(born.every { |l| p.timeOf(l[\curve].last) > p.timeOf(l[\curve].first) }, "rising");
+		this.assert(top.size == 6 and: { top.every { |l| (l[\onset] + l[\dur]) < 0.6 } }, "strands from just below the top end there, converging, long before the cycle's end (ends %)".format(top.collect { |l| (l[\onset] + l[\dur]).round(0.01) }));
+		this.assert(down.size == 6 and: { down.every { |l| l[\born] == \max and: { p.timeOf(l[\curve].last) < p.timeOf(l[\curve].first) } } }, "sweeping down: born at the top, falling");
+	}
+
+	test_sections_random_seeded_and_length {
+		var s = RCSurface.torus(2, 1);
+		var p = RCProjection(3, [\pitch], scales: [1, 0.5]);
+		var a = RCLines.sections(s, p, -2, 0.5, 10, 2, 8, \random, 7), b = RCLines.sections(s, p, -2, 0.5, 10, 2, 8, \random, 7);
+		this.assertEquals(a.collect { |l| [l[\onset], l[\dur]] }, b.collect { |l| [l[\onset], l[\dur]] }, "seeded: the same strands again");
+		this.assert(a.size == 10 and: { a.every { |l| l[\born] == \random and: { l[\dur] <= 2.02 } } }, "10 strands of at most 2 beats (within the integration's error, a percent: %)".format(a.collect { |l| l[\dur].round(0.001) }));
+		this.assert(a.every { |l| this.near(p.timeOf(l[\curve].first), -2 + (0.5 * l[\onset]), 1e-6) }, "each starting where the hyperplane crosses its point");
+		this.assertEquals(RCLines.sections(s, p, 10, 1, 6, nil, 2), [], "a hyperplane past the surface cuts nothing");
+	}
+
 	//////// surfaces
 
 	test_surface_presets_and_derivatives {
