@@ -1,0 +1,173 @@
+TITLE:: RCCurve
+summary:: A voice's curved course: one envelope per coordinate over the note, fitted, sliced, sent to a synth
+categories:: Libraries>reCurrent
+related:: Classes/RCLines, Classes/RCLineControl, Classes/Env
+
+DESCRIPTION::
+A line of link::Classes/RCLines:: glides each coordinate straight from its code::from:: value to its code::to:: value. A curved line also carries code::path::: an Event key → link::Classes/Env:: whose times are fractions of the note (summing to 1) and whose curves are sclang's envelope curves (a number per segment, 0 linear). A key without an Env stays straight and costs nothing more.
+
+A synth plays a path from a control array of link::#*maxPoints:: breakpoints, code::<key>_env:: (its times in seconds), switched on by code::<key>_curved::; through a gliding release the coordinate goes on along its end tangent, code::<key>_tail:: (units per line length). link::#*course:: and link::#*glide:: build that inside a SynthDef; link::#*eventControls:: sets the controls on a note's event.
+
+code::
+~env = RCCurve.fit({ |s| s.squared });       // a curve of s in 0..1 → at most 8 breakpoints
+RCCurve.at(~env, 0.5);                       // ≈ 0.25
+RCCurve.serverArray(~env, 2);                // the 32 values of <key>_env for a 2 s note
+RCCurve.lineFrom([[0, (pitch: 0)], [1, (pitch: 0.2)], [2, (pitch: 1)]], 3);   // a line with its path
+::
+
+The fit, the slice and the server array were the HadronLake3 Texture rig's; they are shared here by the Texture and Surfaces rigs.
+
+CLASSMETHODS::
+
+subsection:: Settings
+
+METHOD:: maxPoints
+Breakpoints of the synths' control arrays: 8 (7 segments), 32 values.
+
+METHOD:: tolerance
+The fit's error, as a fraction of the curve's excursion: 0.02.
+
+METHOD:: numSamples
+Samples of a Function fitted: 32.
+
+subsection:: Paths
+
+METHOD:: env
+An Env from levels, times (any unit: scaled to fractions of 1) and curves (numbers, 0 linear).
+argument:: levels
+argument:: times
+argument:: curves
+
+METHOD:: at
+The value of a path at strong::s:: in 0..1; a nil path is the straight line from strong::a:: to strong::b::.
+argument:: env
+argument:: s
+argument:: a
+argument:: b
+
+METHOD:: curveAt
+One envelope segment's value at strong::pos:: in 0..1 by sclang's curve rule: code::a + (b - a) (1 - e^(c pos)) / (1 - e^c)::, linear for c near 0.
+argument:: a
+argument:: b
+argument:: c
+argument:: pos
+
+METHOD:: curveThrough
+The curvature taking a segment from strong::a:: to strong::b:: through the midpoint value strong::m::, or nil when no monotone segment passes there.
+argument:: a
+argument:: b
+argument:: m
+
+METHOD:: fit
+Fit a curve into at most strong::n:: breakpoints: the two ends first, each segment given the curvature through its sampled midpoint, the worst segment split while its error exceeds strong::tol:: × the excursion. Returns an Env (times as fractions), or nil for a flat curve.
+argument:: curve
+A Function of s in 0..1, or an Array of samples equally spaced in s.
+argument:: n
+Defaults to link::#*maxPoints::.
+argument:: tol
+Defaults to link::#*tolerance::.
+argument:: samples
+Samples of a Function; defaults to link::#*numSamples::.
+
+METHOD:: slice
+A path's part between strong::s0:: and strong::s1::, its times renormalised.
+argument:: env
+argument:: s0
+argument:: s1
+
+METHOD:: cut
+The part before strong::s::.
+argument:: env
+argument:: s
+
+METHOD:: reflect
+The path's breakpoints past a wall mirrored back inside (link::Classes/RCLaws#*reflect::).
+argument:: env
+argument:: lo
+argument:: hi
+
+METHOD:: clip
+The path's breakpoints held at the walls.
+argument:: env
+argument:: lo
+argument:: hi
+
+METHOD:: mapLevels
+Every level through code::offset + scale * x::: an affine map keeps each segment's shape exactly (a coupling of one coordinate to another, a gain in dB).
+argument:: env
+argument:: scale
+argument:: offset
+
+METHOD:: peak
+The highest level (each segment is monotone: its extremes are its ends).
+argument:: env
+
+METHOD:: endSlope
+The slope at the end in units per line length: the tangent a gliding release goes on along. A padded segment of no length is skipped.
+argument:: env
+
+METHOD:: isCurved
+True when a path bends: more than two breakpoints, or one curved segment.
+argument:: env
+
+METHOD:: serverArray
+The control array a synth plays: the path padded to strong::n:: breakpoints (segments of no length at the last level), its times in seconds. A path with more breakpoints is refitted.
+argument:: env
+argument:: lineDur
+Seconds.
+argument:: n
+Defaults to link::#*maxPoints::.
+
+subsection:: Lines
+
+METHOD:: lineFrom
+A line from time-ordered samples code::[[time, params], ...]::: from the first sample to the last, every key whose values bend fitted into its path (resampled evenly in time first), a straight or constant key carrying none. A course shorter than strong::minDur:: gives the straight line between its ends stretched to minDur (link::Classes/RCLines#*between::'s chirp). nil for fewer than two samples.
+argument:: samples
+argument:: id
+argument:: minDur
+Defaults to link::Classes/RCLines#*defaultMinDur::.
+argument:: n
+argument:: tol
+
+subsection:: In a SynthDef
+
+METHOD:: controls
+The controls of a curved coordinate, an Event: code::env:: (code::<key>_env::), code::curved:: (code::<key>_curved::), code::tail:: (code::<key>_tail::).
+argument:: key
+
+METHOD:: course
+A coordinate along its line at strong::ramp:: (0 at the note, 1 at the line's end, beyond it through a gliding release): straight from strong::a:: to strong::b::, or the path followed by its end tangent.
+argument:: key
+argument:: a
+argument:: b
+argument:: ramp
+
+METHOD:: glide
+A coordinate gliding from strong::a:: to strong::b:: over strong::dur:: seconds, started again by strong::trig:: (a continuous grain's next target on a running synth), or its path: both envelopes run, the flag picks.
+argument:: key
+argument:: a
+argument:: b
+argument:: dur
+argument:: trig
+
+subsection:: In a template
+
+METHOD:: eventControls
+Set a note event's path controls for strong::keys:: from a hit's path: a curved key gets code::<key>_env:: (its server array, wrapped once: one control array, not one synth per value) and code::<key>_curved:: 1, with strong::withTails:: also code::<key>_tail:: and code::<key>_peak::; every other key gets code::<key>_curved:: 0 (a straight line after a curved one on the same synth turns its envelope off). Returns the event.
+argument:: ev
+argument:: path
+argument:: keys
+argument:: lineDur
+argument:: withTails
+
+EXAMPLES::
+
+code::
+// a voice's course sampled along an arc, its path, the event a synth would get
+(
+var samples = 9.collect { |i| var t = i / 2; [t, (pitch: (t - 2).squared / 4, az: 0.3 * t)] };
+var line = RCCurve.lineFrom(samples, 0);
+line.postln;
+RCCurve.eventControls((), line[\path], [\pitch, \az], 4).postln;
+)
+::
