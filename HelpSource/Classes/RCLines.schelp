@@ -59,11 +59,22 @@ The affine rail from point a to point b: a Function u → point.
 
 METHOD:: rails
 strong::n:: lines, line i joining code::a.(u_i):: to code::b.(u_i):: for two rails (Functions u → point), u evenly spaced in [0, 1] or the given strong::us::. Two affine rails give the hyperbolic paraboloid of the string section of Metastasis (bars 309-314); a rail collapsed to one point (code::rail(p, p)::) gives the fan of its opening.
+
+Curved rulings, a generalized ruled surface in the architect's sense: with strong::via:: (a point, or a rail u → point) each ruling is the quadratic Bézier arc from a.(u) to b.(u) pulled towards via.(u), strong::pull:: 0 the straight line, 1 the arc through via at its middle, more overshooting (a number, or an Event key → pull with code::\time:: for the time coordinate; a key it lacks stays straight). The arc's control point keeps its time between the ends', so its time stays monotone. strong::samples:: points along each arc (16); a curved line carries its code::path:: (link::Classes/RCCurve::).
 code::
 ~a = RCLines.rail([0, (pitch: 0)], [0, (pitch: 2)]);   // at time 0, from pitch 0 to 2
 ~b = RCLines.rail([8, (pitch: 2)], [8, (pitch: 0)]);   // at time 8, the other way
 RCLines.rails(~a, ~b, 12);                             // twelve crossing glissandi
+RCLines.rails(~a, ~b, 12, via: [4, (pitch: 3)]);       // every string arching through pitch 3 at beat 4
 ::
+argument:: a
+argument:: b
+argument:: n
+argument:: us
+argument:: minDur
+argument:: via
+argument:: pull
+argument:: samples
 
 subsection:: Tangents: the Xenakeur construction
 
@@ -93,6 +104,19 @@ Points along each bent path (16).
 
 METHOD:: parabola
 The curve tau → code::[tau, apex + curvature * (tau - apexTime)^2]:: per key; strong::apex:: an Event (key → value at the apex), strong::curvature:: a number or an Event per key (units per beat², the sign turns it).
+
+METHOD:: sine
+A sine in any keys, tau → code::[tau, center + amp sin(2pi (tau - t0) / period + phase)]:: per key: strong::center:: and strong::amp:: Events (key → value), strong::period:: (beats) and strong::phase:: numbers or Events per key. Two keys a quarter turn apart in phase draw a helix (a spiral in pitch × az over time); other periods per key a Lissajous figure.
+code::
+~helix = RCLines.sine((pitch: 1, az: 0), (pitch: 0.5, az: 1), 8, (pitch: 0, az: 0.5pi));
+RCLines.contact(~helix, (0, 0.5 .. 16), 1, 1);   // arcs hugging the spiral
+::
+
+METHOD:: circle
+A circle (an ellipse) in the plane of time and the keys of strong::center::: tau an angle, the point code::[centerTime + radiusTime cos tau, center + radius sin tau]::. Its time turns back at tau = 0 and pi: link::#*contact:: cuts a path there.
+
+METHOD:: spline
+A smooth curve through the composer's points code::[[time, params], ...]:: (times increasing): cubic Hermite between them with the slopes of the neighbours (Catmull-Rom on uneven times, one-sided at the ends), tau the time; on along the end slopes outside. A key missing from a point is left out.
 
 METHOD:: tangentAt
 code::[point, tangent]:: of a curve at tau (numerical).

@@ -95,6 +95,48 @@ TestRCLines : UnitTest {
 		this.assertEquals(RCLines.tangents(curve, [1], 0).size, 0, "a zero extent gives no line");
 	}
 
+	test_rails_curved_through_a_via_rail {
+		var a = RCLines.rail([0, (pitch: 0)], [0, (pitch: 2)]);
+		var b = RCLines.rail([8, (pitch: 2)], [8, (pitch: 0)]);
+		var via = RCLines.rail([4, (pitch: 3)], [4, (pitch: 3)]);   // every string through pitch 3 at beat 4
+		var straight = RCLines.rails(a, b, 5);
+		var flat = RCLines.rails(a, b, 5, via: via, pull: 0);
+		var arcs = RCLines.rails(a, b, 5, via: via, pull: 1);
+		var over = RCLines.rails(a, b, 5, via: via, pull: 1.5);
+		this.assert(flat.every { |l, i| l[\from] == straight[i][\from] and: { l[\to] == straight[i][\to] } and: { l[\path].isNil } }, "pull 0: the straight rulings");
+		this.assert(arcs.every { |l| this.near(RCCurve.at(l[\path][\pitch], 0.5), 3, 0.01) }, "pull 1: every arc through the via rail at its middle");
+		this.assert(arcs.every { |l, i| this.near(l[\from][\pitch], straight[i][\from][\pitch]) and: { this.near(l[\to][\pitch], straight[i][\to][\pitch]) } and: { l[\onset] == 0 } and: { this.near(l[\dur], 8) } }, "between the same ends, over the same time");
+		this.assert(over.every { |l| RCCurve.at(l[\path][\pitch], 0.5) > 3 }, "more pull overshoots the rail");
+	}
+
+	test_surface_rails_curved {
+		var a = { |u| [0, u, 0] }, b = { |u| [1, u, 0] }, m = { |u| [0.5, u, 1] };
+		var s = RCSurface.rails(a, b, 3, via: m);
+		var flat = RCSurface.rails(a, b, 3, via: m, pull: 0);
+		this.assert(this.near((s.at(0.3, 0.5) - m.value(0.3)).abs.sum, 0), "the arc through the via rail at v = 1/2");
+		this.assert(this.near((s.at(0.3, 0) - a.value(0.3)).abs.sum, 0) and: { this.near((s.at(0.3, 1) - b.value(0.3)).abs.sum, 0) }, "from rail a to rail b");
+		this.assert(this.near((s.dv(0.3, 0.2) - (((s.at(0.3, 0.2 + 1e-5)) - s.at(0.3, 0.2 - 1e-5)) / 2e-5)).abs.sum, 0, 1e-5), "its v derivative, analytic");
+		this.assert(this.near(flat.at(0.3, 0.5)[2], 0), "pull 0: the ruled surface");
+	}
+
+	//////// curve presets
+
+	test_sine_circle_spline {
+		var helix = RCLines.sine((pitch: 1, az: 0), (pitch: 0.5, az: 0.5), 8, (pitch: 0, az: 0.5pi));
+		var circle = RCLines.circle(4, (pitch: 1), 2, 0.5);
+		var pts = [[0, (pitch: 0)], [2, (pitch: 1)], [5, (pitch: -0.5)], [6, (pitch: 0)]];
+		var spline = RCLines.spline(pts);
+		var cut = RCLines.contact(circle, [0.6pi], 1, (time: 1, pitch: 1))[0];
+		// the bent path's time t0 + h t' + h²/2 t'' from h = -1 to 1 (it turns back only at h = -t'/t'' > 1 here)
+		var tau0 = 0.6pi, t0 = 4 + (2 * tau0.cos), d1 = -2 * tau0.sin, d2 = -2 * tau0.cos;
+		var tA = t0 - d1 + (d2 / 2), tB = t0 + d1 + (d2 / 2);
+		this.assert(this.near(helix.value(2)[1][\pitch], 1.5) and: { this.near(helix.value(2)[1][\az], 0) and: { this.near(helix.value(0)[1][\az], 0.5) } }, "sine: per-key periods and phases (a helix in pitch × az)");
+		this.assert(this.near(circle.value(0)[0], 6) and: { this.near(circle.value(0.5pi)[1][\pitch], 1.5) }, "circle: tau the angle, time and pitch radii");
+		this.assert(pts.every { |p| this.near(spline.value(p[0])[1][\pitch], p[1][\pitch]) }, "spline: through every point");
+		this.assert(this.near((spline.value(2 + 1e-6)[1][\pitch] - spline.value(2 - 1e-6)[1][\pitch]) / 2e-6, (-0.5 - 0) / 5, 1e-4), "with the neighbours' slope at a point (smooth)");
+		this.assert(cut.notNil and: { this.near(cut[\onset], tA.min(tB), 1e-6) } and: { this.near(cut[\onset] + cut[\dur], tA.max(tB), 1e-6) }, "a contact path on the circle, its time running backwards with tau, put in time order whole");
+	}
+
 	//////// contact
 
 	test_contact_bend_zero_is_tangents {

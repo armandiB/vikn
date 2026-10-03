@@ -162,10 +162,18 @@ RCSurface {
 	}
 
 	// The surface ruled by two rails: S(u, v) = A(u) + v (B(u) - A(u)), a and b Functions
-	// u → Array of dim numbers; the v-lines are the strings between the rails.
-	*rails { |a, b, dim = 3, uRange = #[0, 1], vRange = #[0, 1]|
-		^this.new({ |u, v| var pa = a.value(u), pb = b.value(u); pa + ((pb - pa) * v) }, dim, uRange, vRange,
-			nil, { |u, v| b.value(u) - a.value(u) }, \rails)
+	// u → Array of dim numbers; the v-lines are the strings between the rails. With `via` (a third
+	// rail, u → Array) the v-lines are quadratic Bézier arcs pulled towards it, Q = mid + 2 pull
+	// (M - mid): pull 0 the ruled surface, 1 the arcs through M at their middle (a generalized ruled
+	// surface, its generatrices curved).
+	*rails { |a, b, dim = 3, uRange = #[0, 1], vRange = #[0, 1], via, pull = 1|
+		var q = { |u| var pa = a.value(u), pb = b.value(u), mid = (pa + pb) / 2; mid + (2 * pull * (via.value(u) - mid)) };
+		if(via.isNil or: { pull == 0 }) {
+			^this.new({ |u, v| var pa = a.value(u), pb = b.value(u); pa + ((pb - pa) * v) }, dim, uRange, vRange,
+				nil, { |u, v| b.value(u) - a.value(u) }, \rails)
+		};
+		^this.new({ |u, v| ((1 - v).squared * a.value(u)) + (2 * v * (1 - v) * q.value(u)) + (v.squared * b.value(u)) }, dim, uRange, vRange,
+			nil, { |u, v| (2 * (1 - v) * (q.value(u) - a.value(u))) + (2 * v * (b.value(u) - q.value(u))) }, \curvedRails)
 	}
 
 	// The tangent developable of a curve C (a Function u → Array of dim numbers):

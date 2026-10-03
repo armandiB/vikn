@@ -39,7 +39,14 @@ argument:: r
 METHOD:: clifford
 The Clifford torus in R^4, code::[cos u, sin u, cos v, sin v] / sqrt 2::: flat, and every rotation of R^4 shows it differently to a projection.
 METHOD:: rails
-S(u, v) = A(u) + v (B(u) - A(u)) for two Functions u → Array: the strings between two rails.
+S(u, v) = A(u) + v (B(u) - A(u)) for two Functions u → Array: the strings between two rails. With strong::via:: (a third rail u → Array) the v-lines are quadratic Bézier arcs pulled towards it, code::Q = mid + 2 pull (M - mid)::: strong::pull:: 0 the ruled surface, 1 the arcs through M at their middle (a generalized ruled surface, its generatrices curved), its v derivative analytic.
+argument:: a
+argument:: b
+argument:: dim
+argument:: uRange
+argument:: vRange
+argument:: via
+argument:: pull
 METHOD:: tangentDevelopable
 S(u, v) = C(u) + v C'(u) for a curve C (a Function u → Array): ruled by the tangents of the curve, the Xenakeur construction as a surface.
 

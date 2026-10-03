@@ -107,9 +107,42 @@ RCLines {
 	// give the hyperbolic paraboloid of the string section; a rail collapsed to one point
 	// (rail(p, p)) gives the fan of the opening of Metastasis. Lines are returned in time
 	// order.
-	*rails { |a, b, n = 8, us, minDur|
+	// Curved rulings (a generalized ruled surface, the architect's sense): with `via` (a point, or a
+	// rail u → point) each ruling is the quadratic Bézier arc from a.(u) to b.(u) pulled towards
+	// via.(u): pull 0 the straight line, 1 the arc through it, more overshooting (a number, or an Event
+	// key → pull, the time coordinate reading \time; 0 for a key it lacks). The arc's control point keeps
+	// its time between the ends' (its time stays monotone). samples: points along each arc.
+	*rails { |a, b, n = 8, us, minDur, via, pull = 1, samples = 16|
 		us = us ?? { if(n <= 1) { [0] } { n.collect { |i| i / (n - 1) } } };
-		^us.collect { |u, i| this.between(a.value(u), b.value(u), minDur, i) }.sort { |x, y| x[\onset] <= y[\onset] }
+		^us.collect { |u, i|
+			if(via.isNil or: { this.prFlat(pull) }) {
+				this.between(a.value(u), b.value(u), minDur, i)
+			} {
+				this.prArc(a.value(u), if(via.isKindOf(Function)) { via.value(u) } { via }, b.value(u), pull, samples, minDur, i)
+			}
+		}.reject(_.isNil).sort { |x, y| x[\onset] <= y[\onset] }
+	}
+
+	// The arc of one curved ruling: Q = mid + 2 pull (via - mid) per coordinate (the arc passes via at
+	// its middle for pull 1), Q's time clipped between the ends', sampled, as a line.
+	*prArc { |pa, pm, pb, pull, samples, minDur, id|
+		var pullOf = { |k| if(pull.isNumber) { pull } { pull[k] ? 0 } };
+		var keys = IdentitySet.new, qt, qp = (), t0, t1, pts;
+		[pa[1], pb[1]].do { |e| e.keysDo { |k| keys.add(k) } };
+		t0 = pa[0].min(pb[0]);
+		t1 = pa[0].max(pb[0]);
+		qt = (((pa[0] + pb[0]) / 2) + (2 * pullOf.(\time) * (pm[0] - ((pa[0] + pb[0]) / 2)))).clip(t0, t1);
+		keys.do { |k|
+			var va = pa[1][k] ? pb[1][k], vb = pb[1][k] ? pa[1][k], mid = (va + vb) / 2;
+			qp[k] = mid + (2 * pullOf.(k) * ((pm[1][k] ? mid) - mid));
+		};
+		pts = (samples + 1).collect { |j|
+			var s = j / samples, w0 = (1 - s).squared, w1 = 2 * s * (1 - s), w2 = s.squared, params = ();
+			keys.do { |k| params[k] = (w0 * (pa[1][k] ? pb[1][k])) + (w1 * qp[k]) + (w2 * (pb[1][k] ? pa[1][k])) };
+			[(w0 * pa[0]) + (w1 * qt) + (w2 * pb[0]), params]
+		};
+		if(pb[0] < pa[0]) { pts = pts.reverse };
+		^RCCurve.lineFrom(pts, id, minDur)
 	}
 
 	//////// tangents: the Xenakeur construction
@@ -223,6 +256,69 @@ RCLines {
 			apex.keysValuesDo { |k, v|
 				var c = if(curvature.isNumber) { curvature } { curvature[k] ? 0 };
 				params[k] = v + (c * d * d);
+			};
+			[tau, params]
+		}
+	}
+
+	// A sine in any keys, tau → [tau, center + amp sin(2pi (tau - t0) / period + phase)] per key: center
+	// and amp Events (key → value), period (beats) and phase numbers or Events per key. Two keys with
+	// phases a quarter turn apart draw a helix (a spiral in pitch × az over time), other periods a
+	// Lissajous figure. A key of center without amp stays at its center.
+	*sine { |center, amp, period = 8, phase = 0, t0 = 0|
+		center = center ?? { (pitch: 0) };
+		amp = amp ?? { () };
+		^{ |tau|
+			var params = ();
+			center.keysValuesDo { |k, c|
+				var a = amp[k] ? 0, per = if(period.isNumber) { period } { period[k] ? 8 }, ph = if(phase.isNumber) { phase } { phase[k] ? 0 };
+				params[k] = c + (a * ((2pi * (tau - t0) / per.max(1e-9)) + ph).sin);
+			};
+			[tau, params]
+		}
+	}
+
+	// A circle (an ellipse) in the plane of time and the keys of `center`: tau an angle, the point
+	// [centerTime + radiusTime cos tau, center + radius sin tau] (radius an Event key → radius, or a
+	// number for every key). Its time turns back at tau = 0 and pi: a path through there is cut.
+	*circle { |centerTime = 0, center, radiusTime = 4, radius = 1|
+		center = center ?? { (pitch: 0) };
+		^{ |tau|
+			var params = ();
+			center.keysValuesDo { |k, c| params[k] = c + ((if(radius.isNumber) { radius } { radius[k] ? 0 }) * tau.sin) };
+			[centerTime + (radiusTime * tau.cos), params]
+		}
+	}
+
+	// A smooth curve through the composer's points [[time, params], ...] (times increasing): cubic
+	// Hermite between them with the slopes of the neighbours (Catmull-Rom on uneven times, one-sided
+	// at the ends), tau the time; on along the end slopes outside. A key missing from a point is left out.
+	*spline { |points|
+		var pts = points.asArray.sort { |a, b| a[0] <= b[0] };
+		var n = pts.size, keys, slopes;
+		if(n < 2) { ^{ |tau| [tau, (pts.first ? [0, ()])[1].copy] } };
+		keys = pts.first[1].keys.select { |k| pts.every { |p| p[1][k].isNumber } };
+		slopes = pts.collect { |p, i|
+			var a = pts[(i - 1).max(0)], b = pts[(i + 1).min(n - 1)], dt = (b[0] - a[0]).max(1e-9), s = ();
+			keys.do { |k| s[k] = (b[1][k] - a[1][k]) / dt };
+			s
+		};
+		^{ |tau|
+			var j = 0, params = (), p0, p1, h, u, h00, h10, h01, h11;
+			while { (j < (n - 2)) and: { pts[j + 1][0] < tau } } { j = j + 1 };
+			p0 = pts[j];
+			p1 = pts[j + 1];
+			h = (p1[0] - p0[0]).max(1e-9);
+			case
+			{ tau < pts.first[0] } { keys.do { |k| params[k] = pts.first[1][k] + (slopes.first[k] * (tau - pts.first[0])) } }
+			{ tau > pts.last[0] } { keys.do { |k| params[k] = pts.last[1][k] + (slopes.last[k] * (tau - pts.last[0])) } }
+			{
+				u = (tau - p0[0]) / h;
+				h00 = (2 * u.cubed) - (3 * u.squared) + 1;
+				h10 = u.cubed - (2 * u.squared) + u;
+				h01 = (-2 * u.cubed) + (3 * u.squared);
+				h11 = u.cubed - u.squared;
+				keys.do { |k| params[k] = (h00 * p0[1][k]) + (h10 * h * slopes[j][k]) + (h01 * p1[1][k]) + (h11 * h * slopes[j + 1][k]) };
 			};
 			[tau, params]
 		}
