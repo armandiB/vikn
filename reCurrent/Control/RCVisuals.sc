@@ -12,7 +12,8 @@
 //
 // `enabled = false` sends nothing (a gig without visuals); `sink` replaces the
 // network by a Function { |path, args| } (tests, offline checks). A delayed
-// send goes on SystemClock from the calling thread's logical time: a Pfunc
+// send goes on SystemClock (on the offline clock in a take render) from the
+// calling thread's logical time: a Pfunc
 // evaluated at an event's logical time sends at that time plus the server
 // latency, when the sound starts (HomewareVisuals' latency rule).
 
@@ -53,10 +54,18 @@ RCVisuals {
 	}
 
 	// In `delay` seconds of the calling thread's logical time (SystemClock); at once when delay <= 0.
+	// A thread on an offline clock (REOfflineClock: a take rendered offline) has a logical time
+	// far ahead of the real one: the send waits on that clock instead, at the offline time it
+	// belongs to (on SystemClock it would wait in real time, and fill its queue).
 	*sendIn { |delay, path, args|
+		var clock = thisThread.clock;
 		if(enabled.not) { ^false };
 		if(delay.isNil or: { delay <= 0 }) { ^this.sendArgs(path, args) };
-		SystemClock.sched(delay, { this.sendArgs(path, args); nil });
+		if(clock.isKindOf(REOfflineClock)) {
+			clock.sched(delay * clock.tempo, { this.sendArgs(path, args); nil });
+		} {
+			SystemClock.sched(delay, { this.sendArgs(path, args); nil });
+		};
 		^true
 	}
 

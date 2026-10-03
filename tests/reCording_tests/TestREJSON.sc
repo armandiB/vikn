@@ -102,4 +102,11 @@ TestREJSON : UnitTest {
 		File.delete(dir +/+ "deeper");
 		File.delete(dir);
 	}
+
+	test_write_fails_naming_the_path {
+		var path = "/re_json_" ++ UniqueID.next ++ ".json";   // the root folder is not writable
+		var error = try { REJSON.write((a: 1), path); nil } { |e| e };
+		this.assert(error.notNil and: { error.isKindOf(PrimitiveFailedError).not }, "an Error of its own, not a failed primitive");
+		this.assert(error.notNil and: { error.errorString.contains(path) }, "it names the path");
+	}
 }

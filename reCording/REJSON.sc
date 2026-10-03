@@ -29,12 +29,15 @@ REJSON {
 		^stream.collection
 	}
 
-	// Returns the path written (standardized).
+	// Returns the path written (standardized). A file that cannot be opened (a folder that is not
+	// writable, an empty root that put it at "/") throws an Error naming the path.
 	*write { |obj, path, indent, inlineDepth = inf, keyOrder|
-		var text = this.stringify(obj, indent, inlineDepth, keyOrder);
+		var text = this.stringify(obj, indent, inlineDepth, keyOrder), file;
 		path = path.asString.standardizePath;
 		this.mkdirAll(path.dirname);
-		File.use(path, "w", { |f| f.write(text) });
+		file = File(path, "w");
+		if(file.isOpen.not) { Error("cannot write %".format(path)).throw };
+		protect { file.write(text) } { file.close };
 		^path
 	}
 

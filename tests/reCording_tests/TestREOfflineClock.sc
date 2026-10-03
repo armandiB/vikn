@@ -65,4 +65,28 @@ TestREOfflineClock : UnitTest {
 		this.assertEquals(s.score[1][1][0], '/d_recv');
 		this.assertEquals(s.score.collect(_[0]), [0.0, 0.0, 0, 1, 1.2], "sorted");
 	}
+
+	// A NodeProxy source set by an item of the clock (a take's code line) is collected at once, at
+	// that moment: the definition first, the proxy's synth a server latency later (OSCBundleExt).
+	test_proxy_source_set_while_replaying {
+		var c = REOfflineClock(tempo: 2);
+		var a = RECollectAddr("127.0.0.1", 57997, c);
+		var s = Server(\re_offline_proxy_test, a);
+		var p, before, defs, synths;
+		var isCmd = { |m, num, name| m[0] == num or: { m[0].asString == name } };
+		s.statusWatcher.serverRunning = true;   // as take_render.scd: counts as running, nothing answers
+		s.statusWatcher.notified = true;
+		p = NodeProxy.audio(s, 2);
+		c.schedAbs(4, { p.source = { SinOsc.ar(440, 0, 0.1) ! 2 }; nil });
+		c.advanceTo(3);
+		before = a.bundles.size;
+		c.advanceTo(6);
+		defs = a.bundles.copyRange(before, a.bundles.size - 1).select { |b| b[1..].any { |m| isCmd.(m, 5, "/d_recv") } };
+		synths = a.bundles.copyRange(before, a.bundles.size - 1).select { |b| b[1..].any { |m| isCmd.(m, 9, "/s_new") } };
+		this.assertEquals(defs.size, 1, "the source's definition is collected during the replay");
+		this.assertEquals(defs[0] !? (_[0]), 2.0, "at the item's seconds (beat 4 at tempo 2)");
+		this.assertEquals(synths.size, 1, "and the proxy's synth");
+		this.assertEquals(synths[0] !? (_[0]), 2.0 + s.latency, "a server latency later");
+		s.remove;
+	}
 }
