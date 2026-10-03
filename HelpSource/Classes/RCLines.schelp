@@ -151,7 +151,7 @@ The slice of strong::surface:: by the moving hyperplane of strong::frame::'s tim
 argument:: seeding
 code::\slice:: (strong::n:: strands spread by arc length along the slice at the cycle's start, brought onto it by Newton steps), code::\births:: (n strands leaving every way from each bottom of T the hyperplane reaches in the cycle), code::\sweep:: (both), code::\random:: (n strands from random points the hyperplane crosses in the cycle; strong::seed::).
 argument:: length
-A strand ends at a top of T (where strands converge), at the edge of a patch, after strong::length:: beats or at the cycle's end: the strands live within a cycle.
+A strand ends at a top of T (where strands converge), at the edge of a patch, after strong::length:: beats or at the cycle's end: the strands live within a cycle. A strand ending before its time (at a top, or the edge) carries code::hold: true:: in its path: its release should hold its end rather than glide on (nearing a top the unit-time flow runs ever faster, and so does its end).
 argument:: speed
 T units per beat; negative sweeps down (births at the tops).
 argument:: steps

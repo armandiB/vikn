@@ -480,10 +480,12 @@ RCLines {
 	// hyperplane crosses in the cycle; seed). A strand ends at a top of T (where strands converge), at the
 	// edge of a patch, after `length` beats or at the cycle's end: the strands live within a cycle (each
 	// sample's time is its point's, so an end may pass by the integration's error). A negative speed
-	// sweeps down (births at the tops). steps: a whole cycle's strand (a shorter one fewer, at least 8);
-	// res: the grid of the slice (the bottoms on one of half as many nodes). Returns the lines in time
-	// order, each with its R^m `curve` and `ends`, its seed `sample` and how it was `born` (\slice, \min,
-	// \max, \random).
+	// sweeps down (births at the tops). A strand ending before its time (at a top, or the edge) carries
+	// hold: true in its path: its release should hold its end, not glide on (nearing a top the unit-time
+	// flow runs ever faster, and so does its end). steps: a whole cycle's strand (a shorter one fewer, at
+	// least 8); res: the grid of the slice (the bottoms on one of half as many nodes). Returns the lines in
+	// time order, each with its R^m `curve` and `ends`, its seed `sample` and how it was `born` (\slice,
+	// \min, \max, \random).
 	*sections { |surface, frame, offset = 0, speed = 1, n = 12, length, cycle = 8, seeding = \sweep, seed, timeFunc, steps = 16, res = 32, minDur|
 		var tf = timeFunc ? frame;
 		var tau = { |u, v| surface.timeAt(u, v, tf) };
@@ -504,7 +506,7 @@ RCLines {
 			});
 		};
 		seeds.do { |s, i|
-			var t0 = ((tau.(s[0], s[1]) - offset) / speed).max(0), span = maxLen.min(cycle - t0), pts, line;
+			var t0 = ((tau.(s[0], s[1]) - offset) / speed).max(0), span = maxLen.min(cycle - t0), pts, line, path;
 			if(span > 1e-6) {
 				pts = surface.flow(s[0], s[1], tf, speed * span, (steps * span / cycle).ceil.asInteger.max(8), \time).collect { |q|
 					var x = surface.at(q[1], q[2]);
@@ -516,6 +518,11 @@ RCLines {
 					line[\ends] = [pts.first[2], pts.last[2]];
 					line[\sample] = [s[0], s[1]];
 					line[\born] = s[2];
+					if(pts.last[0] < (t0 + span - (0.02 * span).max(1e-3))) {   // stopped short: converged, or at the edge
+						path = line[\path] ?? { () };
+						path[\hold] = true;
+						line[\path] = path;
+					};
 					lines.add(line);
 				};
 			};

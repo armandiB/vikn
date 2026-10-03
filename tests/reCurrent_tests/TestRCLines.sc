@@ -345,6 +345,7 @@ TestRCLines : UnitTest {
 		this.assert(born.size == 6 and: { born.every { |l| l[\born] == \min and: { this.near(l[\onset], 0.5, 0.05) } } }, "the slice is empty at first: 6 strands born at the bottom half a beat in (%)".format(born.collect { |l| l[\onset].round(0.01) }));
 		this.assert(born.every { |l| p.timeOf(l[\curve].last) > p.timeOf(l[\curve].first) }, "rising");
 		this.assert(top.size == 6 and: { top.every { |l| (l[\onset] + l[\dur]) < 0.6 } }, "strands from just below the top end there, converging, long before the cycle's end (ends %)".format(top.collect { |l| (l[\onset] + l[\dur]).round(0.01) }));
+		this.assert(top.every { |l| l[\path][\hold] == true } and: { born.every { |l| (l[\path] ? ())[\hold] != true } }, "a strand that converged holds its end through a release; one cut by the cycle's end does not");
 		this.assert(down.size == 6 and: { down.every { |l| l[\born] == \max and: { p.timeOf(l[\curve].last) < p.timeOf(l[\curve].first) } } }, "sweeping down: born at the top, falling");
 	}
 
