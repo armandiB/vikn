@@ -192,11 +192,12 @@ RCSurface {
 
 	// The steepest ascent of a time function through (u, v) (a negative length descends), in `steps`
 	// steps. unit \time: its time grows by one per unit of length (length in time units: the strands
-	// of a section ride it), \length: unit speed in R^m. A step whose time does not grow as it should is
-	// tried again at half the length, four times (nearing a top, where the unit-time flow runs ever
-	// faster); then it stops: at a top, where strands converge (a bottom, going down), at the edge of a
-	// patch that is not periodic, at a singular point. Returns [time, u, v] samples, each with the time
-	// of its point (closer together where a step was halved).
+	// of a section ride it), \length: unit speed in R^m. A step whose time does not grow as it should
+	// (at unit time by half to five quarters of the step: Runge-Kutta overshoots where the flow runs ever
+	// faster, nearing a critical point) is tried again at half the length, four times; then it stops: at
+	// a top, where strands converge (a bottom, going down), at a saddle reached along its separatrix, at
+	// the edge of a patch that is not periodic, at a singular point. Returns [time, u, v] samples, each
+	// with the time of its point (closer together where a step was halved).
 	flow { |u, v, timeFunc, length = 1, steps = 16, unit = \time|
 		var sign = if(length < 0) { -1 } { 1 }, total = length.abs, h0 = total / steps.max(1);
 		var state = [u, v], t = this.timeAt(u, v, timeFunc), res = [[t, u, v]], travelled = 0, going = true;
@@ -213,7 +214,7 @@ RCSurface {
 				next = this.prIntegrate(state, f, h, 1).at(1);   // one step, nil when it could not be taken
 				ok = next.notNil and: { this.contains(next[0], next[1]) } and: {
 					tn = this.timeAt(next[0], next[1], timeFunc);
-					if(unit == \length) { ((tn - t) * sign) > 0 } { ((tn - t) * sign) > (0.5 * h) }
+					if(unit == \length) { ((tn - t) * sign) > 0 } { (((tn - t) * sign) > (0.5 * h)) and: { ((tn - t) * sign) < (1.25 * h) } }
 				};
 				if(ok.not) { h = h / 2; tries = tries + 1 };
 			};
