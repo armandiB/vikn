@@ -19,6 +19,7 @@
 RCSession {
 	classvar <default;
 	classvar <>clockQueueSize = 32768;
+	classvar <held;   // clocks just stopped, kept until their thread has ended (prStopHeld)
 	var <server, <clock, <oscPort, <localAddr, <songs;
 	var <midiInitialized = false, <booted = false, <ownsClock = false;
 
@@ -144,12 +145,27 @@ RCSession {
 			^false
 		};
 		this.killAll;
-		clock.clear;
-		clock.stop;
+		this.class.prStopHeld(clock);
 		RCLog.post(\session, "stopped the session clock");
 		clock = nil;
 		ownsClock = false;
 		^true
+	}
+
+	// Clear and stop a clock, and hold it 5 seconds. TempoClock.stop takes the
+	// clock out of TempoClock.all at once, but its thread only ends once the code
+	// running now is over (the stop waits for the interpreter): dropped meanwhile,
+	// the clock could be collected, and when that code ends its thread would read
+	// the reused memory as its queue and fire what it finds (sclang crashes or
+	// hangs). The release runs on AppClock, between evaluations: the stop is long
+	// done by then.
+	*prStopHeld { |clock|
+		held = held ?? { IdentitySet.new };
+		held.add(clock);
+		clock.clear;
+		clock.stop;
+		AppClock.sched(5, { held.remove(clock); nil });
+		^clock
 	}
 
 	free {

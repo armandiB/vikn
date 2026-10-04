@@ -43,6 +43,16 @@ TestRCSession : UnitTest {
 		this.assert(clock.isRunning, "the shared clock still runs");
 	}
 
+	// stopClock's stop, on a clock of its own (the suite never makes the LinkClock a session owns)
+	test_a_stopped_clock_is_held {
+		var c = TempoClock.new(1, queueSize: 64);
+		c.sched(1000, { nil });
+		RCSession.prStopHeld(c);
+		this.assert(c.isRunning.not, "stopped for sclang at once");
+		this.assertEquals(c.queue.size, 1, "cleared before the stop: nothing left to fire");
+		this.assert(RCSession.held.includes(c), "held until its thread has ended (TempoClock.stop ends it after the running code)");
+	}
+
 	test_reboot_keeps_the_open_port {
 		var port = 32399;
 		var s = RCSession.boot(Server.default, clock, oscPort: port, initMidi: false);
