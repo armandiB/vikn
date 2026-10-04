@@ -1,10 +1,12 @@
 TITLE:: RCSurface
-summary:: A parametric surface in R^m, sampled for its tangent lines and rulings
+summary:: A parametric surface in R^m, sampled for its tangent lines, rulings and the curves on it
 categories:: Libraries>reCurrent
 related:: Classes/RCLines, Classes/RCProjection
 
 DESCRIPTION::
-A surface is a Function (u, v) → Array of strong::dim:: numbers over uRange × vRange. link::Classes/RCLines#*projected:: samples it (link::#-grid::, link::#-random::, link::#-walk::), takes a tangent segment or the v-line (the ruling) through each sample and projects it on a score space with an link::Classes/RCProjection::. The presets are the surfaces Xenakis drew for Metastasis and the Philips Pavilion (ruled: the cone, the conoid, the hyperbolic paraboloid, the hyperboloid of one sheet), the surface ruled by two rails, the surface of the tangents of a curve, and closed surfaces for projected textures (sphere, torus, the Clifford torus in R^4). Rulings run along v where a preset is ruled.
+A surface is a Function (u, v) → Array of strong::dim:: numbers over uRange × vRange. link::Classes/RCLines#*projected:: samples it (link::#-grid::, link::#-random::, link::#-walk::), takes a tangent segment, the v-line (the ruling) or a curve on the surface through each sample and projects it on a score space with an link::Classes/RCProjection::. The presets are the surfaces Xenakis drew for Metastasis and the Philips Pavilion (ruled: the cone, the conoid, the hyperbolic paraboloid, the hyperboloid of one sheet), the surface ruled by two rails, the surface of the tangents of a curve, and closed surfaces for projected textures (sphere, torus, the Clifford torus in R^4). Rulings run along v where a preset is ruled.
+
+The curves on a surface are integrated in the parameters by Runge-Kutta 4, their equations written in R^m with the metric of the first partials (link::#-metric::), so they work in any dimension: link::#-geodesic:: (the straightest curves: a ruling, a great circle; its acceleration in R^m has no part along the surface), link::#-paramLine::, and link::#-flow::, the steepest ascent of a time function (a projection's time, or any Function of R^m): at unit time, the strands of a section of the surface by a moving hyperplane. A function on the patch has level sets (link::#-levelSet::, marching squares) and critical points (link::#-criticalPoints::: where strands are born, part and converge). The curves read the second partials at every step: the presets give them (link::#-secondPartials::), other surfaces take differences of the first. Costs measured in sclang: a geodesic of 12 steps about 1 ms with its projection (1.4 ms in R^4), a 32 × 32 level set 6 ms, critical points 15 ms.
 
 CLASSMETHODS::
 
@@ -39,7 +41,14 @@ argument:: r
 METHOD:: clifford
 The Clifford torus in R^4, code::[cos u, sin u, cos v, sin v] / sqrt 2::: flat, and every rotation of R^4 shows it differently to a projection.
 METHOD:: rails
-S(u, v) = A(u) + v (B(u) - A(u)) for two Functions u → Array: the strings between two rails.
+S(u, v) = A(u) + v (B(u) - A(u)) for two Functions u → Array: the strings between two rails. With strong::via:: (a third rail u → Array) the v-lines are quadratic Bézier arcs pulled towards it, code::Q = mid + 2 pull (M - mid)::: strong::pull:: 0 the ruled surface, 1 the arcs through M at their middle (a generalized ruled surface, its generatrices curved), its v derivative analytic.
+argument:: a
+argument:: b
+argument:: dim
+argument:: uRange
+argument:: vRange
+argument:: via
+argument:: pull
 METHOD:: tangentDevelopable
 S(u, v) = C(u) + v C'(u) for a curve C (a Function u → Array): ruled by the tangents of the curve, the Xenakeur construction as a surface.
 
@@ -50,10 +59,57 @@ The point at (u, v).
 METHOD:: du
 METHOD:: dv
 The partial derivatives at (u, v).
+METHOD:: duu
+METHOD:: duv
+METHOD:: dvv
+The second partials at (u, v): from the Functions given to link::#-secondPartials::, else central differences of the first partials.
+METHOD:: secondPartials
+Give the second partials as Functions (u, v) → Array of dim numbers (nil: differences). Returns the surface.
+argument:: duu
+argument:: duv
+argument:: dvv
 METHOD:: tangent
 code::cos(angle) * du + sin(angle) * dv::.
 METHOD:: normal
 The unit normal (dim 3 only), nil elsewhere or where the tangents are dependent.
+METHOD:: metric
+The first fundamental form at (u, v): code::[E, F, G]::, the dot products of the partials.
+METHOD:: contains
+Whether (u, v) lies on the patch (a periodic parameter always does).
+
+subsection:: Curves on the surface
+Samples code::[u, v]::, unwrapped across a periodic seam (the surface is evaluated there as it is). A curve stops at the edge of a patch that is not periodic and at a singular point (where the partials are dependent: a pole, an apex).
+METHOD:: geodesic
+The geodesic leaving (u, v) along code::cos(angle) S_u + sin(angle) S_v::, strong::length:: long in R^m (negative: the other way), in strong::steps:: steps. nil where the direction vanishes.
+argument:: u
+argument:: v
+argument:: angle
+argument:: length
+argument:: steps
+METHOD:: geodesicAccel
+The parameter acceleration code::[u'', v'']:: of a geodesic through (u, v) at the parameter velocity (up, vp), nil at a singular point.
+METHOD:: paramLine
+The parameter line through (u, v), along u (strong::which:: code::\u::) or v (code::\v::), strong::length:: long in R^m (its arc length; negative: backwards).
+METHOD:: flow
+The steepest ascent through (u, v) of a time function, strong::timeFunc:: (an link::Classes/RCProjection::: its time; or a Function, a point of R^m → number), in strong::steps:: steps; a negative strong::length:: descends. With strong::unit:: code::\time:: its time grows by one per unit of length (length in time units: the strands of a section ride it), with code::\length:: at unit speed in R^m. A step whose time does not grow as it should (at unit time by half to five quarters of the step: Runge-Kutta overshoots where the flow runs ever faster, nearing a critical point) is tried again at half the length, four times; then it stops: at a top, where strands converge (a bottom, going down), at a saddle reached along its separatrix. Returns code::[time, u, v]:: samples, each with the time of its point.
+METHOD:: timeAt
+The time function at (u, v).
+METHOD:: surfaceGradient
+The time function's gradient along the surface at (u, v) in parameters (code::g⁻¹ ∇τ::) with its squared length: code::[[u', v'], |∇_S T|²]::, nil at a singular point.
+
+subsection:: Functions on the patch
+A Function (u, v) → number, on a grid of nu × nv nodes (link::#-grid::'s, wrapped where periodic).
+METHOD:: levelSet
+The level set code::{func(u, v) = value}:: by marching squares (a saddle cell decided by its centre): an Array of polylines of code::[u, v]::, each in order along the curve and unwrapped across a periodic seam (a closed one ends on its first point, or a period on when it goes round).
+argument:: func
+argument:: value
+argument:: nu
+argument:: nv
+METHOD:: criticalPoints
+The critical points of func: Events code::(u:, v:, value:, kind:):: with kind code::\min::, code::\max:: (a node below or above all its neighbours) or code::\saddle:: (the neighbours' signs, relative to it, change four times or more around it). An interior one is moved to the stationary point of the quadratic through its neighbours; on the border of a patch that is not periodic, only the extremes of what is there. Nodes on one point of R^m (a pole) count once.
+argument:: func
+argument:: nu
+argument:: nv
 METHOD:: grid
 nu × nv samples code::[u, v]:: over the ranges, the ends included unless the parameter is periodic.
 METHOD:: random
@@ -77,4 +133,11 @@ code::
 ~s.normal(1, 2);
 ~s.grid(8, 4).size;   // 32
 ~s.walk(16, 0.3, 0.3, seed: 1);
+
+// curves on it
+~s.geodesic(0, 0.5, 0.3pi, 4);                          // 4 long in R^3: samples [u, v]
+~p = RCProjection(3, [\pitch]);                          // time = x
+~s.flow(0.5pi, 0.3, ~p, 2);                              // [time, u, v], one unit of time per unit
+~s.levelSet({ |u, v| ~s.timeAt(u, v, ~p) }, 1);          // where the hyperplane x = 1 cuts it
+~s.criticalPoints({ |u, v| ~s.timeAt(u, v, ~p) });       // its top, bottom and two saddles
 ::

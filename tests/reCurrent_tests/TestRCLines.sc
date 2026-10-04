@@ -95,6 +95,84 @@ TestRCLines : UnitTest {
 		this.assertEquals(RCLines.tangents(curve, [1], 0).size, 0, "a zero extent gives no line");
 	}
 
+	test_rails_curved_through_a_via_rail {
+		var a = RCLines.rail([0, (pitch: 0)], [0, (pitch: 2)]);
+		var b = RCLines.rail([8, (pitch: 2)], [8, (pitch: 0)]);
+		var via = RCLines.rail([4, (pitch: 3)], [4, (pitch: 3)]);   // every string through pitch 3 at beat 4
+		var straight = RCLines.rails(a, b, 5);
+		var flat = RCLines.rails(a, b, 5, via: via, pull: 0);
+		var arcs = RCLines.rails(a, b, 5, via: via, pull: 1);
+		var over = RCLines.rails(a, b, 5, via: via, pull: 1.5);
+		this.assert(flat.every { |l, i| l[\from] == straight[i][\from] and: { l[\to] == straight[i][\to] } and: { l[\path].isNil } }, "pull 0: the straight rulings");
+		this.assert(arcs.every { |l| this.near(RCCurve.at(l[\path][\pitch], 0.5), 3, 0.01) }, "pull 1: every arc through the via rail at its middle");
+		this.assert(arcs.every { |l, i| this.near(l[\from][\pitch], straight[i][\from][\pitch]) and: { this.near(l[\to][\pitch], straight[i][\to][\pitch]) } and: { l[\onset] == 0 } and: { this.near(l[\dur], 8) } }, "between the same ends, over the same time");
+		this.assert(over.every { |l| RCCurve.at(l[\path][\pitch], 0.5) > 3 }, "more pull overshoots the rail");
+	}
+
+	test_surface_rails_curved {
+		var a = { |u| [0, u, 0] }, b = { |u| [1, u, 0] }, m = { |u| [0.5, u, 1] };
+		var s = RCSurface.rails(a, b, 3, via: m);
+		var flat = RCSurface.rails(a, b, 3, via: m, pull: 0);
+		this.assert(this.near((s.at(0.3, 0.5) - m.value(0.3)).abs.sum, 0), "the arc through the via rail at v = 1/2");
+		this.assert(this.near((s.at(0.3, 0) - a.value(0.3)).abs.sum, 0) and: { this.near((s.at(0.3, 1) - b.value(0.3)).abs.sum, 0) }, "from rail a to rail b");
+		this.assert(this.near((s.dv(0.3, 0.2) - (((s.at(0.3, 0.2 + 1e-5)) - s.at(0.3, 0.2 - 1e-5)) / 2e-5)).abs.sum, 0, 1e-5), "its v derivative, analytic");
+		this.assert(this.near(flat.at(0.3, 0.5)[2], 0), "pull 0: the ruled surface");
+	}
+
+	//////// curve presets
+
+	test_sine_circle_spline {
+		var helix = RCLines.sine((pitch: 1, az: 0), (pitch: 0.5, az: 0.5), 8, (pitch: 0, az: 0.5pi));
+		var circle = RCLines.circle(4, (pitch: 1), 2, 0.5);
+		var pts = [[0, (pitch: 0)], [2, (pitch: 1)], [5, (pitch: -0.5)], [6, (pitch: 0)]];
+		var spline = RCLines.spline(pts);
+		var cut = RCLines.contact(circle, [0.6pi], 1, (time: 1, pitch: 1))[0];
+		// the bent path's time t0 + h t' + h²/2 t'' from h = -1 to 1 (it turns back only at h = -t'/t'' > 1 here)
+		var tau0 = 0.6pi, t0 = 4 + (2 * tau0.cos), d1 = -2 * tau0.sin, d2 = -2 * tau0.cos;
+		var tA = t0 - d1 + (d2 / 2), tB = t0 + d1 + (d2 / 2);
+		this.assert(this.near(helix.value(2)[1][\pitch], 1.5) and: { this.near(helix.value(2)[1][\az], 0) and: { this.near(helix.value(0)[1][\az], 0.5) } }, "sine: per-key periods and phases (a helix in pitch × az)");
+		this.assert(this.near(circle.value(0)[0], 6) and: { this.near(circle.value(0.5pi)[1][\pitch], 1.5) }, "circle: tau the angle, time and pitch radii");
+		this.assert(pts.every { |p| this.near(spline.value(p[0])[1][\pitch], p[1][\pitch]) }, "spline: through every point");
+		this.assert(this.near((spline.value(2 + 1e-6)[1][\pitch] - spline.value(2 - 1e-6)[1][\pitch]) / 2e-6, (-0.5 - 0) / 5, 1e-4), "with the neighbours' slope at a point (smooth)");
+		this.assert(cut.notNil and: { this.near(cut[\onset], tA.min(tB), 1e-6) } and: { this.near(cut[\onset] + cut[\dur], tA.max(tB), 1e-6) }, "a contact path on the circle, its time running backwards with tau, put in time order whole");
+	}
+
+	//////// contact
+
+	test_contact_bend_zero_is_tangents {
+		var curve = RCLines.parabola(4, (pitch: 1, az: 0.5), (pitch: 0.125, az: -0.05));
+		var touches = [1, 2.5, 4, 6.5];
+		var t = RCLines.tangents(curve, touches, [1, 1.5]);
+		var c = RCLines.contact(curve, touches, [1, 1.5], 0);
+		this.assert(t.size == c.size and: { t.every { |l, i| var m = c[i]; l[\onset] == m[\onset] and: { l[\dur] == m[\dur] } and: { l[\from] == m[\from] } and: { l[\to] == m[\to] } and: { m[\path].isNil } } }, "bend 0: the tangent lines themselves, line for line, no path");
+	}
+
+	test_contact_bend_one_osculates {
+		var curve = RCLines.parabola(4, (pitch: 1), 0.125);   // its osculating parabola is itself
+		var lines = RCLines.contact(curve, [2, 5], 1.5, 1);
+		this.assert(lines.every { |l| l[\path][\pitch].notNil }, "bent paths carry their pitch path");
+		this.assert(lines.every { |l| 9.collect { |j| var s = j / 8, time = l[\onset] + (s * l[\dur]); (RCCurve.at(l[\path][\pitch], s) - curve.value(time)[1][\pitch]).abs }.maxItem < 0.01 }, "bend 1 on a parabola follows the parabola over the whole extent");
+		this.assert(lines.every { |l| this.near(l[\from][\pitch], curve.value(l[\onset])[1][\pitch], 1e-4) }, "and starts on it");
+	}
+
+	test_contact_side_flips_across_one {
+		var curve = RCLines.parabola(4, (pitch: 0), 0.25);   // a bowl
+		var endOf = { |b| var l = RCLines.contact(curve, [4], 1, b)[0]; l[\to][\pitch] - curve.value(l[\onset] + l[\dur])[1][\pitch] };
+		this.assert(endOf.(0) < -1e-6, "bend 0: the tangent ends below the bowl (outside)");
+		this.assert(endOf.(1).abs < 1e-6, "bend 1: on it");
+		this.assert(endOf.(2) > 1e-6, "bend 2: above it, curled inside");
+	}
+
+	test_contact_per_key_and_time_turning {
+		var curve = RCLines.parabola(4, (pitch: 0, az: 0), (pitch: 0.25, az: 0.25));
+		var l = RCLines.contact(curve, [2], 1, (pitch: 1, az: 0))[0];
+		var circle = { |tau| [tau.sin, (pitch: tau.cos)] };   // time turns back at tau = pi / 2
+		var c = RCLines.contact(circle, [1.2], 1, (time: 1, pitch: 1))[0];
+		var turn = 1.2.sin + (1.2.cos.squared / (2 * 1.2.sin));   // the bent path's own time maximum (its Taylor polynomial's)
+		this.assert(l[\path][\pitch].notNil and: { l[\path][\az].isNil }, "a bend per key: pitch curved, az straight");
+		this.assert(c.notNil and: { c[\dur] > 0 } and: { this.near(c[\onset] + c[\dur], turn, 0.01) }, "a path whose time turns back is cut at the turn (ends at % s, the turn at %)".format(c !? { (c[\onset] + c[\dur]).round(0.001) }, turn.round(0.001)));
+	}
+
 	test_parabola_multi_key {
 		var curve = RCLines.parabola(2, (pitch: 1, az: 0), (pitch: 0.5, az: -1));
 		var p = curve.value(3);
@@ -189,6 +267,96 @@ TestRCLines : UnitTest {
 		this.assertEquals(RCLines.projected(s, p, [[0, 0.5pi]], \u, 0.5, \none).size, 0, "a vanishing tangent gives no line");
 		// the u tangent of the unit sphere has length 1 * cos(el): a segment of length 0.5 spans 0.5 of arc at the equator
 		this.assert(this.near(RCLines.projected(s, p, [[0, 0]], \u, 0.5, \none)[0][\to][\pitch] - RCLines.projected(s, p, [[0, 0]], \u, 0.5, \none)[0][\from][\pitch], 2 * 0.5, 1e-6), "the segment has the asked length, scaled");
+	}
+
+	test_projected_geodesics_and_parameter_lines {
+		var s = RCSurface.sphere;
+		var p = RCProjection(3, [\pitch, \az], scales: [8, 2, 1]);   // time 8 x, pitch 2 y, az z
+		var lines = RCLines.projected(s, p, [[0.5pi, 0], [0.5pi, 0.3]], \geodesic, 1.5, \none, angle: 0.25pi, steps: 24);
+		var meridian;
+		this.assertEquals(lines.size, 2, "a geodesic per sample");
+		this.assert(lines.every { |l| l[\curve].size > 10 and: { l[\curve].every { |x| this.near(x.squared.sum, 1, 1e-6) } } }, "each kept as its R^3 polyline, on the sphere");
+		this.assert(lines.every { |l| (l[\path] ? ()).size > 0 }, "curved in the score: a path");
+		this.assert(lines.every { |l|
+			var a = p.project(l[\curve].first), b = p.project(l[\curve].last);
+			this.near(a[0], l[\onset], 1e-9) and: { this.near(b[0], l[\onset] + l[\dur], 1e-9) } and: { l[\ends] == [l[\curve].first, l[\curve].last] }
+		}, "the polyline runs the way the line runs (its time ran backwards: reversed), its ends the line's");
+		this.assert(lines.every { |l| l[\curve].collect { |x| p.project(x)[0] }.differentiate.drop(1).every(_ > 0) }, "time grows along it");
+		// a meridian through (0.3, 0.4): time 8 cos(0.3) cos(v) turns back at the equator, where it is cut
+		meridian = RCLines.projected(s, p, [[0.3, 0.4]], \vLine, 1, \none)[0];
+		this.assert(meridian[\curve].every { |x| this.near(x[1] / x[0], 0.3.tan, 1e-9) }, "a v-line keeps its azimuth");
+		this.assert(meridian[\curve].last[2].inRange(-1e-9, 0.1), "cut at the equator, where its time turns back (the latest point at elevation %)".format(meridian[\curve].last[2].asin.round(0.001)));
+		this.assert(meridian[\curve].first[2] > 0.75, "kept from the far end, through the sample");
+	}
+
+	test_projected_tangents_bent_towards_the_geodesic {
+		var s = RCSurface.sphere;
+		var p = RCProjection(3, [\pitch, \az], scales: [8, 2, 1]);
+		var samples = [[0.3, 0.2], [2.0, -0.4]];
+		var plain = { |ls| ls.collect { |l| [l[\onset], l[\dur], l[\from], l[\to]] } };
+		var straight = RCLines.projected(s, p, samples, 0.25pi, 0.6, \none);
+		var bent = RCLines.projected(s, p, samples, 0.25pi, 0.6, \none, bend: 1);
+		var off = { |l| l[\curve].collect { |x| (x.squared.sum.sqrt - 1).abs }.maxItem };
+		this.assertEquals(plain.(RCLines.projected(s, p, samples, 0.25pi, 0.6, \none, bend: 0)), plain.(straight), "bend 0: the tangent segments, unchanged");
+		this.assert(straight.every { |l| l[\curve].isNil }, "a straight segment carries no curve");
+		this.assert(bent.size == 2 and: { bent.every { |l| l[\curve].notNil and: { off.(l) < 0.002 } } }, "bend 1: within 0.002 of the sphere (%), where the tangent leaves it by 0.044".format(bent.collect(off)));
+		this.assert(RCLines.projected(s, p, samples, 0.25pi, 0.6, \none, bend: 2).every { |l| l[\curve].collect { |x| x.squared.sum.sqrt }.minItem < 0.97 }, "bend 2: curling inside");
+	}
+
+	test_projected_gradient_climbs_the_score {
+		var s = RCSurface.torus(2, 1);
+		var p = RCProjection(3, [\pitch], scales: [4, 1]);   // time 4 x
+		var samples = [[0.5pi, 0.3], [2.5, 1.0]];
+		var grad = RCLines.projected(s, p, samples, \gradient, 0.8, \none);
+		this.assertEquals(grad.size, 2, "a steepest ascent per sample");
+		this.assert(grad.every { |l|
+			var uv = l[\sample], steepest = s.surfaceGradient(uv[0], uv[1], p)[1].sqrt * 0.8;   // the time a straight run of 0.8 along the gradient spans
+			l[\curve].notNil and: { (l[\dur] / steepest).inRange(0.95, 1.05) }
+		}, "each a curve on the surface spanning the time of the steepest way, |grad T| × its length");
+		this.assert(samples.every { |uv|   // the tangent along the level, cos a S_u + sin a S_v with tu cos a + tv sin a = 0
+			var g = p.timeGradient, tu = (g * s.du(uv[0], uv[1])).sum, tv = (g * s.dv(uv[0], uv[1])).sum;
+			RCLines.projected(s, p, [uv], tu.neg.atan2(tv), 0.8, \none)[0][\dur] < 0.02
+		}, "where the tangent along the level spans no time (a chirp)");
+		this.assertEquals(RCLines.projected(s, p, [[0, 0]], \gradient, 0.8, \none).size, 0, "none at the top (a critical point)");
+	}
+
+	//////// sections
+
+	test_sections_strands_ride_the_slice {
+		var s = RCSurface.torus(2, 1);
+		var p = RCProjection(3, [\pitch, \az], scales: [1, 0.5, pi]);   // T = x, pitch y / 2, az z pi
+		var lines = RCLines.sections(s, p, -0.5, 0.25, 8, nil, 8, \slice);   // T from -0.5 to 1.5 over 8 beats (past the saddle at 1)
+		this.assertEquals(lines.size, 8, "8 strands along the slice x = -0.5 (two circles round the tube)");
+		this.assert(lines.every { |l| l[\born] == \slice and: { l[\onset] < 0.05 } }, "each from the cycle's start (onsets %)".format(lines.collect { |l| l[\onset].round(0.001) }));
+		this.assert(lines.every { |l| this.near(p.timeOf(l[\curve].first), -0.5 + (0.25 * l[\onset]), 1e-6) and: { this.near(p.timeOf(l[\curve].last), -0.5 + (0.25 * (l[\onset] + l[\dur])), 1e-6) } },
+			"its point on the hyperplane at its start and at its end: T = offset + speed t");
+		this.assert(lines.every { |l| (l[\onset] + l[\dur]) <= (8 + 1e-6) }, "within the cycle");
+		this.assert(lines.every { |l| this.near(l[\to][\pitch], p.project(l[\curve].last)[1][\pitch], 1e-9) }, "its pitch the projection of its point");
+		this.assert(lines.every { |l| l[\curve].every { |x| ((x[0].hypot(x[1]) - 2).squared + x[2].squared - 1).abs < 1e-6 } }, "on the torus");
+		this.assert(lines.count { |l| l[\path].notNil } >= 6, "curved (% of 8)".format(lines.count { |l| l[\path].notNil }));
+	}
+
+	test_sections_births_and_tops {
+		var s = RCSurface.torus(2, 1);
+		var p = RCProjection(3, [\pitch], scales: [1, 0.5]);
+		var born = RCLines.sections(s, p, -3.5, 1, 6, nil, 2, \sweep);   // the bottom, x = -3, reached half a beat in
+		var top = RCLines.sections(s, p, 2.5, 1, 6, nil, 2, \slice);      // a small loop below the top, x = 3
+		var down = RCLines.sections(s, p, 3.5, -1, 6, nil, 2, \sweep);    // sweeping down from above the top
+		this.assert(born.size == 6 and: { born.every { |l| l[\born] == \min and: { this.near(l[\onset], 0.5, 0.05) } } }, "the slice is empty at first: 6 strands born at the bottom half a beat in (%)".format(born.collect { |l| l[\onset].round(0.01) }));
+		this.assert(born.every { |l| p.timeOf(l[\curve].last) > p.timeOf(l[\curve].first) }, "rising");
+		this.assert(top.size == 6 and: { top.every { |l| (l[\onset] + l[\dur]) < 0.6 } }, "strands from just below the top end there, converging, long before the cycle's end (ends %)".format(top.collect { |l| (l[\onset] + l[\dur]).round(0.01) }));
+		this.assert(top.every { |l| l[\path][\hold] == true } and: { born.every { |l| (l[\path] ? ())[\hold] != true } }, "a strand that converged holds its end through a release; one cut by the cycle's end does not");
+		this.assert(down.size == 6 and: { down.every { |l| l[\born] == \max and: { p.timeOf(l[\curve].last) < p.timeOf(l[\curve].first) } } }, "sweeping down: born at the top, falling");
+	}
+
+	test_sections_random_seeded_and_length {
+		var s = RCSurface.torus(2, 1);
+		var p = RCProjection(3, [\pitch], scales: [1, 0.5]);
+		var a = RCLines.sections(s, p, -2, 0.5, 10, 2, 8, \random, 7), b = RCLines.sections(s, p, -2, 0.5, 10, 2, 8, \random, 7);
+		this.assertEquals(a.collect { |l| [l[\onset], l[\dur]] }, b.collect { |l| [l[\onset], l[\dur]] }, "seeded: the same strands again");
+		this.assert(a.size == 10 and: { a.every { |l| l[\born] == \random and: { l[\dur] <= 2.02 } } }, "10 strands of at most 2 beats (within the integration's error, a percent: %)".format(a.collect { |l| l[\dur].round(0.001) }));
+		this.assert(a.every { |l| this.near(p.timeOf(l[\curve].first), -2 + (0.5 * l[\onset]), 1e-6) }, "each starting where the hyperplane crosses its point");
+		this.assertEquals(RCLines.sections(s, p, 10, 1, 6, nil, 2), [], "a hyperplane past the surface cuts nothing");
 	}
 
 	//////// surfaces

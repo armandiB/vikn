@@ -1,7 +1,7 @@
 TITLE:: RCLines
 summary:: Sonic straight lines (glissandi in any parameters) and their generators: rails, tangents, projected surfaces, clouds
 categories:: Libraries>reCurrent
-related:: Classes/RCSurface, Classes/RCProjection, Classes/RCLineControl, Classes/RCSubseq
+related:: Classes/RCCurve, Classes/RCSurface, Classes/RCProjection, Classes/RCLineControl, Classes/RCSubseq
 
 DESCRIPTION::
 A uniform glissando is a straight line in the (time, pitch) plane; Xenakis drew the glissandi of emphasis::Metastasis:: as lines and read the ruled surfaces they sweep (emphasis::Formalized Music::, ch. I). RCLines takes the idea to a score space of time plus any number of named parameters, each linear in its own unit (pitch in octaves, amp in dB, azimuth in radians, a sample index...): a line is one note whose parameters glide from one end to the other. Generators return the lines of one cycle; link::Classes/RCLineControl:: hands them to the voices of a batch, and each voice's synth receives the ends as code::pitch0:: / code::pitch1::, code::amp0:: / code::amp1::... with code::sustain:: the line's length.
@@ -10,7 +10,7 @@ A line is an Event:
 code::
 (onset: 2, dur: 4, from: (pitch: 0, amp: -20), to: (pitch: 1, amp: -10), id: 3)
 ::
-with, optionally, code::voice::, an Integer pinning the line to one voice of the batch (link::#*allocate::), and code::path::, anything describing a curved line that link::#*subseq:: hands to the voice per hit (the Texture rig: an envelope per key).
+with, optionally, code::voice::, an Integer pinning the line to one voice of the batch (link::#*allocate::), and code::path::, a curved line's course that link::#*subseq:: hands to the voice per hit: an Event key → Env over the note (link::Classes/RCCurve::; a key without one is straight).
 strong::onset:: and strong::dur:: in beats; strong::from:: and strong::to:: Events of the parameter values at the ends. A point of the score space is code::[time, params]::.
 
 Every generator is pure and returns its lines in time order; the ones that draw are seeded.
@@ -59,11 +59,22 @@ The affine rail from point a to point b: a Function u → point.
 
 METHOD:: rails
 strong::n:: lines, line i joining code::a.(u_i):: to code::b.(u_i):: for two rails (Functions u → point), u evenly spaced in [0, 1] or the given strong::us::. Two affine rails give the hyperbolic paraboloid of the string section of Metastasis (bars 309-314); a rail collapsed to one point (code::rail(p, p)::) gives the fan of its opening.
+
+Curved rulings, a generalized ruled surface in the architect's sense: with strong::via:: (a point, or a rail u → point) each ruling is the quadratic Bézier arc from a.(u) to b.(u) pulled towards via.(u), strong::pull:: 0 the straight line, 1 the arc through via at its middle, more overshooting (a number, or an Event key → pull with code::\time:: for the time coordinate; a key it lacks stays straight). The arc's control point keeps its time between the ends', so its time stays monotone. strong::samples:: points along each arc (16); a curved line carries its code::path:: (link::Classes/RCCurve::).
 code::
 ~a = RCLines.rail([0, (pitch: 0)], [0, (pitch: 2)]);   // at time 0, from pitch 0 to 2
 ~b = RCLines.rail([8, (pitch: 2)], [8, (pitch: 0)]);   // at time 8, the other way
 RCLines.rails(~a, ~b, 12);                             // twelve crossing glissandi
+RCLines.rails(~a, ~b, 12, via: [4, (pitch: 3)]);       // every string arching through pitch 3 at beat 4
 ::
+argument:: a
+argument:: b
+argument:: n
+argument:: us
+argument:: minDur
+argument:: via
+argument:: pull
+argument:: samples
 
 subsection:: Tangents: the Xenakeur construction
 
@@ -74,8 +85,38 @@ code::
 RCLines.tangents(~curve, (0, 0.5 .. 8), [1, 1]);               // touches every half beat, two beats long
 ::
 
+METHOD:: contact
+Paths touching strong::curve:: at the touches, the tangential construction with bent generatrices: each path is the curve's tangent bent by strong::bend:: times half its second derivative, code::C(tau) + h C'(tau) + bend h²/2 C''(tau)::, h from -before to after (strong::extent:: as for link::#*tangents::). The curve is their envelope whatever the bend: 0 gives the tangent lines (exactly link::#*tangents::), 1 the osculating arcs (the curve to second order), 2 arcs curling past it: the mass moves from one side of the curve to the other through the curve itself. strong::bend::: a number, an Event key → number (the time coordinate reads code::\time::), or a Function tau → either. A bent path whose time turns back is cut at the turn (the part through the touch kept); its keys that stay straight carry no path (link::Classes/RCCurve#*lineFrom::).
+code::
+~curve = RCLines.parabola(4, (pitch: 1), 0.125);
+RCLines.contact(~curve, (0, 0.5 .. 8), [1, 1], 1);             // the same touches, the arcs hugging the bowl
+RCLines.contact(~curve, (0, 0.5 .. 8), [1, 1], (pitch: 2, az: 0));   // pitch curled inside, space straight
+::
+argument:: curve
+argument:: touches
+argument:: extent
+argument:: bend
+argument:: derivative
+argument:: eps
+argument:: minDur
+argument:: samples
+Points along each bent path (16).
+
 METHOD:: parabola
 The curve tau → code::[tau, apex + curvature * (tau - apexTime)^2]:: per key; strong::apex:: an Event (key → value at the apex), strong::curvature:: a number or an Event per key (units per beat², the sign turns it).
+
+METHOD:: sine
+A sine in any keys, tau → code::[tau, center + amp sin(2pi (tau - t0) / period + phase)]:: per key: strong::center:: and strong::amp:: Events (key → value), strong::period:: (beats) and strong::phase:: numbers or Events per key. Two keys a quarter turn apart in phase draw a helix (a spiral in pitch × az over time); other periods per key a Lissajous figure.
+code::
+~helix = RCLines.sine((pitch: 1, az: 0), (pitch: 0.5, az: 1), 8, (pitch: 0, az: 0.5pi));
+RCLines.contact(~helix, (0, 0.5 .. 16), 1, 1);   // arcs hugging the spiral
+::
+
+METHOD:: circle
+A circle (an ellipse) in the plane of time and the keys of strong::center::: tau an angle, the point code::[centerTime + radiusTime cos tau, center + radius sin tau]::. Its time turns back at tau = 0 and pi: link::#*contact:: cuts a path there.
+
+METHOD:: spline
+A smooth curve through the composer's points code::[[time, params], ...]:: (times increasing): cubic Hermite between them with the slopes of the neighbours (Catmull-Rom on uneven times, one-sided at the ends), tau the time; on along the end slopes outside. A key missing from a point is left out.
 
 METHOD:: tangentAt
 code::[point, tangent]:: of a curve at tau (numerical).
@@ -83,12 +124,45 @@ code::[point, tangent]:: of a curve at tau (numerical).
 subsection:: Projected: a surface seen through a moving plane
 
 METHOD:: projected
-For each sample code::[u, v]:: of strong::surface:: (an link::Classes/RCSurface::), a segment of R^m through S(u, v): strong::direction:: code::\u:: or code::\v:: (the parameter lines), a number (an angle in the tangent plane, 0 = u, pi/2 = v), a Function code::(u, v, i) → angle::, or code::\ruling:: (the whole v-line of the sample, from vRange[0] to vRange[1]: on a ruled surface, the ruling itself). strong::length:: is the segment's length in R^m (ignored by code::\ruling::). Each end is projected by strong::frame:: (an link::Classes/RCProjection::) and the line joins the projected points. strong::timeMode::: code::\window:: keeps the lines starting within [0, cycle), code::\wrap:: wraps their onsets into the cycle, code::\sequence:: ignores the projected time and starts line i at i * cycle / n, code::\none:: keeps every line as projected. Each line remembers its code::sample:: and its code::ends::, the segment of R^m it was projected from, in the line's own order (the ends swap with the line when the second one comes first in time).
+For each sample code::[u, v]:: of strong::surface:: (an link::Classes/RCSurface::), a segment or a curve of R^m through S(u, v), projected on the score space by strong::frame:: (an link::Classes/RCProjection::). strong::direction:::
+list::
+## code::\ruling:: the whole v-line of the sample, from vRange[0] to vRange[1] (on a ruled surface, the ruling itself)
+## code::\u::, code::\v::, a number (an angle in the tangent plane, 0 = u, pi/2 = v) or a Function code::(u, v, i) → angle::: the tangent segment, bent by strong::bend:: times the surface's curvature along it (0 the tangent, 1 the geodesic to second order, 2 curling past it; a number or a Function code::(u, v, i) → number::)
+## code::\geodesic:: the geodesic through the sample at strong::angle:: (a number or a Function code::(u, v, i) → angle::): the straightest curve on the surface
+## code::\uLine::, code::\vLine:: the parameter line through the sample
+## code::\gradient:: the steepest ascent of the frame's time through the sample, the line that climbs the score fastest (none at a critical point)
+::
+strong::length:: is the segment's or the curve's length in R^m, centred on the sample (ignored by code::\ruling::); a curve is drawn in strong::steps:: steps (about 1 ms per line at 12 steps in R^3). A curve whose time turns back is cut at the turn, the part through the sample kept, and fitted as a curved line (link::Classes/RCCurve#*lineFrom::). strong::timeMode::: code::\window:: keeps the lines starting within [0, cycle), code::\wrap:: wraps their onsets into the cycle, code::\sequence:: ignores the projected time and starts line i at i * cycle / n, code::\none:: keeps every line as projected. Each line remembers its code::sample:: and its code::ends::, the segment of R^m it was projected from, in the line's own order (the ends swap with the line when the second one comes first in time); a curved one also its code::curve::, its polyline in R^m in the same order.
 code::
 ~s = RCSurface.hyperbolicParaboloid;
 ~p = RCProjection(3, [\pitch], scales: [8, 2]);   // time = 8 x beats, pitch = 2 y octaves
 ~p.rotate(1, 2, 0.3);                             // pitch reads some z too
 RCLines.projected(~s, ~p, ~s.grid(6, 1), \ruling, timeMode: \wrap, cycle: 8);
+// geodesics on a torus, and tangents hugging it
+~t = RCSurface.torus(2, 1);
+RCLines.projected(~t, ~p, ~t.random(12, 1), \geodesic, 3, \wrap, 8, angle: 0.3pi, steps: 12);
+RCLines.projected(~t, ~p, ~t.random(12, 1), 0.3pi, 1, \wrap, 8, bend: 1);
+::
+
+subsection:: Sections: a surface cut by a moving hyperplane
+
+METHOD:: sections
+The slice of strong::surface:: by the moving hyperplane of strong::frame::'s time (or the hypersurface of strong::timeFunc::, a Function of R^m → number): at beat t of the cycle it is code::{T = offset + speed t}::, and what sounds is the slice. Strands stay on it, riding the surface's steepest ascent of T at unit time (link::Classes/RCSurface#-flow::), each a curved line whose time is exactly the score's (each sample's time is its point's) and whose other coordinates are the frame's projection of its point.
+argument:: seeding
+code::\slice:: (strong::n:: strands spread by arc length along the slice at the cycle's start, brought onto it by Newton steps), code::\births:: (n strands leaving every way from each bottom of T the hyperplane reaches in the cycle), code::\sweep:: (both), code::\random:: (n strands from random points the hyperplane crosses in the cycle; strong::seed::).
+argument:: length
+A strand ends at a top of T (where strands converge), at the edge of a patch, after strong::length:: beats or at the cycle's end: the strands live within a cycle. A strand ending before its time (at a top, or the edge) carries code::hold: true:: in its path: its release should hold its end rather than glide on (nearing a top the unit-time flow runs ever faster, and so does its end).
+argument:: speed
+T units per beat; negative sweeps down (births at the tops).
+argument:: steps
+A whole cycle's strand (a shorter one fewer, at least 8).
+argument:: res
+The grid of the slice (the bottoms are found on one of half as many nodes).
+returns:: The lines in time order, each with its R^m code::curve:: and code::ends::, its seed code::sample:: and how it was code::born:: (code::\slice::, code::\min::, code::\max::, code::\random::).
+code::
+~t = RCSurface.torus(2, 1);
+~p = RCProjection(3, [\pitch, \az], scales: [1, 0.5, pi]);   // T = x
+RCLines.sections(~t, ~p, -3.5, 0.75, 8, cycle: 8);           // born at the bottom, past both saddles by the cycle's end
 ::
 
 subsection:: Cloud: Pithoprakta
