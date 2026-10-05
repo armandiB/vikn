@@ -72,7 +72,7 @@ TestREOfflineClock : UnitTest {
 		var c = REOfflineClock(tempo: 2);
 		var a = RECollectAddr("127.0.0.1", 57997, c);
 		var s = Server(\re_offline_proxy_test, a);
-		var p, before, defs, synths;
+		var p, before, defs, synths, tapped;
 		var isCmd = { |m, num, name| m[0] == num or: { m[0].asString == name } };
 		var collected = { |from, num, name| a.bundles.copyRange(from, a.bundles.size - 1).select { |b| b[1..].any { |m| isCmd.(m, num, name) } } };
 		s.statusWatcher.serverRunning = true;   // as take_render.scd: counts as running, nothing answers
@@ -95,8 +95,10 @@ TestREOfflineClock : UnitTest {
 		defs = collected.(before, 5, "/d_recv");
 		synths = collected.(before, 9, "/s_new");
 		this.assertEquals(defs.collect(_[0]), [4.0], "inside a bind: the definition at the item's seconds");
-		// with a recorder recording level 3 in front of the address (RETapAddr): the same
-		s.addr = RETapAddr(a, nil);
+		// with a recorder recording level 3 in front of the address (RETapAddr): the same, and the
+		// recorder sees the definition's bytes (tapServer) on their way to the collector
+		tapped = List.new;
+		s.addr = RETapAddr(a, (tapServer: { |self, time, msgs| tapped.addAll(msgs) }));
 		this.assert(RECollectAddr.behind(s.addr) === a, "the collector found behind an RETapAddr");
 		s.bind { this.assert(RECollectAddr.behind(s.addr) === a, "and behind a bind's BundleNetAddr around it") };
 		c.schedAbs(12, { s.bind { p.source = { Pulse.ar(110, 0.5, 0.1) ! 2 } }; nil });
@@ -104,6 +106,8 @@ TestREOfflineClock : UnitTest {
 		c.advanceTo(14);
 		this.assertEquals(collected.(before, 5, "/d_recv").collect(_[0]), [6.0], "behind an RETapAddr: the definition collected at the item's seconds");
 		this.assertEquals(collected.(before, 9, "/s_new").collect(_[0]), [6.0 + s.latency], "and the synth a latency later");
+		this.assert(tapped.any { |m| isCmd.(m, 5, "/d_recv") }, "the recorder was handed the definition");
+		this.assert(tapped.any { |m| isCmd.(m, 9, "/s_new") }, "and the synth");
 		s.addr = a;
 		this.assertEquals(synths.collect(_[0]), [4.0 + s.latency], "the synth in the bind's bundle, a latency later");
 		s.remove;

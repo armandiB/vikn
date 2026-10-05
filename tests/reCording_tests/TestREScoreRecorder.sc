@@ -552,6 +552,16 @@ TestREScoreRecorder : UnitTest {
 		this.assertEquals(REScore.decodeValue(REScore.read(path, levels: 3).ofLevel(3).detect { |e| e[\msgs].size == 2 }[\msgs][0]), ['/s_new', \default, 1000, 0, 1, \freq, 440], "a message read back decodes to what was sent (its file form until then, as args; the file sorted by beat: the free, due at once, comes first)");
 		dir3 = REScore.defsPath(path);
 		this.assert(File.exists(dir3 +/+ "default.scsyndef"), "the def the take names is written next to it: " ++ dir3);
+		// a def sent as bytes during the take (a NodeProxy's temp def, not in the library): kept, written at stop
+		rec.record(snapshotAtStart: false);
+		dead.sendMsg('/d_recv', SynthDef(\re_tmp_def_x, { Out.ar(0, DC.ar(0)) }).asBytes);
+		dead.sendBundle(0.2, ['/s_new', \re_tmp_def_x, 1001, 0, 1]);
+		s = rec.stop;
+		this.assertEquals(s.ofLevel(3).size, 1, "the bytes are not a level 3 event, the synth is");
+		this.assert(SynthDescLib.global[\re_tmp_def_x].isNil, "the def is not in the library");
+		this.assert(File.exists(REScore.defsPath(rec.lastPath) +/+ "re_tmp_def_x.scsyndef"), "its bytes written next to the take all the same");
+		this.assertEquals(REScoreRecorder.defNameIn(SynthDef(\re_tmp_def_y, { Out.ar(0, DC.ar(0)) }).asBytes), \re_tmp_def_y, "the name read from a def's bytes");
+		this.assert(REScoreRecorder.defNameIn(Int8Array[1, 2, 3]).isNil, "nil for bytes that are no def");
 		song.server = nil;
 	}
 

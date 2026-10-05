@@ -33,6 +33,7 @@ REScoreRecorder {
 	var recordQuant, loopbackLine;
 	var <>level2 = false;   // record the program's work too (level 2, the companion file): off, it is only counted
 	var <>level3 = false;   // record the server's messages too (level 3, <take>.l3.json, the defs next to it): off, nothing is installed
+	var tempDefs;           // level 3: the bytes of the defs sent during the take (a NodeProxy's temp def) by name, written next to it at stop
 	var savedAddr;          // the server's address while an RETapAddr stands in for it (level 3, recording)
 	var unrecorded = 0;     // program actions seen on the main thread while level 2 is off
 	var <lastCheck;         // what threatened the last take's exact replay (REScore.check)
@@ -210,6 +211,7 @@ REScoreRecorder {
 	prStart { |offsetBeat = 0|
 		var c = this.clock;
 		if(state != \armed or: { score.isNil }) { ^this };
+		tempDefs = nil;
 		beat0 = c.beats - offsetBeat;
 		time0 = c.seconds - (offsetBeat * c.beatDur);   // the time of the score's beat 0
 		lastTempo = c.tempo;
@@ -469,6 +471,7 @@ REScoreRecorder {
 	tapServer { |time, msgs|
 		var ev, kept, thread, off = time ? 0;
 		if(state != \recording or: { level3.not }) { ^this };
+		msgs.do { |m| this.prKeepDef(m) };   // a def sent as bytes (a NodeProxy's temp def): kept for the take's defs folder
 		kept = msgs.collect { |m| this.prServerMessage(m) }.reject(_.isNil);
 		if(kept.isEmpty) { ^this };
 		ev = this.prEvent(\server, nil);
@@ -496,8 +499,32 @@ REScoreRecorder {
 		^REScore.encodeValue([name] ++ m[1..].asArray)
 	}
 
+	// A /d_recv with the def's bytes (a NodeProxy's temp def, sent as a line sets a source): the
+	// bytes kept by the def's name, so that the take's defs folder holds what the library does not.
+	prKeepDef { |m|
+		var bytes;
+		if(m.isKindOf(SequenceableCollection).not or: { m.size < 2 } or: { RETapAddr.commandName(m[0]) != '/d_recv' }) { ^this };
+		bytes = m[1];
+		if(bytes.isKindOf(Int8Array).not) { ^this };
+		this.class.defNameIn(bytes) !? { |name|
+			tempDefs = tempDefs ?? { IdentityDictionary.new };
+			tempDefs[name] = bytes;
+		};
+	}
+
+	// The name of the first def in a SynthDef file's bytes ("SCgf", int32 version, int16 count, a
+	// pstring name), nil when the bytes are not one.
+	*defNameIn { |bytes|
+		var len;
+		if(bytes.size < 12 or: { bytes[0..3].collect(_.asAscii).join != "SCgf" }) { ^nil };
+		len = bytes[10].asInteger;
+		if(len <= 0 or: { bytes.size < (11 + len) }) { ^nil };
+		^bytes.copyRange(11, 10 + len).collect(_.asAscii).join.asSymbol
+	}
+
 	// The SynthDefs a take's level 3 names (/s_new), written next to it as <take>.defs/<name>.scsyndef
-	// from the library: a level 3 render loads them from there and needs nothing else of the piece.
+	// from the library, or from the bytes sent during the take (a NodeProxy's temp def): a level 3
+	// render loads them from there and needs nothing else of the piece.
 	prWriteDefs { |s, path|
 		var dir = REScore.defsPath(path), names = IdentitySet.new, written = 0, missing = List.new;
 		s.ofLevel(3).do { |e| (e[\msgs] ? []).do { |m|   // in memory or in file form (a score read back)
@@ -506,8 +533,11 @@ REScoreRecorder {
 		if(names.isEmpty) { ^this };
 		File.mkdir(dir);
 		names.do { |name|
-			var def = SynthDescLib.global[name] !? (_.def);
-			if(def.notNil) { def.writeDefFile(dir); written = written + 1 } { missing.add(name) };
+			var def = SynthDescLib.global[name] !? (_.def), bytes = tempDefs !? (_[name]);
+			case
+			{ def.notNil } { def.writeDefFile(dir); written = written + 1 }
+			{ bytes.notNil } { File.use(dir +/+ name ++ ".scsyndef", "wb", { |f| f.write(bytes) }); written = written + 1 }
+			{ missing.add(name) };
 		};
 		RCLog.post(\score, "% level 3: % def(s) written to %".format(song.name, written, dir.basename));
 		if(missing.notEmpty) { RCLog.warn(\score, "% def(s) the take names are not in the library (not written): %".format(missing.size, missing.asArray)) };

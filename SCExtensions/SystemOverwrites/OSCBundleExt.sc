@@ -6,15 +6,17 @@
 // that Routine ever runs, so the source change was lost. REScorePlayer fires each event inside
 // `server.bind`, where the server's address is a BundleNetAddr around the collector, and a recorder
 // recording level 3 puts an RETapAddr in front of it (RECollectAddr.behind follows both): the
-// preparation goes to the collector itself (now), what follows into the open bundle (a latency
-// later). Any other server goes the core way (the last lines are SC 3.14's OSCBundle:doPrepare).
+// preparation goes behind the bind, to the RETapAddr when there is one (its sync hands the def's
+// bytes to the recorder, then reaches the collector at once), else to the collector itself; what
+// follows goes into the open bundle (a latency later). Any other server goes the core way (the
+// last lines are SC 3.14's OSCBundle:doPrepare).
 + OSCBundle {
 	doPrepare { arg server, onComplete;
-		var collector;
+		var target = server.addr;
 		if(preparationMessages.isNil) { ^onComplete.value };
-		collector = RECollectAddr.behind(server.addr);
-		if(collector.notNil) {
-			collector.sync(nil, preparationMessages);
+		while { target.isKindOf(BundleNetAddr) } { target = target.saveAddr };
+		if(RECollectAddr.behind(target).notNil) {
+			target.sync(nil, preparationMessages);
 			^onComplete.value
 		};
 		Routine.run {
