@@ -36,6 +36,10 @@ TestREOfflineTap : UnitTest {
 		server.bind {
 			this.assert(REOfflineTap.isOffline(server), "inside a bind the collector is found behind the BundleNetAddr");
 		};
+		server.addr = RETapAddr(server.addr, nil);   // a recorder recording level 3 stands in front of the address
+		this.assert(REOfflineTap.isOffline(server), "behind a level 3 recorder's RETapAddr too");
+		server.bind { this.assert(REOfflineTap.isOffline(server), "and inside a bind behind it") };
+		server.addr = addr;
 		live.remove;
 	}
 
