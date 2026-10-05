@@ -111,6 +111,16 @@ RECollectAddr : NetAddr {
 		bundles = List.new;
 	}
 
+	// The collector behind a server's address, nil when none: inside server.bind the address is a
+	// BundleNetAddr (saveAddr behind it), while a recorder records level 3 an RETapAddr (real
+	// behind it); both may stand in front of it at once.
+	*behind { |addr|
+		while { addr.isKindOf(BundleNetAddr) or: { addr.isKindOf(RETapAddr) } } {
+			addr = if(addr.isKindOf(BundleNetAddr)) { addr.saveAddr } { addr.real };
+		};
+		^if(addr.isKindOf(RECollectAddr)) { addr } { nil }
+	}
+
 	now { ^clock !? (_.seconds) ? 0 }
 	sendMsg { |... msg| bundles.add([this.now] ++ [msg]) }
 	sendBundle { |time ... msgs| bundles.add([this.now + (time ? 0)] ++ msgs) }

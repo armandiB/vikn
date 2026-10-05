@@ -49,14 +49,8 @@ REOfflineTap {
 	//////// the server
 
 	// The RECollectAddr behind the server's address (a BundleNetAddr inside server.bind, the
-	// RETapAddr of a recorder recording level 3), nil live.
-	*collector { |server|
-		var a = server.addr;
-		while { a.isKindOf(BundleNetAddr) or: { a.isKindOf(RETapAddr) } } {
-			a = if(a.isKindOf(BundleNetAddr)) { a.saveAddr } { a.real };
-		};
-		^if(a.isKindOf(RECollectAddr)) { a } { nil }
-	}
+	// RETapAddr of a recorder recording level 3: RECollectAddr.behind), nil live.
+	*collector { |server| ^RECollectAddr.behind(server.addr) }
 
 	*isOffline { |server| ^this.collector(server).notNil }
 

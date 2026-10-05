@@ -95,6 +95,16 @@ TestREOfflineClock : UnitTest {
 		defs = collected.(before, 5, "/d_recv");
 		synths = collected.(before, 9, "/s_new");
 		this.assertEquals(defs.collect(_[0]), [4.0], "inside a bind: the definition at the item's seconds");
+		// with a recorder recording level 3 in front of the address (RETapAddr): the same
+		s.addr = RETapAddr(a, nil);
+		this.assert(RECollectAddr.behind(s.addr) === a, "the collector found behind an RETapAddr");
+		s.bind { this.assert(RECollectAddr.behind(s.addr) === a, "and behind a bind's BundleNetAddr around it") };
+		c.schedAbs(12, { s.bind { p.source = { Pulse.ar(110, 0.5, 0.1) ! 2 } }; nil });
+		before = a.bundles.size;
+		c.advanceTo(14);
+		this.assertEquals(collected.(before, 5, "/d_recv").collect(_[0]), [6.0], "behind an RETapAddr: the definition collected at the item's seconds");
+		this.assertEquals(collected.(before, 9, "/s_new").collect(_[0]), [6.0 + s.latency], "and the synth a latency later");
+		s.addr = a;
 		this.assertEquals(synths.collect(_[0]), [4.0 + s.latency], "the synth in the bind's bundle, a latency later");
 		s.remove;
 	}
