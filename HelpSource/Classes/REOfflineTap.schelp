@@ -1,0 +1,118 @@
+TITLE:: REOfflineTap
+summary:: A rig's SendReply tap written into a buffer in an offline render
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REOfflineClock, Classes/RCVisuals, Classes/REVisualsTape, Classes/RERenderedPlayer
+
+DESCRIPTION::
+In a take rendered offline (HomewareSC's code::scripts/take.sh render::, an link::Classes/REOfflineClock:: and an code::RECollectAddr::) scsynth NRT answers no reply, so what a rig's tap synth sends to the language live with link::Classes/SendReply:: (the positions and levels link::Classes/RCVisuals#*relay:: forwards to HomewareVisuals as code::/lsys/state:: or code::/orgnsm/state::) never arrives. An REOfflineTap stands in for such a tap: the SynthDef's offline variant writes the same values into a Buffer at the tap's rate (link::#*record::), the render writes every buffer to a float sound file at its end (link::#*writeLines::), and HomewareSC's code::scripts/analysis/hwa/viztape.py:: turns the frames into entries of the visuals tape, code::<take>.viz.json:: (link::Classes/REVisualsTape::).
+
+Frame code::i:: of a tap's buffer is code::[i + 1] ++ values:: latched at trigger code::i:: (time code::i / rate:: from the synth's start): channel 0 stays 0 on a frame never written (a tap freed before the end of the render), and the frames of a tap that outlives its buffer all land on the last frame, whose counter then exceeds its index (the reader reports the overflow). The buffer is sized from link::#*endSecs:: (the clock seconds the render ends at, set by the render) and the clock's seconds when the tap is made. A tap's creation time is read back from the collected bundles by its node id: the rig writes no sidecar. Nothing here reaches a live server: link::#*new:: refuses one.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: server
+The offline server: its address, followed through the code::BundleNetAddr:: of a code::server.bind::, must be an code::RECollectAddr::.
+argument:: defName
+The offline variant of the tap's SynthDef, built on link::#*record::.
+argument:: key
+The rig's key (code::\lsys::, code::\plankton::), in the file name.
+argument:: path
+The address of the tape entries (code::'/lsys/state'::).
+argument:: head
+The arguments that lead the values in every entry (the first slot the tap covers, as the live tap's replyID).
+argument:: rate
+Frames per second, capped by link::#*maxRate::.
+argument:: numValues
+How many values the tap writes per frame (the live tap's values).
+
+METHOD:: record
+The UGen graph of a tap's offline variant, in a SynthDef with a code::bufnum:: control.
+argument:: bufnum
+argument:: rate
+argument:: values
+An Array of control-rate UGens, the values the live tap sends.
+
+METHOD:: isOffline
+True when the server's address is an code::RECollectAddr:: (behind a bind's code::BundleNetAddr::).
+METHOD:: collector
+That address, nil live.
+
+METHOD:: endSecs
+The clock seconds the render ends at: the render sets it before the piece makes its taps (a cap before the take's start is known, the exact end once it is).
+METHOD:: defaultSecs
+The seconds of frames assumed, with a warning, when endSecs is unset.
+METHOD:: maxRate
+A cap on every tap's rate (nil: none): HomewareSC's code::take.sh render --state-rate::.
+
+METHOD:: writeLines
+The Score lines writing every tap of the server, and the index the merge reads.
+argument:: server
+argument:: bundles
+The collected bundles (code::RECollectAddr.bundles::): each tap's code::/s_new:: is found there by node id. A tap never sent is left out, with a warning.
+argument:: folder
+The folder of the sound files.
+argument:: atTime
+The score time of the writes (the end of the render).
+argument:: startSecs
+The take's start on the clock: the index's code::t0:: is in tape time, seconds from the take's start.
+returns:: An Event: code::lines:: (code::[atTime, ['/b_write', ...]]:: per tap sent) and code::index:: (per tap: code::key::, code::path::, code::head::, code::file::, code::rate::, code::values::, code::t0::, code::frames::, code::nodeID::, code::createdAt::).
+
+METHOD:: taps
+The taps registered for a server.
+METHOD:: clear
+Forgets a server's taps (every server's when nil).
+
+INSTANCEMETHODS::
+
+METHOD:: msgs
+The code::/b_alloc:: (four arguments: no completion message, which a Score line could not hold) and the synth's code::/s_new:: with its code::bufnum:: appended to code::args::, for the rig's own transport, in one bundle in that order.
+argument:: target
+argument:: args
+argument:: addAction
+
+METHOD:: synth
+The tap's Synth (code::basicNew::): the rig keeps it where it keeps the live tap and frees it the same way.
+METHOD:: allocMsg
+METHOD:: startSecsIn
+The seconds of this tap's code::/s_new:: in the collected bundles, nil when it was never sent.
+METHOD:: fileName
+code::<key>_<head>_<nodeID>.wav::
+METHOD:: frames
+METHOD:: numChannels
+code::numValues + 1::: the counter, then the values.
+METHOD:: buffer
+METHOD:: bufnum
+METHOD:: rate
+METHOD:: createdAt
+The clock's seconds when the tap was made.
+
+EXAMPLES::
+
+code::
+// the rig's def block: the live tap and its offline variant
+SynthDef(\LSystem_VizTap_w0_32, { |posBus = 0, levelBus = 0, rate = 20, replyID = 0|
+	SendReply.kr(Impulse.kr(rate), '/lsys/viz', In.kr(posBus, 96) ++ In.kr(levelBus, 32), replyID);
+}).add;
+SynthDef(\LSystem_VizTapBuf_w0_32, { |posBus = 0, levelBus = 0, rate = 20, bufnum = 0|
+	REOfflineTap.record(bufnum, rate, In.kr(posBus, 96) ++ In.kr(levelBus, 32));
+}).add;
+
+// where the rig makes a tap, in a render (~rc_offline set by take_render.scd)
+(
+var args = [\posBus, rig.pos_bus.index, \levelBus, rig.level_bus.index, \rate, 20];
+if(~rc_offline.notNil) {
+	var tap = REOfflineTap(rig.server, \LSystem_VizTapBuf_w0_32, \lsys, '/lsys/state', [0], 20, 128);
+	~lsys_send.(tap.msgs(rig.group_lsys, args));
+	rig.viz_taps[0] = tap.synth;
+} {
+	var synth = Synth.basicNew(\LSystem_VizTap_w0_32, rig.server);
+	~lsys_send.(synth.newMsg(rig.group_lsys, args ++ [\replyID, 0], \addToTail));
+	rig.viz_taps[0] = synth;
+};
+)
+
+// the render, once the clock ran: the writes at the end of the score, the index next to the files
+w = REOfflineTap.writeLines(server, addr.bundles, out ++ ".state", dur, startSecs);
+w[\lines].do { |l| score.add(l) };
+::
