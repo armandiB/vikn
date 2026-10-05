@@ -1,0 +1,76 @@
+TITLE:: REVisualsTape
+summary:: What a piece sends to HomewareVisuals, with the time of each message
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/RCVisuals, Classes/REOfflineTap, Classes/RERenderedPlayer
+
+DESCRIPTION::
+The messages link::Classes/RCVisuals:: sends (notes, births, cycles, lines, the score feed...) with the second of each, in the format HomewareVisuals' code::scripts/viz-record.mjs:: records from the bridge: code::[[seconds, "/address", arg, ...], ...]::, plain JSON, one entry per line, Symbols as strings (the pages read plain strings). A render records one through RCVisuals' sink with the offline clock's seconds (link::#*record::), shifts it to the take's start, the WAV's timeline (link::#-shifted::), and writes it next to the render as code::<take>.viz.json:: (HomewareSC's code::scripts/take.sh render --viz::; the state taps' frames are merged in by its Python side, link::Classes/REOfflineTap::). A rendered take played live (link::Classes/RERenderedPlayer::) plays the tape back through RCVisuals (link::#-play::), and a page plays one alone with code::?replay=<url>::.
+
+CLASSMETHODS::
+
+METHOD:: record
+A new tape recording: the sink installed (the previous one kept, put back by link::#-finish::), every message with code::timeFunc.value:: as its time.
+argument:: timeFunc
+The seconds of a message (the calling thread's seconds by default; a render gives its offline clock's).
+
+METHOD:: read
+The file read back: the times and the numeric arguments as numbers, the rest as strings. Nil when the file is missing or is not a tape.
+argument:: path
+
+INSTANCEMETHODS::
+
+METHOD:: record
+METHOD:: finish
+The previous sink back.
+METHOD:: isRecording
+
+METHOD:: add
+argument:: secs
+argument:: path
+argument:: args
+METHOD:: addEntries
+Entries from elsewhere (the state taps' frames), added and sorted in.
+METHOD:: sort
+METHOD:: entries
+METHOD:: size
+METHOD:: isEmpty
+METHOD:: duration
+The last entry's seconds.
+METHOD:: countBy
+Address → count.
+METHOD:: shifted
+A new tape with every time minus code::secs::, clamped at 0.
+argument:: secs
+
+METHOD:: write
+argument:: path
+returns:: The path.
+
+METHOD:: play
+A Routine from code::atSecs:: on the clock, each entry sent at code::atSecs:: plus its seconds through code::RCVisuals.sendArgs::, or to code::func.(path, args)::.
+argument:: atSecs
+The clock's seconds (now when nil): on SystemClock, the logical seconds a take's player starts at.
+argument:: clock
+SystemClock; an link::Classes/REOfflineClock:: in a test.
+argument:: func
+returns:: The Routine.
+METHOD:: stop
+METHOD:: isPlaying
+
+EXAMPLES::
+
+code::
+// a render (scripts/sc/take_render.scd)
+t = REVisualsTape.record({ clock.seconds });
+... clock.advanceTo(endBeat) ...
+t.finish;
+t.shifted(startSecs).write(out.drop(-4) ++ ".viz.json");
+
+// a page preview without sound: HomewareVisuals' public/recordings/<name>.json, then
+// http://localhost:5173/Personal_SC/.../HadronLake3_LSystemViz_w0_260929.html?replay=/recordings/<name>.json
+
+// played back live by hand (RERenderedPlayer does this with the WAV)
+t = REVisualsTape.read(path);
+t.play(thisThread.seconds + 1);
+t.stop;
+::

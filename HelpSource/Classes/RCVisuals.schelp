@@ -76,7 +76,7 @@ METHOD:: enabled
 false: nothing is sent (default true).
 
 METHOD:: sink
-A Function code::{ |path, args| }:: that replaces the network (tests, offline checks); nil sends over UDP.
+A Function code::{ |path, args| }:: that replaces the network (tests, offline checks); nil sends over UDP. A take rendered offline records what passes here, with the offline clock's seconds, as its visuals tape (link::Classes/REVisualsTape::); what a relay would forward from the server (the taps' positions and levels) comes out of a render through link::Classes/REOfflineTap:: instead, since NRT answers no reply.
 
 METHOD:: sent
 Messages sent (or sunk) since code::resetCount::.
