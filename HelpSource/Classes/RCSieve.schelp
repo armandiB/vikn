@@ -10,12 +10,17 @@ code::
 ::
 A sieve is a formula with a strong::unit:: and a strong::zero::: the integer n sounds at code::zero + n * unit:: (pitch in octaves: unit 1/12 a semitone, 1/24 a quartertone; time in beats: unit 1/4 a sixteenth). Membership is tested arithmetically; an intersection of pairs reduces to one pair (the lcm and the first coincidence, p. 271-273), an empty one drops out. A sieve is a value: equality and hash are structural.
 
+A strong::tuned:: sieve counts its integers as the steps of a tuning instead of equal units: the formula picks the steps, the tuning says where each one sounds. With S steps per period, n sounds at code::zero + (n div S) * period + steps[n mod S]:: (in the sieve's units: octaves for a pitch sieve); a fixed field (a tuning that does not repeat) sounds n at code::zero + steps[n]:: for code::0 <= n < S::. The unit is then unused. A tuning is a link::Classes/Tuning:: (its semitones / 12, its period code::octaveRatio.log2::), a link::Classes/Scale:: (its degrees become the steps), a Symbol naming a Tuning or else a Scale, or an Array of values (a fixed field). A periodic tuning of your own is a code::Tuning(semitones, octaveRatio)::; link::#*readScala:: reads a Scala file into one.
+
 code::
 ~diatonic = RCSieve.residues(12, [0, 2, 4, 5, 7, 9, 11], 1/12, 0, \diatonic);   // the white keys (p. 269)
 ~diatonic.points(0, 0.99);                 // [0, 1/6, 1/3, 5/12, 7/12, 3/4, 11/12]: the degrees of one octave
 ~diatonic.metabola(7).points(0, 0.99);     // the same structure a fifth up (p. 275-276)
 ~book = RCSieve([[[3, 2], [4, 7]], [[6, 9], [15, 18]]], 1/24);
 ~book.pairs;                               // [[12, 11], [30, 3]] (p. 278), period 60
+~diatonic.tuned(\just).points(0, 0.99);   // the same seven degrees in just intonation: E at log2(5/4)
+RCSieve.residues(19, (0..18), 1, 0, \et19, Tuning.et(19)).points(0, 0.99).size;   // 19
+RCSieve.residues(2, [0], 1, 0, \odd, (1..32).log2).points(0, 5);   // the odd partials up to 31, a fixed field
 RCSieve.fromPoints([0, 3, 6, 8, 11, 14, 16, 19, 22]).pairs;   // [[8, 0], [8, 3], [8, 6]]: the 3, 3, 2 rhythm read back
 ::
 
@@ -29,9 +34,20 @@ The value of one integer step (1 by default).
 argument:: zero
 The value of the integer 0.
 argument:: name
+argument:: tuning
+nil (equal units), a Tuning, a Scale, a Symbol naming one, or an Array of values (a fixed field).
 
 METHOD:: residues
-The union of the residues of one modulus: code::residues(8, [0, 3, 6], 1/2):: is the 3, 3, 2 rhythm in eighths.
+The union of the residues of one modulus: code::residues(8, [0, 3, 6], 1/2):: is the 3, 3, 2 rhythm in eighths. Takes a strong::tuning:: last, as code::new::.
+
+METHOD:: tuningSteps
+A tuning's steps (sorted, in octaves) and its period in octaves (nil: a fixed field), as code::[steps, period]::, or nil for no tuning.
+
+METHOD:: readScala
+A link::Classes/Tuning:: from a Scala code::.scl:: file, or from its text: the description, the count, then a pitch per line (cents when it has a decimal point, else a ratio code::a/b:: or an integer), code::1/1:: implicit and the last pitch the period. Lines starting with code::!:: are comments. nil, warned, when it cannot be read.
+code::
+RCSieve.readScala("~/scales/slendro.scl");
+::
 
 METHOD:: residuesFormula
 That union as a formula.
@@ -71,7 +87,19 @@ METHOD:: integers
 The integers of the sieve in [lo, hi].
 
 METHOD:: points
-The values of the sieve within [lo, hi], unit and zero applied.
+The values of the sieve within [lo, hi], unit and zero applied (or its tuning), ascending.
+
+METHOD:: pointAt
+The value the integer n sounds at; nil outside a fixed field.
+
+METHOD:: isTuned
+METHOD:: tuning
+METHOD:: tuningSteps
+METHOD:: tuningPeriod
+The tuning as given, its steps in octaves, its period in octaves (nil for a fixed field).
+
+METHOD:: tuned
+The same structure in another tuning (nil: back to equal units), a new sieve: the third metabola for tunings.
 
 METHOD:: pairs
 The simplified pairs, one per union.
@@ -82,7 +110,7 @@ A new sieve with the simplified formula.
 METHOD:: period
 
 METHOD:: metabola
-A new sieve: strong::shift:: a number adds it to every residue (a transposition), an Array gives one shift per pair in order (the intervallic structure changes, the period stays; p. 276: +3, +1, -6 on code::(5,4) ∪ (3,2) ∪ (7,3):: gives code::(5,2) ∪ (3,0) ∪ (7,4)::); strong::unit:: replaces the unit (the diatonic structure in quartertones).
+A new sieve: strong::shift:: a number adds it to every residue (a transposition), an Array gives one shift per pair in order (the intervallic structure changes, the period stays; p. 276: +3, +1, -6 on code::(5,4) ∪ (3,2) ∪ (7,3):: gives code::(5,2) ∪ (3,0) ∪ (7,4)::); strong::unit:: replaces the unit (the diatonic structure in quartertones). The tuning is kept: on a tuned sieve a transposition moves by steps of the tuning, and its intervals change as modes do.
 
 EXAMPLES::
 code::

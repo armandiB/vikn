@@ -59,6 +59,54 @@ TestRCSieve : UnitTest {
 		this.assertEquals(clave.points(0, 4 - 1e-6), [0, 1.5, 3.0], "3, 3, 2 in eighths: onsets at 0, 1.5, 3 beats");
 		this.assertEquals(grid.points(0, 4 - 1e-6).size, 10, "Analogique's 5 + 4 + 3 grid: ten distinct positions in the cycle");
 	}
+
+	near { |a, b, tol = 1e-9| ^(a - b).abs < tol }
+
+	test_tuned_diatonic_in_just_intonation {
+		var s = RCSieve.residues(12, [0, 2, 4, 5, 7, 9, 11], 1/12, 0, \diatonic);
+		var just = s.tuned(Tuning.at(\just)), pts = just.points(0, 0.999);
+		this.assertEquals(pts.size, 7, "seven degrees in the first octave");
+		this.assert(this.near(pts[2], (5/4).log2) and: { this.near(pts[4], (3/2).log2) }, "E is 5/4 and G is 3/2 (%)".format(pts));
+		this.assert(just.points(1, 1.999).every { |p, i| this.near(p, pts[i] + 1) }, "the next octave repeats them");
+		this.assert(this.near(just.pointAt(-1), (15/8).log2 - 1), "below zero: the B of the octave under");
+		this.assertEquals(just.integers(0, 11), s.integers(0, 11), "the same structure");
+		this.assert(just.isTuned and: { s.isTuned.not }, "tuned and not");
+		this.assert(just != s and: { just == s.tuned(\just) }, "a tuning is part of the value, named or not");
+		this.assertEquals(just.metabola(7).tuningSteps, just.tuningSteps, "a metabola keeps the tuning");
+		this.assertEquals(just.tuned(nil), s, "untuned again");
+		this.assertEquals(s.points(0, 0.99), RCSieve.residues(12, [0, 2, 4, 5, 7, 9, 11], 1/12).points(0, 0.99), "an untuned sieve is as before");
+	}
+
+	test_equal_tunings_and_periods {
+		var et19 = RCSieve.residues(19, (0..18), 1, 0, \et19, Tuning.et(19));
+		var bp = RCSieve.residues(13, (0..12), 1, 0, \bp, Tuning((0..12) * (3.log2 * 12 / 13), 3));
+		this.assertEquals(et19.points(0, 0.9999).size, 19, "19 points per octave");
+		this.assert(this.near(et19.points(0, 0.9999)[1], 1/19), "a 19th of an octave apart");
+		this.assert(this.near(bp.pointAt(13), 3.log2) and: { this.near(bp.pointAt(26), 2 * 3.log2) }, "the tritave repeats at log2(3)");
+		this.assertEquals(bp.points(0, 3.log2 - 1e-6).size, 13, "13 steps per tritave");
+		this.assertEquals(RCSieve.residues(7, [0, 2, 4], 1, 0, \triad, Scale.major).points(0, 0.999).collect { |p| (p * 12).round.asInteger }, [0, 4, 7], "a sieve over a scale's degrees: the triad");
+	}
+
+	test_fixed_field {
+		var partials = RCSieve.residues(1, [0], 1, 0, \partials, (1..32).collect { |h| h.log2 });
+		var odd = RCSieve.residues(2, [0], 1, 0, \odd, (1..32).collect { |h| h.log2 });
+		this.assertEquals(partials.points(-10, 10).size, 32, "the field's 32 values and no more");
+		this.assert(this.near(partials.pointAt(2), 3.log2) and: { partials.pointAt(32).isNil }, "n indexes the field");
+		this.assert(odd.points(0, 5).every { |p| this.near((2 ** p).round % 2, 1) }, "every other index: the odd partials");
+		this.assert(partials.points(1, 2).every { |p| p >= 1 and: { p <= 2 } } and: { partials.points(1, 2).size == 3 }, "within a range: partials 2, 3, 4");
+	}
+
+	test_scala {
+		var text = "! a fixture\n!\nPythagorean pentatonic\n 5\n!\n 9/8\n 81/64\n 3/2\n 905.865 ! the sixth 27/16 in cents\n 2/1\n";
+		var t = RCSieve.readScala(text), s;
+		this.assert(t.isKindOf(Tuning), "a Tuning");
+		this.assertEquals(t.size, 5, "the implicit 1/1 and four steps");
+		this.assert(this.near(t.octaveRatio, 2) and: { this.near(t.semitones[1], (9/8).ratiomidi, 1e-6) } and: { this.near(t.semitones[4], 9.05865, 1e-6) }, "ratios and cents read (%)".format(t.semitones));
+		this.assertEquals(t.name, "Pythagorean pentatonic", "its description");
+		s = RCSieve.residues(5, (0..4), 1, 0, \pyth, t);
+		this.assertEquals(s.points(0, 0.999).size, 5, "a sieve over it");
+		this.assertEquals(RCSieve.readScala("only a line"), nil, "nil when it cannot be read");
+	}
 }
 
 TestRCLaws : UnitTest {
