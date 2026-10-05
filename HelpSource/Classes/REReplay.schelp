@@ -1,10 +1,10 @@
 TITLE:: REReplay
 summary:: A soundfile cued for replay into a NodeProxy or a Bus
 categories:: Libraries>reCording
-related:: Guides/reCording, Classes/RERecorder, Classes/RETake
+related:: Guides/reCording, Classes/RERecorder, Classes/RETake, Classes/RERenderedPlayer
 
 DESCRIPTION::
-Replays a take, typically into an output chain's signal for an AmbiX conversion, or into a bus. code::prepare:: (server running) cues the file with link::Classes/Buffer#*cueSoundFile:: and, for a proxy target, primes a link::Classes/DiskIn:: source into it (fade time 0, code::awake:: false: nothing plays until code::start::). code::free:: gives the proxy its fade time and code::awake:: back.
+Replays a take, typically into an output chain's signal for an AmbiX conversion, or into a bus. code::prepare:: (server running) cues the file with link::Classes/Buffer#*cueSoundFile:: and, for a proxy target, primes a link::Classes/DiskIn:: source into it (fade time 0, code::awake:: false: nothing plays until code::start::); for a bus target it sends the synth's definition, so that a start is one message (link::#-startNow:: inside a code::server.bind:: joins the bind's latency bundle: link::Classes/RERenderedPlayer:: starts a rendered take's WAV that way, cued the render's latency in). code::free:: gives the proxy its fade time and code::awake:: back.
 
 CLASSMETHODS::
 
@@ -27,10 +27,21 @@ argument:: group
 The group of the synth for a bus target. Chainable.
 METHOD:: targetKind
 code::\proxy::, code::\bus:: or nil.
+METHOD:: addAction
+Of the DiskIn synth in its group, for a bus target (code::\addToHead::).
 METHOD:: prepare
+argument:: startFrame
+The frame the file is cued from (0).
+argument:: action
+code::{ |replay| }:: once cued (and, for a bus target, the definition sent).
+METHOD:: cuedFrame
 METHOD:: start
+A Routine on the clock at code::quant::, calling link::#-startNow::.
 argument:: quant
 argument:: clock
+argument:: amp
+METHOD:: startNow
+Now, in the calling thread: for a proxy target the primed source is sent; for a bus target the synth's message goes to the server (inside a code::server.bind::, into its bundle).
 argument:: amp
 METHOD:: stop
 METHOD:: set

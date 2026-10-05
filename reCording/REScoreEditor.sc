@@ -30,6 +30,7 @@ REScoreEditor {
 	var defs, <player, <playingPath, <editing, feedRoutine, feedAddr, savedOnEvent, chained = false;
 	var <>onPlayer;   // { |player| } when /rec/play made one (the rig wires its own feed and the visuals)
 	var <>tag = \editor;
+	var <>playRendered = \auto;   // a take rendered with its visuals (REScore.readRender): \auto plays the render (RERenderedPlayer) when its WAV exists, true always, false never (the program plays)
 
 	*new { |song, recorder, root, prefix, version, feed, feedPort = 32347|
 		^super.new.initREScoreEditor(song, recorder, root, prefix, version, feed, feedPort)
@@ -50,7 +51,7 @@ REScoreEditor {
 
 	//////// the takes
 
-	takes { ^(root +/+ "*.json").pathMatch.reject { |p| p.endsWith(".l2.json") or: { p.endsWith(".l3.json") } or: { p.endsWith(".edit.json") } }.sort }
+	takes { ^(root +/+ "*.json").pathMatch.reject { |p| REScore.isCompanion(p) }.sort }
 
 	resolveTake { |which|
 		var path = which.asString;
@@ -65,17 +66,28 @@ REScoreEditor {
 	//////// the transport
 
 	play { |which = "last", quant|
-		var path = this.resolveTake(which), s;
+		var path = this.resolveTake(which), s, edited, render;
 		if(path.isNil) { ^nil };
-		s = if(editing.notNil and: { editing[\path] == path }) { editing[\score] } { REScore.read(path) };
+		edited = editing.notNil and: { editing[\path] == path };
+		s = if(edited) { editing[\score] } { REScore.read(path) };
 		if(s.isNil) { ^nil };
 		player !? (_.stop);
-		player = REScorePlayer(s, song);
+		// a take with a render next to it plays its WAV and its visuals tape; an edited copy makes the
+		// render stale, the program plays it
+		render = if(playRendered != false and: { edited.not }) { REScore.readRender(path) };
+		player = if(render.notNil and: { playRendered == true or: { File.exists(render[\wav].asString) } }) {
+			RERenderedPlayer(s, song, render)
+		} {
+			REScorePlayer(s, song)
+		};
 		playingPath = path;
 		onPlayer.value(player);
 		player.play(quant ? [1, 0]);
 		^player
 	}
+
+	// true while the player plays a render (the WAV and the tape), not the program
+	isPlayingRender { ^player.notNil and: { player.isKindOf(RERenderedPlayer) } }
 
 	stopPlay { player !? (_.stop) }
 
@@ -164,7 +176,7 @@ REScoreEditor {
 		var rec = recorder;
 		^(recorder: rec !? { |r| r.state.asString } ? "off", beat: song.clock.beats.round(0.01), events: rec !? { |r| r.score !? (_.size) },
 			recBeat: rec !? { |r| if(r.isRecording) { (song.clock.beats - r.beat0).round(0.01) } { nil } },
-			position: player !? (_.position) !? (_.round(0.01)), playing: playingPath,
+			position: player !? (_.position) !? (_.round(0.01)), playing: playingPath, rendered: this.isPlayingRender,
 			overdubbing: rec !? { |r| r.player.notNil and: { r.player.isPlaying } } ? false,
 			takes: this.takes, lastTake: rec !? (_.lastPath), editing: editing !? { |ed| (file: ed[\path].basename, ops: ed[\ops].size) })
 	}

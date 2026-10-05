@@ -1,0 +1,79 @@
+TITLE:: RERenderedPlayer
+summary:: A take rendered offline played live: its WAV into the chain, its visuals tape to the page
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REScorePlayer, Classes/REScoreEditor, Classes/REReplay, Classes/REVisualsTape, Classes/REOfflineTap
+
+DESCRIPTION::
+An link::Classes/REScorePlayer:: for a take that HomewareSC's code::scripts/take.sh render <take> --viz:: rendered: at the take's aligned start on the song's clock it plays the render's WAV (the undecoded field, summed into the song's chain and decoded live as the instruments are) and sends the visuals tape (code::<take>.viz.json::, link::Classes/REVisualsTape::) to HomewareVisuals through link::Classes/RCVisuals::, next to the takes the program plays live. Nothing is fired (the render made the sound) but the take's tempo events; every event is still reported through code::onEvent:: (the score page's played marks, link::Classes/REScoreVisuals::) and the head runs. The sidecar next to the take, code::<take>.render.json:: (link::Classes/REScore#*readRender::), names the WAV, its convention, the latency, the start and the tape. link::Classes/REScoreEditor#-play:: makes one when a take has a render (the lanes page's Play).
+
+A section the live server cannot play whole (the LSystem's dense growths) is thus recorded as a take (the audio may break up: the take holds the lines and the inputs), rendered offline with its visuals, and played back as one piece of the set.
+
+subsection:: Timing
+WAV time 0 is the take's start on the render's clock. The render bundled its sounds with its latency λr, the live server plays with its own λl: the WAV is cued λr in and its synth sent in a latency bundle at the start beat (seconds S0), so WAV time code::w:: sounds at code::S0 + w - λr + λl::, and a tape message at code::t:: goes out at code::S0 + t - λr + λl::, the same offset: the messages sent when a sound starts (notes, births, cycles, lines) land with their sound whatever the two latencies; a message a rig sends without latency (gone, clear, hair) is off by code::λl - λr::, nothing with the one server-options file. The WAV cannot stretch: the clock must be at the take's tempo (warned otherwise), and the take's tempo events are applied (the render's code lines changed its clock that way; they are not fired here).
+
+subsection:: Routing
+A raw render (code::hoa acn-n3d::, the chain's channels) is summed into the chain's signal stage (the head of its group) and decoded live as the instruments are, at the gig and at home alike; an AmbiX render (code::acn-sn3d::, the chain's own decoded output) or a stereo one goes onto the chain's output bus after the decoder (an AmbiX one only when the live chain decodes to code::\ambix::: render with code::--decode raw:: otherwise). The chain's buses and groups are looked up at play: a scene init rebuilds them.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: score
+argument:: song
+argument:: render
+The sidecar as a dictionary (link::Classes/REScore#*readRender::) or its path.
+
+METHOD:: fromTake
+The take at path with the render next to it; nil (an error logged) without one.
+argument:: path
+argument:: song
+
+INSTANCEMETHODS::
+
+METHOD:: play
+As the parent's, after the WAV is cued: refused without a running server or a WAV; code::loop:: is warned about and ignored; a clock not at the take's tempo and a latency other than the render's are warned about.
+argument:: quant
+argument:: from
+The take's beat to start from: the WAV is cued there.
+argument:: to
+argument:: loop
+argument:: atBeat
+
+METHOD:: stop
+The events, the WAV and the tape.
+METHOD:: free
+Stops and drops the cue buffer.
+METHOD:: fire
+True for every event (reported, not acted on) but a code::tempo:: event, fired, and one marked code::replay: false::.
+
+METHOD:: routing
+code::\auto:: (the default: by the render's convention and the chain's decoder), code::\signal::, code::\out::.
+METHOD:: route
+The route chosen at play.
+METHOD:: render
+METHOD:: replay
+The link::Classes/REReplay:: playing the WAV.
+METHOD:: tape
+The link::Classes/REVisualsTape::, read at play.
+METHOD:: tapeClock
+The clock the tape plays on (SystemClock).
+METHOD:: latency
+The render's.
+METHOD:: wav
+METHOD:: duration
+The render's seconds (the take and its tail).
+METHOD:: mediaSecs
+The seconds WAV time 0 corresponds to, once playing.
+
+EXAMPLES::
+
+code::
+// rendered: scripts/take.sh render "<piece>/Scores/<take>.json" --viz
+~p = RERenderedPlayer.fromTake(~rec.lastPath, ~song);
+~viz.attachPlayer(~p);     // the score page follows
+~p.play([4, 0]);           // on the next bar, as a live replay would
+~p.stop;
+~p.free;
+
+// next to a take the program plays live
+~q = REScorePlayer(REScore.read(otherTake), ~song); ~q.play([4, 0]);
+::

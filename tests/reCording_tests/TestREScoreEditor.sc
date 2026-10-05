@@ -105,6 +105,37 @@ TestREScoreEditor : UnitTest {
 		ed = nil;
 	}
 
+	// a take with a render next to it: its files are not takes, Play plays the render when its WAV
+	// exists (playRendered \auto), always with true, never with false
+	test_rendered_take {
+		var s = this.prTake, path = rec.lastPath, sidecar = REScore.renderPath(path), wav = path.drop(-5) ++ ".wav";
+		REJSON.write((format: "re-render", version: 1, take: path.basename, wav: wav.basename, channels: 16, hoa: "acn-n3d", latency: 0.2, duration: 1, tempo: 20), sidecar, 2, 2);
+		File.use(REScore.tapePath(path), "w", { |f| f.write("[]") });
+		ed = REScoreEditor(song, rec, root, "/edtest", "t", feed: { |kind, dict| feeds.add([kind, dict]) });
+		this.assertEquals(ed.takes, [path], "the sidecar and the tape are not listed");
+		ed.play(path);
+		this.assert(ed.player.isKindOf(REScorePlayer) and: { ed.player.isKindOf(RERenderedPlayer).not }, "no WAV: the program plays the take");
+		this.assert(ed.isPlayingRender.not);
+		ed.stopPlay;
+		File.use(wav, "w", { |f| f.write("") });
+		ed.play(path);
+		this.assert(ed.player.isKindOf(RERenderedPlayer), "the WAV there: the render plays (refused here without a server)");
+		this.assert(ed.isPlayingRender);
+		this.assertEquals(ed.state[\rendered], true, "the state says so");
+		ed.stopPlay;
+		ed.playRendered = false;
+		ed.play(path);
+		this.assert(ed.player.isKindOf(RERenderedPlayer).not, "playRendered false: the program");
+		ed.stopPlay;
+		ed.playRendered = true;
+		File.delete(wav);
+		ed.play(path);
+		this.assert(ed.player.isKindOf(RERenderedPlayer), "playRendered true: the render even without its WAV");
+		ed.stopPlay;
+		ed.free;
+		ed = nil;
+	}
+
 	test_own_feed_and_default_prefix {
 		var s = this.prTake, path = rec.lastPath, got = List.new, def, own = 0;
 		rec.onEvent = { own = own + 1 };

@@ -42,7 +42,11 @@ METHOD:: play
 argument:: which
 A take's name, path or "last".
 argument:: quant
-Returns the link::Classes/REScorePlayer::.
+Returns the link::Classes/REScorePlayer::: an link::Classes/RERenderedPlayer:: when the take has a render next to it (code::<take>.render.json::, link::Classes/REScore#*readRender::) whose WAV exists and link::#-playRendered:: allows it; a take being edited is played by the program (its render is stale).
+METHOD:: playRendered
+code::\auto:: (the default: the render when its WAV exists), code::true:: (always), code::false:: (never: the program plays the take).
+METHOD:: isPlayingRender
+True while the player plays a render.
 METHOD:: stopPlay
 METHOD:: edit
 argument:: which
@@ -55,11 +59,11 @@ argument:: asNew
 Returns the path written.
 METHOD:: revert
 METHOD:: takes
-The takes under the root (companions and working copies left out), sorted.
+The takes under the root (companions, working copies and the files of a render left out: link::Classes/REScore#*isCompanion::), sorted.
 METHOD:: resolveTake
 A take's path from its name, path or "last"; nil (with a warning) when there is none.
 METHOD:: state
-What the page's state needs: recorder, beat, events, recBeat, position, playing, overdubbing, takes, lastTake, editing.
+What the page's state needs: recorder, beat, events, recBeat, position, playing, rendered, overdubbing, takes, lastTake, editing.
 METHOD:: feed
 A message of the feed (the function, else code::/rigfeed/<kind> <json>::).
 METHOD:: onPlayer

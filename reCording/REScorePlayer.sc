@@ -37,6 +37,7 @@ REScorePlayer {
 	var <>onEvent, <>onLoop, <>onDone;
 	var <>onPlay, <>onStop;   // { |player| } as play starts, as stop ends it (onDone: the end of the take)
 	var <>followTempo = false, <>useLatency = true;
+	var <>silent = true;   // what it fires is not recorded (RETap.silently); false: a render recording its replay as a take sees the lines and their effects
 	var <>interpolate = false, <>stepsPerBeat = 16;   // a continuous control ramps to its next point (off: the points, as played)
 	var <>alignPhase = true;   // play starts on the take's phase of the grid (quant, else the take's own, else the beat)
 	var <>playOrphans = false;   // program events with no cause (level 2, from nothing a human did) play too
@@ -147,6 +148,7 @@ REScorePlayer {
 	prRun { |events|
 		var idx, lastBeat, len, ev;
 		startBeat = thisThread.beats;
+		this.prStarted;
 		idx = (events.detectIndex { |e| e[\beat] >= from }) ? events.size;
 		lastBeat = from;
 		len = to !? { to - from };
@@ -162,9 +164,7 @@ REScorePlayer {
 					ramps.clear;
 					onLoop.value(this, passes);
 				} {
-					state = \stopped;
-					routine = nil;
-					onDone.value(this);
+					this.prEnded;
 					^this
 				};
 			} {
@@ -174,6 +174,16 @@ REScorePlayer {
 				idx = idx + 1;
 			};
 		};
+	}
+
+	// The Routine runs, at startBeat (a subclass starts what goes with the take here).
+	prStarted { }
+
+	// The last event played and the take not looping: the end.
+	prEnded {
+		state = \stopped;
+		routine = nil;
+		onDone.value(this);
 	}
 
 	// Waits until `beat` on the clock; on the way, every stepsPerBeat, the controls on a
@@ -329,21 +339,24 @@ REScorePlayer {
 	// Replays one event now. Returns true when it was fired.
 	fire { |ev|
 		if(ev[\replay] == false) { ^this.prSkip(ev, "marked replay: false") };
-		^RETap.silently {
-			this.prBundled {
-				switch(ev[\kind],
-					\action, { this.prFireAction(ev) },
-					\midi, { this.prFireMidi(ev) },
-					\osc, { this.prFireOsc(ev) },
-					\keyboard, { this.prFireKeyboard(ev) },
-					\rawMidi, { this.prFireRawMidi(ev) },
-					\code, { this.prFireCode(ev) },
-					\snapshot, { this.prFireSnapshot(ev) },
-					\morph, { this.prFireMorph(ev) },
-					\tempo, { if(followTempo) { clock.tempo = ev[\tempo] }; true },
-					{ this.prSkip(ev, "unknown kind " ++ ev[\kind]) }
-				)
-			}
+		if(silent) { ^RETap.silently { this.prFire(ev) } };
+		^this.prFire(ev)
+	}
+
+	prFire { |ev|
+		^this.prBundled {
+			switch(ev[\kind],
+				\action, { this.prFireAction(ev) },
+				\midi, { this.prFireMidi(ev) },
+				\osc, { this.prFireOsc(ev) },
+				\keyboard, { this.prFireKeyboard(ev) },
+				\rawMidi, { this.prFireRawMidi(ev) },
+				\code, { this.prFireCode(ev) },
+				\snapshot, { this.prFireSnapshot(ev) },
+				\morph, { this.prFireMorph(ev) },
+				\tempo, { if(followTempo) { clock.tempo = ev[\tempo] }; true },
+				{ this.prSkip(ev, "unknown kind " ++ ev[\kind]) }
+			)
 		}
 	}
 
@@ -430,7 +443,10 @@ REScorePlayer {
 		var func = ev[\text].asString.compile;
 		var ran = 0, ok;
 		if(func.isNil) { ^this.prSkip(ev, "does not compile") };
+		// not silent: the line opens a code frame as the IDE's hooks would, so a recorder sees it with its effects
+		if(silent.not) { RETap.beginCode(ev[\text].asString) };
 		ok = RETap.observe({ ran = ran + 1 }) { RCGuard.call(\player, false) { func.value; true } };
+		if(silent.not) { RETap.endCode(true) };
 		if(ok.not and: { ev[\id].notNil }) { ranBeforeFail[ev[\id]] = ran };
 		^ok
 	}

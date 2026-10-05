@@ -704,6 +704,38 @@ REScore {
 		^(if(path.endsWith(".json")) { path.drop(-5) } { path }) ++ ".defs"
 	}
 
+	// The files of a take rendered offline with its visuals (HomewareSC's scripts/take.sh render
+	// --viz), next to the take: <take>.render.json, the sidecar naming the WAV, its convention,
+	// the latency and the start of the render; <take>.viz.json, the visuals tape (REVisualsTape);
+	// <take>.state/, the state taps' files (REOfflineTap) until merged.
+	*renderPath { |path| ^this.prSibling(path, ".render.json") }
+	*tapePath { |path| ^this.prSibling(path, ".viz.json") }
+	*statePath { |path| ^this.prSibling(path, ".state") }
+	*prSibling { |path, suffix|
+		path = path.asString;
+		^(if(path.endsWith(".json")) { path.drop(-5) } { path }) ++ suffix
+	}
+
+	// a take's companion files, never takes themselves (the folder listings skip them)
+	*isCompanion { |path|
+		path = path.asString;
+		^#[".l2.json", ".l3.json", ".edit.json", ".render.json", ".viz.json"].any { |s| path.endsWith(s) }
+	}
+
+	// The render's sidecar as a dictionary (its wav, tape and state paths made absolute against
+	// the take's folder), nil when the take has none or the file is not one.
+	*readRender { |path|
+		var p = this.renderPath(path), d, dir = path.asString.dirname;
+		if(File.exists(p).not) { ^nil };
+		d = REJSON.read(p);
+		if(d.isNil or: { d[\format] != "re-render" }) { RCLog.warn(\score, "% is not a render sidecar: ignored".format(p.basename)); ^nil };
+		[\wav, \tape, \state].do { |k| d[k] !? { |v| if(v.asString.beginsWith("/").not) { d[k] = dir +/+ v.asString } } };
+		^d
+	}
+
+	// true when the take has a render whose WAV exists
+	*hasRender { |path| ^this.readRender(path) !? { |d| d[\wav].notNil and: { File.exists(d[\wav].asString) } } ? false }
+
 	// levels: 2 loads the program's companion when there is one, 3 the server's too, 1 the take alone.
 	*read { |path, levels = 2|
 		var s = this.fromDict(REJSON.read(path));
