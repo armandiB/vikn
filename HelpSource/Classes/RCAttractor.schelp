@@ -1,0 +1,169 @@
+TITLE:: RCAttractor
+summary:: A discrete set a coordinate is drawn to: courses that linger near its values
+categories:: Libraries>reCurrent
+related:: Classes/RCCurve, Classes/RCLines, Classes/RCSieve
+
+DESCRIPTION::
+A set of values (a scale's pitches, a sieve, chosen directions or levels) a voice's course is drawn to: the course lingers near the values and passes quickly between them, from even glides (strong::amount:: 0) to nearly steps (1).
+
+For consecutive attractors a < b with weights wa and wb, a value x between them becomes code::a + (b - a) S(u)::, with code::u = (x - a) / (b - a)::, code::S(u) = (tanh(s (u - m)) + tanh(s m)) / (tanh(s (1 - m)) + tanh(s m))::, code::m = wa / (wa + wb):: and the strength code::s = 40^amount - 1::. The warp is monotone and fixes every attractor. As s grows it flattens near the attractors and steepens between them, so an evenly moving value lingers near each attractor. The switch between two neighbours moves towards the lighter one (a weight of 0 never holds).
+
+Two modes:
+list::
+## strong::value::: a coordinate is warped, its course straight or curved, through a gliding release too (link::#*kr::);
+## strong::time::: a line's index is warped (link::Classes/RCCurve#*course:: reads every coordinate at it), so the whole voice slows near the set and keeps its ends. A straight driving coordinate warps through the set itself (link::#-progressAt::), a curved one through the progress values where it crosses the attractors (link::#-crossings::) (link::#*progress::).
+::
+
+A set repeats every strong::period:: from a strong::root:: (an octave for a scale), or not at all (link::#*values::: outside its span a value is left as it is). A synth holds link::#*maxDegrees:: values per period (with a period on each side); a periodic set too large is cut to what each line reaches.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: degrees
+The values: of one period from root when period > 0 (reduced into it), absolute otherwise.
+argument:: period
+argument:: root
+argument:: weights
+One per degree, in the degrees' order (1 by default).
+argument:: name
+
+METHOD:: periodic
+argument:: degrees
+argument:: period
+argument:: root
+argument:: weights
+argument:: name
+
+METHOD:: values
+Absolute values that do not repeat.
+argument:: values
+argument:: weights
+argument:: name
+
+METHOD:: edo
+strong::n:: equal divisions of the period (an octave by default) from root.
+argument:: n
+argument:: root
+argument:: period
+argument:: weights
+
+METHOD:: scale
+A link::Classes/Scale::, a link::Classes/Tuning::, or a Symbol naming one: its degrees in octaves, its period the octave ratio's log2 (through link::Classes/RCSieve#*tuningSteps::); an Array of values gives a set that does not repeat.
+argument:: scale
+argument:: root
+argument:: weights
+
+METHOD:: sieve
+An link::Classes/RCSieve::: its points over one period from its zero (the formula's period times its unit; for a tuned sieve, the period after which formula and tuning repeat together); a tuned sieve on a fixed field gives its points, not repeating.
+argument:: sieve
+argument:: weights
+argument:: name
+
+METHOD:: from
+An attractor from what a spec names: an RCAttractor, an RCSieve, a Scale, a Tuning or a Symbol naming one, an Integer (equal divisions of the octave), an Array (values); nil otherwise.
+argument:: thing
+
+METHOD:: strength
+code::40^amount - 1::.
+argument:: amount
+
+METHOD:: shape
+S(u) for strength s and switch point m.
+argument:: u
+argument:: s
+argument:: m
+
+METHOD:: mid
+The switch point of two weights (0.5 when both are 0).
+argument:: wa
+argument:: wb
+
+METHOD:: maxDegrees
+Values per period a synth holds (32).
+
+METHOD:: maxCrossings
+Progress values a curved line's time warp holds, its ends included (64).
+
+subsection:: In a SynthDef
+
+METHOD:: kr
+A coordinate's value warped by its attractor: the controls code::<key>_astr:: (the strength, 0: none), code::<key>_aset:: (what a LocalBuf holds, filled when the synth starts), code::<key>_aweights::, code::<key>_an::, code::<key>_aperiod:: (0: not repeating), code::<key>_aroot::. Searched by link::Classes/IndexInBetween::; the value as it is when the strength is 0 or outside a set that does not repeat.
+argument:: key
+argument:: x
+
+METHOD:: progress
+The time warp of a line's index (0 → 1 over the line, left as it is past 1): the controls code::progress_*:: hold the driving course's set, its ends code::progress_x0:: and code::_x1:: and the warp at them, code::_aw0:: and code::_aw1:: (a curved course: its crossings, x0 0, x1 1, W 0 and 1).
+argument:: index
+
+METHOD:: controls
+The NamedControls of a key's attractor, an Event.
+argument:: key
+argument:: size
+
+subsection:: In a template
+
+METHOD:: eventControls
+Set an event's attraction controls from a hit's spec, an Event key → code::(set:, amount:, mode: \value | \time | \both, weights:)::, with code::time_key:: (the key driving the time mode, code::\pitch:: by default): a key in the value mode gets its set and strength, every other key a strength 0; the time key's course (the hit's code::<key>0::, code::<key>1::, and its path's Env when curved) gives the progress controls. Returns the variant the hit needs: nil (no attraction), code::\A:: (at most the pitch warped), code::\AA:: (another key warped).
+argument:: ev
+argument:: spec
+argument:: keys
+
+INSTANCEMETHODS::
+
+METHOD:: at
+x warped at strong::amount::.
+argument:: x
+argument:: amount
+
+METHOD:: neighbours
+The attractors around x, code::[a, b, wa, wb]::; nil for an empty set or outside a set that does not repeat.
+argument:: x
+
+METHOD:: nearest
+argument:: x
+
+METHOD:: valuesIn
+The attractors within [lo, hi], ascending (code::[value, weight]:: pairs with strong::withWeights::).
+argument:: lo
+argument:: hi
+argument:: withWeights
+
+METHOD:: withinRange
+The part of the set a course between lo and hi reaches, with the attractor beyond each side, as values that do not repeat.
+argument:: lo
+argument:: hi
+
+METHOD:: progressAt
+The warped index of a line whose driving coordinate runs straight from x0 to x1: how far the warp has gone from W(x0) to W(x1). An index outside 0..1, or a line within one plateau, is left as it is.
+argument:: index
+argument:: x0
+argument:: x1
+argument:: amount
+
+METHOD:: crossings
+The progress values where a curved course (an Env over the line) crosses the attractors, with their weights, between the ends weighted 0: code::[[u, w], ...]::.
+argument:: env
+argument:: samples
+
+METHOD:: transpose
+The same set moved (its root, or every value when it does not repeat).
+argument:: by
+
+METHOD:: degrees
+METHOD:: period
+METHOD:: root
+METHOD:: weights
+METHOD:: isPeriodic
+METHOD:: name
+METHOD:: copy
+
+EXAMPLES::
+code::
+~a = RCAttractor.scale(Scale.major, weights: [3, 1, 1, 1, 2, 1, 1]);
+~a.at(0.37, 0.6);                                   // drawn to the nearer degree
+(0..20).collect { |i| ~a.at(i / 20, 0.9).round(0.001) };   // nearly steps
+~a.progressAt(0.5, 0, 1, 0.6);                      // a line from pitch 0 to 1, halfway in time
+RCAttractor.sieve(RCSieve.residues(12, [0, 3, 4, 6, 8, 9], 1/12)).degrees * 12;
+// in a template: the controls a synth reads, and the variant it needs
+RCAttractor.eventControls((pitch0: 0, pitch1: 1), (pitch: (set: Scale.dorian, amount: 0.7, mode: \both)), [\pitch]);
+::
