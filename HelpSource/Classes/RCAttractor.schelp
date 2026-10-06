@@ -6,12 +6,12 @@ related:: Classes/RCCurve, Classes/RCLines, Classes/RCSieve
 DESCRIPTION::
 A set of values (a scale's pitches, a sieve, chosen directions or levels) a voice's course is drawn to: the course lingers near the values and passes quickly between them, from even glides (strong::amount:: 0) to nearly steps (1).
 
-For consecutive attractors a < b with weights wa and wb, a value x between them becomes code::a + (b - a) S(u)::, with code::u = (x - a) / (b - a)::, code::S(u) = (tanh(s (u - m)) + tanh(s m)) / (tanh(s (1 - m)) + tanh(s m))::, code::m = wa / (wa + wb):: and the strength code::s = 40^amount - 1::. The warp is monotone and fixes every attractor. As s grows it flattens near the attractors and steepens between them, so an evenly moving value lingers near each attractor. The switch between two neighbours moves towards the lighter one (a weight of 0 never holds).
+For consecutive attractors a < b with weights wa and wb, a value x between them becomes code::a + (b - a) S(u)::, with code::u = (x - a) / (b - a)::, code::S(u) = (tanh(s (u - m)) + tanh(s m)) / (tanh(s (1 - m)) + tanh(s m))::, code::m = wa / (wa + wb):: and the strength code::s = 40^amount - 1::. The warp is monotone and fixes every attractor. As s grows it flattens near the attractors and steepens between them, so an evenly moving value lingers near each attractor. The switch between two neighbours moves towards the lighter one (a weight of 0 never holds; between two weights of 0 the course is even).
 
 Two modes:
 list::
 ## strong::value::: a coordinate is warped, its course straight or curved, through a gliding release too (link::#*kr::);
-## strong::time::: a line's index is warped (link::Classes/RCCurve#*course:: reads every coordinate at it), so the whole voice slows near the set and keeps its ends. A straight driving coordinate warps through the set itself (link::#-progressAt::), a curved one through the progress values where it crosses the attractors (link::#-crossings::) (link::#*progress::).
+## strong::time::: a line's index is warped (link::Classes/RCCurve#*course:: reads every coordinate at it), so the whole voice slows near the set and keeps its ends, which count as attractors weighted 0. A straight driving coordinate warps through the set itself (link::#-progressAt::), a curved one through the progress values where it crosses the attractors (link::#-crossings::) (link::#*progress::); either lingers exactly on the attractors it crosses.
 ::
 
 A set repeats every strong::period:: from a strong::root:: (an octave for a scale), or not at all (link::#*values::: outside its span a value is left as it is). A synth holds link::#*maxDegrees:: values per period (with a period on each side); a periodic set too large is cut to what each line reaches.
@@ -68,13 +68,13 @@ code::40^amount - 1::.
 argument:: amount
 
 METHOD:: shape
-S(u) for strength s and switch point m.
+S(u) for strength s and switch point m (m < 0: an even segment, u as it is).
 argument:: u
 argument:: s
 argument:: m
 
 METHOD:: mid
-The switch point of two weights (0.5 when both are 0).
+The switch point of two weights (-1 when both are 0: neither holds, an even segment).
 argument:: wa
 argument:: wb
 
@@ -92,7 +92,7 @@ argument:: key
 argument:: x
 
 METHOD:: progress
-The time warp of a line's index (0 → 1 over the line, left as it is past 1): the controls code::progress_*:: hold the driving course's set, its ends code::progress_x0:: and code::_x1:: and the warp at them, code::_aw0:: and code::_aw1:: (a curved course: its crossings, x0 0, x1 1, W 0 and 1).
+The time warp of a line's index (0 → 1 over the line, left as it is past 1), link::#-progressAt:: on the server: the controls code::progress_*:: hold the driving course's set, its ends code::progress_x0:: and code::_x1::, its first and last attractors code::_alo:: and code::_ahi::, the switch points of its end segments code::_mlo:: and code::_mhi:: (a curved course: its crossings over the progress, its ends included, x0 0, x1 1, alo 0, ahi 1).
 argument:: index
 
 METHOD:: controls
@@ -139,11 +139,16 @@ argument:: lo
 argument:: hi
 
 METHOD:: progressAt
-The warped index of a line whose driving coordinate runs straight from x0 to x1: how far the warp has gone from W(x0) to W(x1). An index outside 0..1, or a line within one plateau, is left as it is.
+The warped index of a line whose driving coordinate runs straight from x0 to x1. The course's ends count as attractors weighted 0, as a curved course's do: the line keeps its ends, leaves them at once (unless one lies on the set: it holds there) and lingers exactly on the attractors it crosses. The course goes through the warp of the segment from x0 to the first attractor within it, the set's own warp up to the last, then the last segment's (link::#-straightEnds::). An index outside 0..1, or a course meeting no attractor, is left as it is.
 argument:: index
 argument:: x0
 argument:: x1
 argument:: amount
+
+METHOD:: straightEnds
+The end segments of a straight course for its time warp: code::[a_lo, a_hi, m_lo, m_hi]::, the first and the last attractor within the course (from x0 towards x1; an end on the set is its own) and the switch points of the segments x0 → a_lo and a_hi → x1, the ends weighted 0 (link::#*mid::); nil when the course meets no attractor.
+argument:: x0
+argument:: x1
 
 METHOD:: crossings
 The progress values where a curved course (an Env over the line) crosses the attractors, with their weights, between the ends weighted 0: code::[[u, w], ...]::.

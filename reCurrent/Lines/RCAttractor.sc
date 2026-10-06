@@ -11,11 +11,12 @@
 // with m = wa / (wa + wb) and the strength s = 40^amount - 1. It is monotone and fixes every
 // attractor; as s grows it flattens near the attractors and steepens between them, so an evenly
 // moving x lingers near each value; the switch between two neighbours moves towards the lighter one
-// (a weight of 0 never holds).
+// (a weight of 0 never holds; between two weights of 0 the course is even).
 // Value mode: a coordinate is warped (its course, straight or curved, through a gliding release too).
 // Time mode: a line's index is warped (RCCurve.course reads every coordinate at it): the voice slows
-// near the set and keeps its ends. A straight driving key warps through the set itself (progressAt),
-// a curved one through the progress values where it crosses the attractors (crossings).
+// near the set and keeps its ends, which count as attractors weighted 0. A straight driving key
+// warps through the set itself (progressAt), a curved one through the progress values where it
+// crosses the attractors (crossings); either lingers exactly on the attractors it crosses.
 // In a SynthDef: RCAttractor.kr(\pitch, x) (a coordinate's value warp), RCAttractor.progress(index)
 // (the time warp of a line's index); in a template: RCAttractor.eventControls(ev, spec, keys).
 
@@ -107,14 +108,17 @@ RCAttractor {
 
 	*strength { |amount| ^(40 ** amount.clip(0, 1)) - 1 }
 
+	// S(u) for strength s and switch point m (m < 0: an even segment, u as it is).
 	*shape { |u, s, m|
 		var t;
-		if(s < 1e-3) { ^u };
+		if(s < 1e-3 or: { m < 0 }) { ^u };
 		t = (s * m).tanh;
 		^((s * (u - m)).tanh + t) / ((s * (1 - m)).tanh + t)
 	}
 
-	*mid { |wa, wb| ^if((wa + wb) <= 0) { 0.5 } { wa / (wa + wb) } }
+	// The switch point between neighbours of weights wa and wb: -1 when both are 0 (neither holds: an
+	// even segment).
+	*mid { |wa, wb| ^if((wa + wb) <= 0) { -1 } { wa / (wa + wb) } }
 
 	// The attractors around x, [a, b, wa, wb] in absolute values (x on an attractor: a = x); nil for an
 	// empty set, or outside a set that does not repeat (or holds fewer than two values).
@@ -139,10 +143,11 @@ RCAttractor {
 		^[degrees[i - 1], degrees[i], weights[i - 1], weights[i]]
 	}
 
-	// x warped by the set at amount (0 leaves it as it is).
+	// x warped by the set at amount (0 leaves it as it is; so does a stretch between two weights of 0:
+	// neither holds).
 	at { |x, amount = 0.5|
 		var nb = this.neighbours(x), s = this.class.strength(amount), u;
-		if(nb.isNil or: { s < 1e-3 }) { ^x };
+		if(nb.isNil or: { s < 1e-3 } or: { (nb[2] + nb[3]) <= 0 }) { ^x };
 		u = ((x - nb[0]) / (nb[1] - nb[0]).max(1e-12)).clip(0, 1);
 		^nb[0] + ((nb[1] - nb[0]) * this.class.shape(u, s, this.class.mid(nb[2], nb[3])))
 	}
@@ -180,13 +185,38 @@ RCAttractor {
 
 	//////// the time mode (language side)
 
-	// The warped index of a line whose driving coordinate runs straight from x0 to x1: how far W has
-	// gone from W(x0) to W(x1) at x0 + (x1 - x0) index. An index outside 0..1 (a release) is left as
-	// it is, and so is every index when W(x0) = W(x1) (a line within one plateau).
+	// The warped index of a line whose driving coordinate runs straight from x0 to x1: the course's ends
+	// count as attractors weighted 0, as a curved course's do (crossings), so the line keeps its ends,
+	// leaves them at once (unless one lies on the set: it holds there) and lingers exactly on the
+	// attractors it crosses. x at x0 + (x1 - x0) index goes through W~: from x0 to the first attractor
+	// within the course, the warp of that segment; between the first and the last, the set's own warp;
+	// to x1, the last segment's; the warped index is (W~(x) - x0) / (x1 - x0). An index outside 0..1 (a
+	// release) is left as it is, and so is every index of a course that meets no attractor.
 	progressAt { |index, x0, x1, amount = 0.5|
-		var w0 = this.at(x0, amount), w1 = this.at(x1, amount);
-		if(index >= 1 or: { index <= 0 } or: { (w1 - w0).abs < 1e-9 }) { ^index };
-		^(this.at(x0 + ((x1 - x0) * index), amount) - w0) / (w1 - w0)
+		var ends = this.straightEnds(x0, x1), s = this.class.strength(amount), x, dir, alo, ahi, w;
+		if(ends.isNil or: { s < 1e-3 } or: { index >= 1 } or: { index <= 0 }) { ^index };
+		x = x0 + ((x1 - x0) * index);
+		dir = (x1 - x0).sign;
+		alo = ends[0];
+		ahi = ends[1];
+		w = case
+		{ ((x - alo) * dir) < 0 } { x0 + ((alo - x0) * this.class.shape(((x - x0) / (alo - x0)).clip(0, 1), s, ends[2])) }
+		{ ((x - ahi) * dir) > 0 } { ahi + ((x1 - ahi) * this.class.shape(((x - ahi) / (x1 - ahi)).clip(0, 1), s, ends[3])) }
+		{ this.at(x, amount) };
+		^(w - x0) / (x1 - x0)
+	}
+
+	// The end segments of a straight course from x0 to x1 for its time warp: [a_lo, a_hi, m_lo, m_hi],
+	// the first and the last attractor within the course (from x0 towards x1; an end on the set is its
+	// own) and the switch points of the segments x0 → a_lo and a_hi → x1, the ends weighted 0 (*mid);
+	// nil when the course meets no attractor.
+	straightEnds { |x0, x1|
+		var vw;
+		if((x1 - x0).abs < 1e-9) { ^nil };
+		vw = this.valuesIn(x0.min(x1), x0.max(x1), true);
+		if(vw.isEmpty) { ^nil };
+		if(x1 < x0) { vw = vw.reverse };
+		^[vw.first[0], vw.last[0], this.class.mid(0, vw.first[1]), this.class.mid(vw.last[1], 0)]
 	}
 
 	// The progress values where a curved course (an Env over the line, in the coordinate's units)
@@ -252,28 +282,41 @@ RCAttractor {
 		var a = Index.kr(buf, i0), b = Index.kr(buf, i0 + 1);
 		var wa = Index.kr(wbuf, i0), wb = Index.kr(wbuf, i0 + 1);
 		var u = ((r - a) / (b - a).max(1e-12)).clip(0, 1);
-		var m = Select.kr((wa + wb) > 0, [0.5, wa / (wa + wb).max(1e-12)]);
-		var s = c[\str].max(1e-3), t = (s * m).tanh;
-		var shape = ((s * (u - m)).tanh + t) / ((s * (1 - m)).tanh + t);
+		var m = Select.kr((wa + wb) > 0, [-1, wa / (wa + wb).max(1e-12)]);   // -1: two weights of 0, an even segment
+		var shape = this.prShape(u, c[\str].max(1e-3), m);
 		var inside = (periodic + ((r >= Index.kr(buf, 0)) * (r <= Index.kr(buf, last)))).min(1);
 		var on = (c[\str] > 1e-3) * (c[\n] >= 2) * inside;
 		^Select.kr(on, [x, c[\root] + (k * c[\period]) + a + ((b - a) * shape)])
 	}
 
+	// S(u) as *shape gives it, of control-rate inputs.
+	*prShape { |u, s, m|
+		var t = (s * m).tanh;
+		^Select.kr(m < 0, [((s * (u - m)).tanh + t) / ((s * (1 - m)).tanh + t), u])
+	}
+
+	*prNonZero { |d| ^Select.kr(d.abs > 1e-12, [1, d]) }
+
 	// A coordinate's value warped by its attractor (value mode).
 	*kr { |key, x| ^this.prWarp(this.controls(key), x) }
 
-	// The time warp of a line's index (0 → 1 over the line, left as it is past 1): the controls
-	// progress_* hold the driving course's set, its ends progress_x0 and _x1 and W at them, _aw0 and
-	// _aw1 (a curved course: its crossings, x0 0, x1 1, W 0 and 1). The index as it is when the strength is 0.
+	// The time warp of a line's index (0 → 1 over the line, left as it is past 1), progressAt on the
+	// server: the controls progress_* hold the driving course's set, its ends progress_x0 and _x1, its
+	// first and last attractors progress_alo and _ahi, the switch points of its end segments _mlo and
+	// _mhi (a curved course: its crossings over the progress, its ends included, x0 0, x1 1, alo 0, ahi
+	// 1). The index as it is when the strength is 0.
 	*progress { |index|
 		var size = maxCrossings + 2;
 		var c = this.controls(\progress, size);
 		var x0 = NamedControl.kr(\progress_x0, 0), x1 = NamedControl.kr(\progress_x1, 1);
-		var w0 = NamedControl.kr(\progress_aw0, 0), w1 = NamedControl.kr(\progress_aw1, 1);
-		var span = w1 - w0;
-		var w = this.prWarp(c, x0 + ((x1 - x0) * index.clip(0, 1)), size);
-		var warped = ((w - w0) / Select.kr(span.abs > 1e-9, [1, span])).clip(0, 1);
+		var alo = NamedControl.kr(\progress_alo, 0), ahi = NamedControl.kr(\progress_ahi, 1);
+		var mlo = NamedControl.kr(\progress_mlo, 0), mhi = NamedControl.kr(\progress_mhi, 1);
+		var span = x1 - x0, dir = span.sign, s = c[\str].max(1e-3);
+		var x = x0 + (span * index.clip(0, 1));
+		var head = x0 + ((alo - x0) * this.prShape(((x - x0) / this.prNonZero(alo - x0)).clip(0, 1), s, mlo));
+		var tail = ahi + ((x1 - ahi) * this.prShape(((x - ahi) / this.prNonZero(x1 - ahi)).clip(0, 1), s, mhi));
+		var w = Select.kr(((x - alo) * dir) < 0, [Select.kr(((x - ahi) * dir) > 0, [this.prWarp(c, x, size), tail]), head]);
+		var warped = ((w - x0) / this.prNonZero(span)).clip(0, 1);
 		^Select.kr((c[\str] > 1e-3) * (span.abs > 1e-9) * (index < 1), [index, warped])
 	}
 
@@ -337,15 +380,15 @@ RCAttractor {
 	// Set an event's attraction controls from a hit's spec (as *resolve reads it) for `keys`: a key in
 	// the value mode gets its set and strength, every other key a strength 0; the time key's course (the
 	// hit's <key>0, <key>1, and its path's Env when curved) gives the progress controls, straight or
-	// through its crossings. Returns the variant the hit needs: nil (no attraction), \A (at most the
-	// pitch warped), \AA (another key warped).
+	// through its crossings (none when it meets no attractor). Returns the variant the hit needs: nil (no
+	// attraction), \A (at most the pitch warped), \AA (another key warped).
 	*eventControls { |ev, spec, keys|
-		var r = this.resolve(spec, keys);
+		var r = this.resolve(spec, keys), timed = false;
 		(keys ? []).do { |k| ev[(k ++ "_astr").asSymbol] = 0 };
 		ev[\progress_astr] = 0;
 		r[0].do { |e| var ends = this.prRange(ev, e[0]); this.prSetControls(ev, e[0], e[1], this.strength(e[2]), maxDegrees + 2, ends[0], ends[1]) };
-		r[1] !? { |t| this.prTimeControls(ev, t[0], t[1], t[2]) };
-		if(r[0].isEmpty and: { r[1].isNil }) { ^nil };
+		r[1] !? { |t| timed = this.prTimeControls(ev, t[0], t[1], t[2]) };
+		if(r[0].isEmpty and: { timed.not }) { ^nil };
 		^if(r[0].every { |e| e[0] == \pitch }) { \A } { \AA }
 	}
 
@@ -358,24 +401,32 @@ RCAttractor {
 
 	*prPathEnv { |ev, key| ^if(ev[\path].isKindOf(Dictionary)) { ev[\path][key] !? { |e| if(e.isKindOf(Env)) { e } } } }
 
+	// The time warp's controls for the course of key; true when it is warped: a curved course through its
+	// crossings (crossing nothing: no warp), a straight one through the set between its end segments
+	// (straightEnds; meeting no attractor: no warp).
 	*prTimeControls { |ev, key, set, amount|
-		var env = this.prPathEnv(ev, key), x0, x1, s = this.strength(amount), cr;
+		var env = this.prPathEnv(ev, key), s = this.strength(amount), x0, x1, ends, cr;
 		if(env.notNil) {
 			cr = set.crossings(env);
+			if(cr.size <= 2) { ^false };
 			this.prSetControls(ev, \progress, this.values(cr.collect(_[0]), cr.collect(_[1])), s, maxCrossings + 2);
-			ev[\progress_x0] = 0;
-			ev[\progress_x1] = 1;
-			ev[\progress_aw0] = 0;
-			ev[\progress_aw1] = 1;
+			x0 = 0;
+			x1 = 1;
+			ends = [0, 1, -1, -1];   // the ends are in the set: no end segments
 		} {
 			x0 = ev[(key ++ "0").asSymbol] ? 0;
 			x1 = ev[(key ++ "1").asSymbol] ? x0;
+			ends = set.straightEnds(x0, x1);
+			if(ends.isNil) { ^false };
 			this.prSetControls(ev, \progress, set, s, maxCrossings + 2, x0, x1);
-			ev[\progress_x0] = x0;
-			ev[\progress_x1] = x1;
-			ev[\progress_aw0] = set.at(x0, amount);
-			ev[\progress_aw1] = set.at(x1, amount);
 		};
+		ev[\progress_x0] = x0;
+		ev[\progress_x1] = x1;
+		ev[\progress_alo] = ends[0];
+		ev[\progress_ahi] = ends[1];
+		ev[\progress_mlo] = ends[2];
+		ev[\progress_mhi] = ends[3];
+		^true
 	}
 
 	copy { ^this.class.new(degrees, period, root, weights, name) }

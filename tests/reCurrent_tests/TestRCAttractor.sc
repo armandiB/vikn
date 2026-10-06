@@ -65,6 +65,7 @@ TestRCAttractor : UnitTest {
 		this.assert(this.near(even.at(0.5, 0.7), 0.5, 1e-9), "equal weights: the switch halfway");
 		this.assert(a.at(0.5, 0.7) < 0.2 and: { a.at(0.7, 0.7) < 0.5 }, "a heavier attractor holds longer (% at 0.5)".format(a.at(0.5, 0.7).round(0.001)));
 		this.assert(dead.at(0.1, 0.9) > 0.5, "a weight of 0 never holds: the value leaves it at once");
+		this.assert(RCAttractor.values([0, 1], [0, 0]).at(0.3, 0.9) == 0.3 and: { RCAttractor.mid(0, 0) == -1 } and: { RCAttractor.shape(0.3, 20, -1) == 0.3 }, "between two weights of 0: even");
 	}
 
 	test_outside_and_small_sets {
@@ -85,7 +86,22 @@ TestRCAttractor : UnitTest {
 		this.assert(this.near(a.progressAt(0, 0, 1, 0.7), 0) and: { this.near(a.progressAt(1, 0, 1, 0.7), 1) }, "the ends kept");
 		this.assert(slopes.every { |d| d >= -1e-12 }, "monotone");
 		this.assert(slopes.minItem < (0.2 / 200) and: { slopes.maxItem > (2 / 200) }, "slow near the crossings, fast between");
-		this.assert(a.progressAt(1.3, 0, 1, 0.7) == 1.3 and: { a.progressAt(0.4, 0.5, 0.5, 0.7) == 0.4 }, "past the line, or on a line within one plateau: as it is");
+		this.assert(a.progressAt(1.3, 0, 1, 0.7) == 1.3 and: { a.progressAt(0.4, 0.5, 0.5, 0.7) == 0.4 } and: { RCAttractor.values([5]).progressAt(0.3, 0, 1, 0.9) == 0.3 }, "past the line, on a line that does not move, or on one meeting no attractor: as it is");
+	}
+
+	test_progress_ends_off_the_set {
+		// a line from 36 cents below C to 48 above C two octaves up, through C major: its ends kept, its
+		// course lingering on the scale's degrees themselves (not on degrees shifted by the ends' offsets)
+		var a = RCAttractor.scale(Scale.major), x0 = -0.03, x1 = 2.04;
+		var course = { |u, amount| x0 + ((x1 - x0) * a.progressAt(u, x0, x1, amount)) };
+		var near = { |amount, cents| var n = 4001; (0..(n - 1)).count { |i| var p = course.(i / (n - 1), amount); (p - a.nearest(p)).abs < (cents / 1200) } / n };
+		var fr = [0, 0.5, 0.9].collect { |amt| near.(amt, 5) };
+		var ends = a.straightEnds(x0, x1), down = a.straightEnds(x1, x0);
+		this.assert(ends[0] == 0 and: { this.near(ends[1], 2) } and: { ends[2] == 0 } and: { ends[3] == 1 }, "its first and last degrees within (C and C two octaves up), the ends weighted 0");
+		this.assert(this.near(down[0], 2) and: { down[1] == 0 }, "falling: from the top");
+		this.assert(this.near(course.(1e-6, 0.9), x0, 0.001) and: { this.near(course.(1 - 1e-6, 0.9), x1, 0.001) }, "the ends kept (continuous there)");
+		this.assert(fr.differentiate.drop(1).every(_ > 0.1) and: { fr[2] > 0.75 }, "within 5 cents of a degree for longer as the amount grows (%)".format(fr.collect(_.round(0.001))));
+		this.assert(this.near(course.(0.02, 0.9), 0, 0.002), "leaving the start at once for C (a weight of 0 never holds)");
 	}
 
 	test_crossings_of_a_curved_course {
@@ -115,8 +131,9 @@ TestRCAttractor : UnitTest {
 		var dense = RCAttractor.edo(48), ev5 = (pitch0: 0.1, pitch1: 0.3), v5 = RCAttractor.eventControls(ev5, (pitch: (set: dense, amount: 0.5)), [\pitch]);
 		this.assert(v == \A and: { ev[\pitch_astr] > 0 } and: { ev[\pitch_aset][0].size == (RCAttractor.maxDegrees + 2) } and: { ev[\pitch_an] == 9 } and: { ev[\pitch_aperiod] == 1 }, "pitch warped: its set with a period each side (9 values), variant A");
 		this.assert(ev[\az_astr] == 0 and: { ev[\progress_astr] == 0 }, "the other key and the time mode off");
-		this.assert(v2 == \AA and: { ev2[\pitch_astr] == 0 } and: { ev2[\progress_astr] > 0 } and: { ev2[\progress_x1] == 1 } and: { this.near(ev2[\progress_aw1], major.at(1, 0.4)) }, "az warped (AA), pitch driving the time mode straight: its ends and W at them");
-		this.assert(v3 == \A and: { ev3[\progress_x0] == 0 } and: { ev3[\progress_aw1] == 1 } and: { ev3[\progress_aperiod] == 0 } and: { ev3[\progress_an] > 2 }, "a curved driving course: its crossings over [0, 1]");
+		this.assert(v2 == \AA and: { ev2[\pitch_astr] == 0 } and: { ev2[\progress_astr] > 0 } and: { ev2[\progress_x1] == 1 } and: { ev2[\progress_alo] == 0 } and: { ev2[\progress_ahi] == 1 } and: { ev2[\progress_mlo] == 0 } and: { ev2[\progress_mhi] == 1 }, "az warped (AA), pitch driving the time mode straight: its ends, its first and last degrees, its end segments' switches");
+		this.assert(v3 == \A and: { ev3[\progress_x0] == 0 } and: { ev3[\progress_x1] == 1 } and: { ev3[\progress_alo] == 0 } and: { ev3[\progress_ahi] == 1 } and: { ev3[\progress_aperiod] == 0 } and: { ev3[\progress_an] > 2 }, "a curved driving course: its crossings over [0, 1], its ends among them");
+		this.assert(RCAttractor.eventControls((pitch0: 0.1, pitch1: 0.15), (pitch: (set: [0, 1], amount: 0.5, mode: \time)), [\pitch]).isNil, "a course meeting no attractor in the time mode: nothing to warp, no variant");
 		this.assert(v4.isNil and: { ev4[\pitch_astr] == 0 } and: { ev4[\progress_astr] == 0 }, "no spec: every strength 0, no variant");
 		this.assert(v5 == \A and: { ev5[\pitch_aperiod] == 0 } and: { ev5[\pitch_an] <= (RCAttractor.maxDegrees + 2) }, "a set too dense for the buffer: cut to the line's reach, not repeating");
 	}
@@ -141,7 +158,7 @@ TestRCAttractor : UnitTest {
 			Out.kr(0, [RCAttractor.kr(\pitch, x), RCAttractor.progress(Line.kr(0, 1, 1))]);
 		});
 		var names = def.allControlNames.collect(_.name);
-		this.assert(names.includesAll([\pitch_astr, \pitch_aset, \pitch_aweights, \pitch_an, \pitch_aperiod, \pitch_aroot, \progress_astr, \progress_aset, \progress_x0, \progress_x1, \progress_aw0, \progress_aw1]), "the warp and the time warp declare their controls");
+		this.assert(names.includesAll([\pitch_astr, \pitch_aset, \pitch_aweights, \pitch_an, \pitch_aperiod, \pitch_aroot, \progress_astr, \progress_aset, \progress_x0, \progress_x1, \progress_alo, \progress_ahi, \progress_mlo, \progress_mhi]), "the warp and the time warp declare their controls");
 		this.assert(def.children.count { |u| u.isKindOf(LocalBuf) } == 4 and: { def.children.count { |u| u.isKindOf(SetBuf) } == 4 } and: { def.children.any { |u| u.isKindOf(IndexInBetween) } }, "each a LocalBuf of values and one of weights, filled at the start, searched by IndexInBetween");
 	}
 }
