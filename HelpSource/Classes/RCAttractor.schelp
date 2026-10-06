@@ -102,8 +102,13 @@ argument:: size
 
 subsection:: In a template
 
+METHOD:: resolve
+What a hit's spec, an Event key → code::(set:, amount:, mode: \value | \time | \both, weights:)::, with code::time_key:: (the key driving the time mode, code::\pitch:: by default), asks of strong::keys::: code::[[[key, set, amount], ...], [key, set, amount]]::, the keys warped and the key driving the time mode (nil when none). A key counts with a set of at least one value and an amount above 0; the time mode goes to code::time_key:: when it asks for it, else to the first key that does. link::#*eventControls:: reads a spec through it, and so can a page drawing the lines.
+argument:: spec
+argument:: keys
+
 METHOD:: eventControls
-Set an event's attraction controls from a hit's spec, an Event key → code::(set:, amount:, mode: \value | \time | \both, weights:)::, with code::time_key:: (the key driving the time mode, code::\pitch:: by default): a key in the value mode gets its set and strength, every other key a strength 0; the time key's course (the hit's code::<key>0::, code::<key>1::, and its path's Env when curved) gives the progress controls. Returns the variant the hit needs: nil (no attraction), code::\A:: (at most the pitch warped), code::\AA:: (another key warped).
+Set an event's attraction controls from a hit's spec (as link::#*resolve:: reads it): a key in the value mode gets its set and strength, every other key a strength 0; the time key's course (the hit's code::<key>0::, code::<key>1::, and its path's Env when curved) gives the progress controls. Returns the variant the hit needs: nil (no attraction), code::\A:: (at most the pitch warped), code::\AA:: (another key warped).
 argument:: ev
 argument:: spec
 argument:: keys

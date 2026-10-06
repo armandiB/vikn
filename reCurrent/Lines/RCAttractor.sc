@@ -310,34 +310,43 @@ RCAttractor {
 		ev[(k ++ "_aroot").asSymbol] = if(used.isPeriodic) { used.root } { 0 };
 	}
 
-	// Set an event's attraction controls from a hit's spec (an Event key → (set:, amount:, mode: \value
-	// | \time | \both, weights:), with time_key: the key whose course drives the time mode, \pitch by
-	// default; set: anything *from takes) for `keys`: a key in the value mode gets its set and strength,
-	// every other key a strength 0; the time key's course (the hit's <key>0, <key>1, and its path's Env
-	// when curved) gives the progress controls, straight or through its crossings. Returns the variant
-	// the hit needs: nil (no attraction), \A (at most the pitch warped), \AA (another key warped).
-	*eventControls { |ev, spec, keys|
-		var valueKeys = List.new, timeKey, timeSpec, timeSet;
-		(keys ? []).do { |k| ev[(k ++ "_astr").asSymbol] = 0 };
-		ev[\progress_astr] = 0;
-		if(spec.isKindOf(Dictionary).not) { ^nil };
+	// What a hit's spec (an Event key → (set:, amount:, mode: \value | \time | \both, weights:), with
+	// time_key: the key whose course drives the time mode, \pitch by default; set: anything *from takes)
+	// asks of `keys`: [[[key, set, amount] for each key warped], the time mode's [key, set, amount] or
+	// nil]. A key counts with a set of at least one value and an amount above 0; the time mode goes to
+	// time_key when it asks for it, else to the first key that does.
+	*resolve { |spec, keys|
+		var warped = List.new, time;
+		if(spec.isKindOf(Dictionary).not) { ^[[], nil] };
 		(keys ? []).do { |k|
-			var s = spec[k], set, amount, mode, ends;
+			var s = spec[k], set, amount, mode;
 			if(s.isKindOf(Dictionary)) {
 				set = this.from(s[\set]);
 				amount = (s[\amount] ? 0.5).clip(0, 1);
 				mode = s[\mode] ? \value;
 				s[\weights] !? { |w| set = set !? { set.copy.weights_(w) } };
 				if(set.notNil and: { amount > 0 } and: { set.degrees.size > 0 }) {
-					ends = this.prRange(ev, k);
-					if([\value, \both].includes(mode)) { this.prSetControls(ev, k, set, this.strength(amount), maxDegrees + 2, ends[0], ends[1]); valueKeys.add(k) };
-					if([\time, \both].includes(mode) and: { timeKey.isNil or: { k == (spec[\time_key] ? \pitch) } }) { timeKey = k; timeSpec = amount; timeSet = set };
+					if([\value, \both].includes(mode)) { warped.add([k, set, amount]) };
+					if([\time, \both].includes(mode) and: { time.isNil or: { k == (spec[\time_key] ? \pitch) } }) { time = [k, set, amount] };
 				};
 			};
 		};
-		timeKey !? { this.prTimeControls(ev, timeKey, timeSet, timeSpec) };
-		if(valueKeys.isEmpty and: { timeKey.isNil }) { ^nil };
-		^if(valueKeys.every { |k| k == \pitch }) { \A } { \AA }
+		^[warped.asArray, time]
+	}
+
+	// Set an event's attraction controls from a hit's spec (as *resolve reads it) for `keys`: a key in
+	// the value mode gets its set and strength, every other key a strength 0; the time key's course (the
+	// hit's <key>0, <key>1, and its path's Env when curved) gives the progress controls, straight or
+	// through its crossings. Returns the variant the hit needs: nil (no attraction), \A (at most the
+	// pitch warped), \AA (another key warped).
+	*eventControls { |ev, spec, keys|
+		var r = this.resolve(spec, keys);
+		(keys ? []).do { |k| ev[(k ++ "_astr").asSymbol] = 0 };
+		ev[\progress_astr] = 0;
+		r[0].do { |e| var ends = this.prRange(ev, e[0]); this.prSetControls(ev, e[0], e[1], this.strength(e[2]), maxDegrees + 2, ends[0], ends[1]) };
+		r[1] !? { |t| this.prTimeControls(ev, t[0], t[1], t[2]) };
+		if(r[0].isEmpty and: { r[1].isNil }) { ^nil };
+		^if(r[0].every { |e| e[0] == \pitch }) { \A } { \AA }
 	}
 
 	// The span a hit's course of key covers: its ends, and its path's levels when curved.

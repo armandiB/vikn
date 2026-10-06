@@ -121,6 +121,20 @@ TestRCAttractor : UnitTest {
 		this.assert(v5 == \A and: { ev5[\pitch_aperiod] == 0 } and: { ev5[\pitch_an] <= (RCAttractor.maxDegrees + 2) }, "a set too dense for the buffer: cut to the line's reach, not repeating");
 	}
 
+	test_resolve {
+		var major = RCAttractor.scale(Scale.major);
+		var r = RCAttractor.resolve((pitch: (set: major, amount: 0.4, mode: \both), az: (set: [0, 1], amount: 0.6, mode: \time), amp: (set: \minor, amount: 0)), [\pitch, \amp, \az]);
+		var r2 = RCAttractor.resolve((pitch: (set: major, amount: 0.4, mode: \time), az: (set: [0, 1], amount: 0.6, mode: \time), time_key: \az), [\pitch, \az]);
+		var r3 = RCAttractor.resolve((amp: (set: [0, -12], amount: 0.5, mode: \time), az: (set: [0, 1], amount: 0.6, mode: \time)), [\amp, \az]);
+		var r4 = RCAttractor.resolve((pitch: (set: [0, 1], amount: 0.5, weights: [2, 1])), [\pitch]);
+		this.assert(r[0].size == 1 and: { r[0][0][0] == \pitch } and: { r[0][0][1] === major } and: { r[0][0][2] == 0.4 }, "the keys warped: pitch (both), not az (time) nor amp (amount 0)");
+		this.assert(r[1][0] == \pitch, "the time mode to pitch (time_key's default), az asking too");
+		this.assert(r2[1][0] == \az and: { r2[0].isEmpty }, "time_key names the driving key");
+		this.assert(r3[1][0] == \amp, "without time_key among them: the first key asking");
+		this.assert(r4[0][0][1].weights == [2, 1], "weights applied to a copy of the set");
+		this.assert(RCAttractor.resolve(nil, [\pitch]) == [[], nil] and: { RCAttractor.resolve((pitch: (set: \noSuchScale, amount: 0.5)), [\pitch]) == [[], nil] }, "no spec, or no set: nothing");
+	}
+
 	test_synth_side_declares_its_controls {
 		var def = SynthDef(\test_rc_attractor, {
 			var x = Line.kr(0, 2, 1);
