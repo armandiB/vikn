@@ -3,16 +3,17 @@
 // A line (RCLines) glides each coordinate straight from its `from` value to its `to` value. A
 // curved line also carries `path`: an Event key → Env whose times are fractions of the note
 // (summing to 1) and whose curves are sclang's envelope curves (a number per segment, 0 linear); a
-// key without an Env stays straight. A synth plays an Env from a control array of maxPoints
-// breakpoints (<key>_env, its times in seconds), switched on by <key>_curved; through a gliding
-// release the coordinate goes on along its end tangent (<key>_tail, units per line length).
+// key without an Env stays straight. A synth reads an Env at an index, the fraction of the line, from
+// a control array of maxPoints breakpoints (<key>_env, IEnvGen's data), switched on by <key>_curved;
+// through a gliding release the coordinate goes on along its end tangent (<key>_tail, units per line
+// length). A warped index re-times the course (RCAttractor's time mode).
 //
 //   ~env = RCCurve.fit({ |s| s.squared });       // a curve of s in 0..1 → at most 8 breakpoints
 //   RCCurve.at(~env, 0.5);                       // ≈ 0.25
-//   RCCurve.serverArray(~env, 2);                // the 32 values of <key>_env for a 2 s note
+//   RCCurve.serverArray(~env);                   // the 32 values of <key>_env
 //   RCCurve.lineFrom([[0, (pitch: 0)], [1, (pitch: 0.2)], [2, (pitch: 1)]], 3);   // a line with its path
 //
-// In a SynthDef: RCCurve.course(\pitch, pitch0, pitch1, ramp) (a ramp 0 → 1 over the line, on past
+// In a SynthDef: RCCurve.course(\pitch, pitch0, pitch1, index) (an index 0 → 1 over the line, on past
 // 1 through a gliding release) or RCCurve.glide(\pitch, pitch0, pitch1, dur, trig) (restarted by a
 // trigger); in a template: RCCurve.eventControls(ev, path, keys, lineDur).
 // The fit, slice and server array are the Texture rig's (HadronLake3), moved here to be shared.
@@ -130,14 +131,26 @@ RCCurve {
 	// Whether a path bends: more than two breakpoints, or one curved segment.
 	*isCurved { |env| ^env.notNil and: { (env.levels.size > 2) or: { (env.curves.asArray.first ? 0).abs >= 1e-3 } } }
 
-	// The control array a synth plays: the path padded to n breakpoints (the extra segments of no
-	// length at the last level), its times in seconds. A path with more breakpoints is refitted.
+	// The control array a synth plays, IEnvGen's raw data read at an index (the fraction of the line):
+	// [offset, first level, segments, total, (time, shape 5, curve, level) per segment], the path's
+	// times as fractions (a hand-made Env's normalised), padded to n - 1 segments by flat ones of length
+	// 1 past the end (an index beyond 1 holds the last level). A path with more breakpoints is refitted.
+	// lineDur no longer matters (the index carries the line's time); it stays for the callers.
 	*serverArray { |env, lineDur = 1, n|
-		var max = n ? maxPoints, pad;
+		var max = n ? maxPoints, segs, pad, times, curves, last;
 		if(env.levels.size > max) { env = this.fit({ |s| env.at(s) }, max) ? Env([env.levels.first, env.levels.first], [1]) };
-		pad = (max - env.levels.size).max(0);
-		^Env(env.levels ++ (env.levels.last ! pad), (env.times * lineDur) ++ (0 ! pad), env.curves.asArray.wrapExtend(env.times.size) ++ (0 ! pad)).asArray
+		segs = env.times.size;
+		pad = (max - 1 - segs).max(0);
+		times = env.times / env.times.sum.max(1e-9);
+		curves = env.curves.asArray.wrapExtend(segs).collect { |c| if(c.isNumber) { c } { 0 } };
+		last = env.levels.last;
+		^[0, env.levels.first, segs + pad, 1 + pad]
+			++ segs.collect { |i| [times[i], 5, curves[i], env.levels[i + 1]] }.flatten
+			++ pad.collect { [1, 5, 0, last] }.flatten
 	}
+
+	// The array of a flat path at 0: the controls' default.
+	*prBlankArray { ^this.serverArray(Env([0, 0], [1])) }
 
 	//////// lines
 
@@ -186,30 +199,36 @@ RCCurve {
 
 	//////// synth side (call inside a SynthDef function)
 
-	// The controls of a curved coordinate: <key>_env (maxPoints breakpoints, times in seconds),
-	// <key>_curved (1 to follow it), <key>_tail (the end slope, units per line length).
+	// The controls of a curved coordinate: <key>_env (maxPoints breakpoints, IEnvGen's data, read at
+	// the fraction of the line), <key>_curved (1 to follow it), <key>_tail (the end slope, units per
+	// line length).
 	*controls { |key|
 		^(
-			env: NamedControl.kr((key ++ "_env").asSymbol, Env.newClear(maxPoints - 1).asArray),
+			env: NamedControl.kr((key ++ "_env").asSymbol, this.prBlankArray),
 			curved: NamedControl.kr((key ++ "_curved").asSymbol, 0),
 			tail: NamedControl.kr((key ++ "_tail").asSymbol, 0)
 		)
 	}
 
-	// A coordinate along its line at `ramp` (0 at the note, 1 at the line's end, beyond it through a
-	// gliding release): straight from a to b, or the path followed by its end tangent.
-	*course { |key, a, b, ramp|
+	// A coordinate along its line at `index` (0 at the note, 1 at the line's end, beyond it through a
+	// gliding release; a warped index re-times the whole course): straight from a to b, or the path
+	// read at the index, then its end tangent.
+	*course { |key, a, b, index|
 		var c = this.controls(key);
-		^Select.kr(c[\curved], [a + ((b - a) * ramp), EnvGen.kr(c[\env]) + (c[\tail] * (ramp - 1).max(0))])
+		^Select.kr(c[\curved], [a + ((b - a) * index), IEnvGen.kr(c[\env], index.clip(0, 1)) + (c[\tail] * (index - 1).max(0))])
 	}
 
 	// A coordinate gliding from a to b over dur seconds, started again by trig (a continuous grain's
-	// next target on a running synth), or its path from the start: both envelopes run, the flag picks.
+	// next target on a running synth), or its path read at the glide's index from the start; the
+	// straight branch is the EnvGen line it always was.
 	*glide { |key, a, b, dur, trig = 1|
-		var env = NamedControl.kr((key ++ "_env").asSymbol, Env.newClear(maxPoints - 1).asArray);
+		var env = NamedControl.kr((key ++ "_env").asSymbol, this.prBlankArray);
 		var curved = NamedControl.kr((key ++ "_curved").asSymbol, 0);
-		^Select.kr(curved, [EnvGen.kr(Env([a, b], [dur]), trig), EnvGen.kr(env, trig)])
+		^Select.kr(curved, [EnvGen.kr(Env([a, b], [dur]), trig), IEnvGen.kr(env, this.glideIndex(dur, trig))])
 	}
+
+	// How far a glide is (0 → 1 over dur seconds, held at 1), started again by trig.
+	*glideIndex { |dur, trig = 1| ^Sweep.kr(trig, dur.max(1e-4).reciprocal).min(1) }
 
 	//////// template side
 

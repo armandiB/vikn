@@ -6,12 +6,12 @@ related:: Classes/RCLines, Classes/RCLineControl, Classes/Env
 DESCRIPTION::
 A line of link::Classes/RCLines:: glides each coordinate straight from its code::from:: value to its code::to:: value. A curved line also carries code::path::: an Event key → link::Classes/Env:: whose times are fractions of the note (summing to 1) and whose curves are sclang's envelope curves (a number per segment, 0 linear). A key without an Env stays straight and costs nothing more.
 
-A synth plays a path from a control array of link::#*maxPoints:: breakpoints, code::<key>_env:: (its times in seconds), switched on by code::<key>_curved::; through a gliding release the coordinate goes on along its end tangent, code::<key>_tail:: (units per line length). link::#*course:: and link::#*glide:: build that inside a SynthDef; link::#*eventControls:: sets the controls on a note's event.
+A synth reads a path at an index, the fraction of the line, from a control array of link::#*maxPoints:: breakpoints, code::<key>_env:: (link::Classes/IEnvGen::'s data), switched on by code::<key>_curved::; a warped index re-times the whole course (the time mode of link::Classes/RCAttractor::); through a gliding release the coordinate goes on along its end tangent, code::<key>_tail:: (units per line length). link::#*course:: and link::#*glide:: build that inside a SynthDef; link::#*eventControls:: sets the controls on a note's event.
 
 code::
 ~env = RCCurve.fit({ |s| s.squared });       // a curve of s in 0..1 → at most 8 breakpoints
 RCCurve.at(~env, 0.5);                       // ≈ 0.25
-RCCurve.serverArray(~env, 2);                // the 32 values of <key>_env for a 2 s note
+RCCurve.serverArray(~env);                   // the 32 values of <key>_env
 RCCurve.lineFrom([[0, (pitch: 0)], [1, (pitch: 0.2)], [2, (pitch: 1)]], 3);   // a line with its path
 ::
 
@@ -111,10 +111,10 @@ True when a path bends: more than two breakpoints, or one curved segment.
 argument:: env
 
 METHOD:: serverArray
-The control array a synth plays: the path padded to strong::n:: breakpoints (segments of no length at the last level), its times in seconds. A path with more breakpoints is refitted.
+The control array a synth plays, IEnvGen's raw data read at an index (the fraction of the line): code::[offset, first level, segments, total, (time, shape 5, curve, level) per segment]::, the path's times as fractions (a hand-made Env's normalised), padded to strong::n:: - 1 segments by flat ones of length 1 past the end (an index beyond 1 holds the last level). A path with more breakpoints is refitted.
 argument:: env
 argument:: lineDur
-Seconds.
+No longer used (the index carries the line's time); kept for the callers.
 argument:: n
 Defaults to link::#*maxPoints::.
 
@@ -136,17 +136,22 @@ The controls of a curved coordinate, an Event: code::env:: (code::<key>_env::), 
 argument:: key
 
 METHOD:: course
-A coordinate along its line at strong::ramp:: (0 at the note, 1 at the line's end, beyond it through a gliding release): straight from strong::a:: to strong::b::, or the path followed by its end tangent.
+A coordinate along its line at strong::index:: (0 at the note, 1 at the line's end, beyond it through a gliding release; a warped index re-times the course): straight from strong::a:: to strong::b::, or the path read at the index (IEnvGen), followed by its end tangent.
 argument:: key
 argument:: a
 argument:: b
-argument:: ramp
+argument:: index
 
 METHOD:: glide
-A coordinate gliding from strong::a:: to strong::b:: over strong::dur:: seconds, started again by strong::trig:: (a continuous grain's next target on a running synth), or its path: both envelopes run, the flag picks.
+A coordinate gliding from strong::a:: to strong::b:: over strong::dur:: seconds, started again by strong::trig:: (a continuous grain's next target on a running synth): the straight EnvGen line, or its path read at link::#*glideIndex::; the flag picks.
 argument:: key
 argument:: a
 argument:: b
+argument:: dur
+argument:: trig
+
+METHOD:: glideIndex
+How far a glide is: 0 → 1 over strong::dur:: seconds, held at 1, started again by strong::trig::.
 argument:: dur
 argument:: trig
 

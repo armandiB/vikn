@@ -81,14 +81,35 @@ TestRCCurve : UnitTest {
 		this.assert(this.near(RCCurve.endSlope(padded), 1), "a padded end of no length is skipped");
 	}
 
+	// IEnvGen's reading of its raw data at an index: [offset, first level, segments, total, (time,
+	// shape, curve, level) per segment], shape 5 the curve rule
+	ienvAt { |arr, index|
+		var level = arr[1], t = 0, n = arr[2].asInteger, i = 0, res;
+		block { |break|
+			n.do { |k|
+				var dt = arr[4 + (4 * k)], c = arr[6 + (4 * k)], next = arr[7 + (4 * k)];
+				if(index <= (t + dt)) { res = RCCurve.curveAt(level, next, c, ((index - t) / dt.max(1e-9)).clip(0, 1)); break.value };
+				t = t + dt;
+				level = next;
+			};
+			res = level;
+		};
+		^res
+	}
+
 	test_server_array {
-		var env = RCCurve.fit({ |s| s.squared });
+		var env = Env([0, 1, 0.4], [0.5, 0.5], [2, -1]);
 		var arr = RCCurve.serverArray(env, 2);
-		var times = (0..(RCCurve.maxPoints - 2)).collect { |i| arr[5 + (4 * i)] };
 		var big = Env((0..11) / 11, 1 ! 11);
+		var hand = RCCurve.serverArray(Env([0, 1, 0.5], [0.2, 0.3]));
+		var fitted = RCCurve.fit({ |s| (2pi * s).sin });
+		var errs = 41.collect { |i| var s = i / 40; (this.ienvAt(RCCurve.serverArray(fitted), s) - fitted.at(s)).abs };
 		this.assertEquals(arr.size, 4 + (4 * (RCCurve.maxPoints - 1)), "maxPoints breakpoints: 32 values");
-		this.assert(this.near(times.sum, 2), "times in seconds, the note's length");
-		this.assertEquals(arr.keep(-4)[0], env.levels.last, "padded at the last level");
+		this.assert(arr[2] == (RCCurve.maxPoints - 1) and: { this.near(arr[4] + arr[8], 1) }, "IEnvGen's data: every segment counted, the path's times as fractions of the note");
+		this.assertEquals(arr.keep(-4), [1, 5, 0, 0.4], "padded past the end by flat segments at the last level");
+		this.assert(this.near(hand[4] + hand[8], 1), "a hand-made Env's times normalised to fractions");
+		this.assert(errs.maxItem < 1e-9, "read at an index as IEnvGen reads it, the array is the path (max error %)".format(errs.maxItem));
+		this.assert(this.near(this.ienvAt(arr, 1.5), 0.4), "an index past the end holds the last level");
 		this.assertEquals(RCCurve.serverArray(big, 1).size, arr.size, "a path with more breakpoints is refitted into the array");
 	}
 
@@ -124,5 +145,6 @@ TestRCCurve : UnitTest {
 		});
 		var names = def.allControlNames.collect(_.name);
 		this.assert(names.includesAll([\pitch_env, \pitch_curved, \pitch_tail, \amp_env, \amp_curved]), "course and glide declare their controls (%)".format(names));
+		this.assert(def.children.count { |u| u.isKindOf(IEnvGen) } == 2 and: { def.children.any { |u| u.isKindOf(EnvGen) } }, "the paths read by IEnvGen at an index; the straight glide is still an EnvGen line");
 	}
 }
