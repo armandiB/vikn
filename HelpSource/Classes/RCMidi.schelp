@@ -7,6 +7,8 @@ DESCRIPTION::
 The proto-library's code::control_synth:: / code::control_midi:: / code::control_attribute::. Every MIDIdef made here is remembered by name and freed by link::#-free:: / link::#-freeAll::. code::fine: true:: pairs cc with cc + 32 (LSB).
 
 CLASSMETHODS::
+METHOD:: pairWait
+Seconds an MSB waits for its LSB before it fires alone (0.02).
 METHOD:: findSrcId
 uid of a MIDI source by name; nil with a warning when absent (the mapping then listens to all sources).
 
@@ -21,6 +23,7 @@ Maps the raw value (0..127, fractional with fine).
 argument:: action
 Receives code::(value, raw)::.
 argument:: fine
+True: the value is msb + lsb/128, the MSB on code::ccNum::, its LSB on code::ccNum + 32::, in that order, as the MIDI spec sends them. An MSB sets the LSB to 0 and the LSB that follows completes the value: the LSB fires (alone too, a fine move on the last MSB); an MSB fires only when no LSB comes within link::#*pairWait:: (a sender may leave out an LSB of 0).
 argument:: throttle
 Seconds, nil by default (every message fires). A knob turn sends tens of messages per second, twice as many with code::fine::, and an action over a whole batch (code::batch.editAttr::) costs milliseconds each, which starves the clock: with a throttle the first message fires at once, the ones arriving within the window are swallowed and the last of them fires when the window closes, re-arming while messages keep coming. 0.02 to 0.05 s is inaudible on a knob.
 METHOD:: controlSynth

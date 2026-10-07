@@ -74,15 +74,41 @@ TestRCControl : UnitTest {
 		var keys = song.midi.control(\knob, 5, 0, "No Such Device", { |x| x * 2 }, { |v, raw| got = [v, raw] }, fine: true);
 		this.assertEquals(keys, [\rc_ctl_knob, \rc_ctl_knob_lsb], "msb and lsb defs, namespaced by song");
 		this.assert(MIDIdef.all[\rc_ctl_knob].permanent, "permanent: Cmd-Period keeps it");
-		MIDIdef(\rc_ctl_knob_lsb).func.value(127, 37, 0, nil);
 		MIDIdef(\rc_ctl_knob).func.value(10, 5, 0, nil);
-		this.assertFloatEquals(got[1], 10 + (127 / 128), "fine value adds lsb/128 (never reaches the next msb step)");
+		this.assertEquals(got, nil, "the MSB waits for its LSB");
+		MIDIdef(\rc_ctl_knob_lsb).func.value(127, 37, 0, nil);
+		this.assertFloatEquals(got[1], 10 + (127 / 128), "the LSB completes it: lsb/128 added (never reaches the next msb step)");
 		this.assertFloatEquals(got[0], 2 * (10 + (127 / 128)), "valFunc applied");
 		song.midi.free(\knob);
 		this.assertEquals(MIDIdef.all[\rc_ctl_knob], nil, "defs freed by name");
 		this.assertEquals(MIDIdef.all[\rc_ctl_knob_lsb], nil, "lsb def freed too");
 		this.assertEquals(song.midi.defs.size, 0, "mapping forgotten");
 		this.assertEquals(RCMidi.fineValue(nil, 0, 5, \rc_ctl_knob), nil, "fine value forgotten");
+	}
+
+	// The MIDI spec's order: the MSB, then its LSB. Turned up across a step the value never goes back
+	// (fired on the MSB with the last LSB, it read 63.98, 64.98, 64.02).
+	test_midi_control_fine_pairs {
+		var got = List.new, msb = { |v| MIDIdef(\rc_ctl_pairs).func.value(v, 6, 0, nil) }, lsb = { |v| MIDIdef(\rc_ctl_pairs_lsb).func.value(v, 38, 0, nil) };
+		var pause = { |secs, what| var t0 = Main.elapsedTime; this.wait({ (Main.elapsedTime - t0) > secs }, what, 2) };
+		song.midi.control(\pairs, 6, 0, "No Such Device", { |x| x }, { |v| got.add(v) }, fine: true);
+		lsb.(50);
+		this.assertEquals(got.size, 0, "an LSB before any MSB: nothing to complete");
+		[[63, 120], [63, 127], [64, 0], [64, 2], [64, 9]].do { |p| msb.(p[0]); lsb.(p[1]) };
+		this.assertEquals(got.asArray, [63 + (120 / 128), 63 + (127 / 128), 64, 64 + (2 / 128), 64 + (9 / 128)], "one value a pair, rising across the step");
+		lsb.(20);
+		this.assertFloatEquals(got.last, 64 + (20 / 128), "an LSB alone: a fine move on the last MSB");
+		this.assertEquals(RCMidi.fineValue(nil, 0, 6, \rc_ctl_pairs), 20, "the LSB kept");
+		msb.(66);
+		this.assertEquals(RCMidi.fineValue(nil, 0, 6, \rc_ctl_pairs), 0, "an MSB sets the LSB to 0");
+		this.wait({ got.size >= 7 }, "an MSB with no LSB fires alone", 1);
+		this.assertEquals(got.last, 66, "alone: its LSB 0, not the last one (20)");
+		pause.(0.1, "the wait passes again");
+		this.assertEquals(got.size, 7, "once");
+		msb.(70);
+		song.midi.free(\pairs);
+		pause.(0.1, "the wait would pass");
+		this.assertEquals(got.size, 7, "freed while an MSB waited: nothing fires");
 	}
 
 	test_midi_control_throttle {

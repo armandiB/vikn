@@ -1,5 +1,6 @@
 // reCurrent — MIDI CC control of a song (BlockBeats' control_synth / control_midi /
-// control_attribute), with the 14-bit "fine" pairing (cc, cc + 32).
+// control_attribute), with the 14-bit "fine" pairing (cc, cc + 32): the MSB on cc, then its
+// LSB on cc + 32, as the MIDI spec sends them; the LSB completes the value.
 //
 //   ~song.midi.controlSynth(~reverb, \mix, { |x| x / 127 }, 0, 0, "Roto-Control", fine: true);
 //   ~song.midi.controlSynth({ ~reverb }, \mix, ...);   // a Function target is resolved per message
@@ -11,8 +12,10 @@
 
 RCMidi {
 	classvar fineValues;   // srcID → chan → ccNum → defKey → lsb value
+	// seconds an MSB waits for its LSB before it fires alone (a sender may leave out an LSB of 0)
+	classvar <>pairWait = 0.02;
 
-	var <song, <defs, <ccMap, throttles, <actions, <devices;
+	var <song, <defs, <ccMap, throttles, pairs, <actions, <devices;
 
 	*initClass {
 		fineValues = IdentityDictionary.new;
@@ -25,6 +28,7 @@ RCMidi {
 		defs = IdentityDictionary.new;    // name → [MIDIdef keys]
 		ccMap = Dictionary.new;           // [ccNum, chan] → [names]
 		throttles = IdentityDictionary.new;   // name → throttle state of a mapping (see control)
+		pairs = IdentityDictionary.new;       // name → a fine mapping's MSB and the one waiting for its LSB
 		actions = IdentityDictionary.new;     // name → action, for replay
 		devices = IdentityDictionary.new;     // name → device name
 	}
@@ -69,7 +73,11 @@ RCMidi {
 	}
 
 	// Generic mapping: action.(valFunc.(cc value), raw value). Returns the MIDIdef keys.
-	// fine: the value is msb + lsb/128 (cc + 32 carries the low 7 bits).
+	// fine: the value is msb + lsb/128 (cc + 32 carries the low 7 bits). As the MIDI spec has
+	// it, an MSB sets the LSB to 0 and the LSB that follows it completes the value: the MSB
+	// fires only when no LSB comes within pairWait, the LSB fires (alone too: a fine move).
+	// Fired on the MSB with the last LSB, a knob turned up across a step read 63.98, 64.98,
+	// 64.02: a jump of a whole step and back.
 	// throttle (seconds, nil = every message fires): a knob turn sends tens of
 	// messages per second, twice as many with fine, and an action over a whole
 	// batch costs milliseconds each, which starves the clock. The first message
@@ -77,7 +85,7 @@ RCMidi {
 	// last of them fires when it closes, re-arming while messages keep coming.
 	control { |name, ccNum, chan, deviceName, valFunc, action, fine = false, throttle|
 		var srcID = this.class.findSrcId(deviceName);
-		var key, lsbKey, keys, slot, fire, state;
+		var key, lsbKey, keys, slot, fire, deliver, state, pair;
 		name = name.asSymbol;
 		key = this.defKey(name);
 		keys = [key];
@@ -85,13 +93,6 @@ RCMidi {
 		slot = ccMap[[ccNum, chan]] ? [];
 		if(slot.size > 0) {
 			RCLog.warn(\midi, "% already listens to cc % chan % (%): both mappings will fire".format(song.name, ccNum, chan, slot));
-		};
-		if(fine) {
-			lsbKey = (key ++ "_lsb").asSymbol;
-			MIDIdef.cc(lsbKey, { |val|
-				RCMidi.setFineValue(srcID, chan, ccNum, key, val);
-			}, ccNum + 32, chan, srcID).permanent_(true);
-			keys = keys ++ [lsbKey];
 		};
 		// recorded as an input (RETap) with the raw and the mapped value; the
 		// action runs inside the message's cause
@@ -110,9 +111,7 @@ RCMidi {
 			state = (armed: false, pending: nil);
 			throttles[name] = state;
 		};
-		MIDIdef.cc(key, { |val|
-			var total = val;
-			if(fine) { total = total + ((RCMidi.fineValue(srcID, chan, ccNum, key) ? 0) / 128) };
+		deliver = { |total|
 			if(throttle.isNil) {
 				fire.(total);
 			} {
@@ -133,6 +132,31 @@ RCMidi {
 						}
 					});
 				};
+			};
+		};
+		if(fine) {
+			pair = (msb: nil, waiting: nil);
+			pairs[name] = pair;
+			lsbKey = (key ++ "_lsb").asSymbol;
+			MIDIdef.cc(lsbKey, { |val|
+				RCMidi.setFineValue(srcID, chan, ccNum, key, val);
+				pair[\waiting] = nil;
+				pair[\msb] !? { |msb| deliver.(msb + (val / 128)) };   // before any MSB: nothing to complete
+			}, ccNum + 32, chan, srcID).permanent_(true);
+			keys = keys ++ [lsbKey];
+		};
+		MIDIdef.cc(key, { |val|
+			if(fine) {
+				var token = Object.new;
+				pair[\msb] = val;
+				pair[\waiting] = token;
+				RCMidi.setFineValue(srcID, chan, ccNum, key, 0);
+				SystemClock.sched(pairWait, {
+					if(pair[\waiting] === token and: { pairs[name] === pair }) { pair[\waiting] = nil; deliver.(val) };
+					nil
+				});
+			} {
+				deliver.(val);
 			};
 		}, ccNum, chan, srcID).permanent_(true);
 		defs[name] = keys;
@@ -171,6 +195,7 @@ RCMidi {
 			actions.removeAt(name);
 			devices.removeAt(name);
 			throttles.removeAt(name);   // a pending throttled value is dropped with its mapping
+			pairs.removeAt(name);       // and an MSB waiting for its LSB
 			this.prForgetFineValues(keys);
 			ccMap.keysValuesDo { |cc, names| ccMap[cc] = names.reject { |n| n == name } };
 			ccMap.keys.copy.do { |cc| if(ccMap[cc].isEmpty) { ccMap.removeAt(cc) } };
