@@ -42,6 +42,12 @@ Two small modules the songs hold by name (`~song.ambi`, `~song.recorder(\k)`):
   record-a-replay session). Guide: `HelpSource/Guides/reCording.schelp`;
   tests in `tests/reCording_tests/`.
 
+### Extensions of SuperCollider's classes
+- `SCExtensions/ScoreExt.sc`: `Score:spillDefs(dir)`, SynthDefs of any size in a non-realtime score. A score
+  carries its defs inline (`/d_recv`) and sclang encodes each line into a 64 KB buffer: a def over 65480 bytes
+  becomes a stub that scsynth fails on. Called before `recordNRT`, it writes the large ones into `dir` and loads
+  them with `/d_load`. Tests in `tests/SCExtensions_tests/`.
+
 ### Main classes (older modules)
 - FileIO/Recording/RecorderModule: creates a Recorder and a recording bus, with monitoring to another bus, organizes multiple takes
 
