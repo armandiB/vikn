@@ -83,7 +83,9 @@ RCLog {
 			text = text ++ " (+% suppressed)".format(suppressed)
 		};
 		history.add([now, level, text]);
-		while { history.size > historySize } { history.removeAt(0) };
+		// trimmed by a copy, never removeAt(0): in SC 3.14.1 removeAt on an array the garbage collector is part-way
+		// through scanning loses the entry that slides back over the scan's position (freed while still held)
+		if(history.size > historySize) { history.array = history.array.copyToEnd(history.size - historySize.max(0)) };
 		switch(level,
 			\warn, { text.warn },
 			\error, { text.error },

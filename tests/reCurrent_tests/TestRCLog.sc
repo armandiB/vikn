@@ -40,6 +40,7 @@ TestRCLog : UnitTest {
 		RCLog.historySize = 3;
 		5.do { |i| now = now + 2; RCLog.post(\h, i) };
 		this.assertEquals(RCLog.history.size, 3, "history trimmed to historySize");
+		this.assert(RCLog.history.collect { |e| e[2] } == ["RC[h]: 2", "RC[h]: 3", "RC[h]: 4"], "the last lines kept, in order");
 		RCLog.historySize = saved;
 	}
 
