@@ -19,13 +19,14 @@ TestRCLineControl : UnitTest {
 
 	// a batch of n voices reading their seq lists (pitch0 / pitch1 / sustain declared by the
 	// template, az0 / az1 not), and a control on it with `generator`
-	makeRig { |n = 3, generator, startAll = true|
+	makeRig { |n = 3, generator, startAll = true, instrument|
 		var tpl = RCOrgnsm(\voice, 0, 0, song);
 		var batch, lc;
 		tpl.addStaticAttrs((seed: 1, dur_params: [8, 1], other_params_key_list: [\pitch0, \pitch1, \sustain], seq_list: [], quant: [8, 0], initial_beg_shift: 0));
 		tpl.addFirstArrayBase = [compute_seq_params: RCOrgnsmPatterns.seqParams(true)];
 		tpl.attrDictBase = [
 			type: \note,
+			instrument: instrument ? \default,   // before every key added later, as in the orgnsms' attrDict
 			dur_flex: Pfunc { |ev| ev.compute_seq_params.dereference[\dur] },
 			pitch0: Pfunc { |ev| var v = ev.compute_seq_params.dereference[\pitch0]; if(v.isNumber) { v } { -1 } },
 			pitch1: Pfunc { |ev| var v = ev.compute_seq_params.dereference[\pitch1]; if(v.isNumber) { v } { -1 } },
@@ -103,6 +104,42 @@ TestRCLineControl : UnitTest {
 		this.assertEquals(calls.size, 2, "the next cycle asks the generator again");
 		this.assertEquals(calls[1], [1, 8], "for cycle 1");
 		rig[\batch].free;
+	}
+
+	// a coordinate the template does not declare (az), carried by one cycle's line and not by the next:
+	// the key stays installed on the voice's beat, and the next line's hit plays with what the synth
+	// would use without it. Until Oct 14 2026 it was a rest: the voice fell silent for good
+	test_missing_key_after_installed {
+		var lines = [
+			[RCLines.line(0, 2, (pitch: 0, az: 0.5), (pitch: 1, az: 1), \a)],
+			[RCLines.line(0, 2, (pitch: 2), (pitch: 3), \b)]
+		];
+		var rig = this.makeRig(1, { |control, index| lines.clipAt(index) });
+		var stream = this.controlStream(rig[\lc].create(layerKey: \core));
+		var voice = rig[\batch].orgnsms(0)[0], notes, rig2;
+		stream.next(Event.default);
+		notes = this.pullVoice(voice);
+		this.assert(voice.beat.keyProxy(\az0).notNil, "the first cycle's az is installed on the voice's beat");
+		this.assertEquals(notes.collect { |n| [n[1][\pitch0], n[1][\az0], n[1][\az1]] }, [[0, 0.5, 1]], "and played");
+		stream.next(Event.default);
+		notes = this.pullVoice(voice);
+		this.assertEquals(notes.size, 1, "the next cycle's line, without az, still plays (not a rest)");
+		this.assertEquals(notes.collect { |n| [n[1][\pitch0], n[1][\az0], n[1][\az1]] }, [[2, 0, 0]], "az takes the reserved value 0: the default synth has no az0 (never sent)");
+		// with a synth that has the control (named by the template, ahead of the added keys): its own
+		// default, as if the key were absent
+		SynthDef(\vikn_lc_missing, { |out = 0, az0 = 0.5, az1 = 0.25, gate = 1| Out.ar(out, DC.ar(0) * az0 * az1 * gate) }).add;
+		rig2 = this.makeRig(1, { |control, index| lines.clipAt(index) }, instrument: \vikn_lc_missing);
+		stream = this.controlStream(rig2[\lc].create(layerKey: \core));
+		stream.next(Event.default);
+		stream.next(Event.default);
+		notes = this.pullVoice(rig2[\batch].orgnsms(0)[0]);
+		this.assertEquals(notes.collect { |n| [n[1][\instrument], n[1][\az0], n[1][\az1]] }, [[\vikn_lc_missing, 0.5, 0.25]], "az takes the synth's default for each of its controls (defaults exact in float32)");
+		this.assertEquals(RCLineControl.missingValue((instrument: \vikn_lc_missing), \az0), 0.5, "missingValue: the SynthDef default");
+		this.assertEquals(RCLineControl.missingValue((instrument: \vikn_lc_missing), \db), -20, "missingValue: else the key's numeric Event default");
+		this.assertEquals(RCLineControl.missingValue((instrument: \no_such_def), \az0), 0, "missingValue: else 0");
+		SynthDescLib.global.removeAt(\vikn_lc_missing);
+		rig[\batch].free;
+		rig2[\batch].free;
 	}
 
 	test_validation_and_silence {

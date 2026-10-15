@@ -166,7 +166,9 @@ RCLineControl : RCOrgnsm {
 
 	// Push the cycle's distribution into the controlled batch (RCPathControl's pass):
 	// dur_params, the param keys of new beats, the key list, the seq_list (an empty one
-	// for a voice without lines this cycle).
+	// for a voice without lines this cycle). A key the template does not declare is added to
+	// the running beats (the pattern restarts once: reserveKeysIn avoids it); a later hit
+	// whose line lacks it plays missingValue, what the synth would use without it.
 	setAttrsInOrgnsms { |ev|
 		var st = staticAttrs;
 		var batch = st[\controlled_batch];
@@ -185,7 +187,8 @@ RCLineControl : RCOrgnsm {
 						if(k == \path) {   // a straight hit among curved ones has no path: not a rest
 							beat.set(k, Pfunc { |ev2| ev2[\compute_seq_params].dereference[k] ? 0 });
 						} {
-							beat.set(k, Pfunc { |ev2| ev2[\compute_seq_params].dereference[k] ?? { Rest() } });
+							// a hit without the key: nil from seqParams (a rest event's is Rest() already)
+							beat.set(k, Pfunc { |ev2| ev2[\compute_seq_params].dereference[k] ?? { RCLineControl.missingValue(ev2, k) } });
 						};
 					};
 				};
@@ -196,6 +199,19 @@ RCLineControl : RCOrgnsm {
 			o.rPut("seq_list", seqLists[key] ? []);
 			o
 		});
+	}
+
+	// What a hit plays for an added key its line lacks: the synth's own default for that
+	// control (the event's instrument in the global SynthDescLib, the output variant the
+	// orgnsm chose), as if the key were absent; else RCBeat.reservedValue (the key's numeric
+	// Event default, else 0), never sent to a synth without such a control. Until Oct 14
+	// 2026 it was a rest: after one cycle whose lines carried a coordinate the template does
+	// not declare, every later hit without it was silent, for good (the beat keeps the key).
+	*missingValue { |ev, key|
+		var name = ev[\instrument];
+		var desc = if(name.isKindOf(Symbol) or: { name.isKindOf(String) }) { SynthDescLib.global.at(name.asSymbol) };
+		var v = desc !? { |d| d.controlDict !? { |cd| cd[key] !? (_.defaultValue) } };
+		^if(v.isNumber) { v } { RCBeat.reservedValue(key) }
 	}
 
 	// Declare the keys of `keys` (coordinates) on every beat of the batch so that the first
