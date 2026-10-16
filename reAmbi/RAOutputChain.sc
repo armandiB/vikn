@@ -20,13 +20,21 @@
 // insert / remove / move re-map only the links they touch. clear frees the
 // groups first (immediate /n_free) so that the proxies send nothing late.
 //
-// Both decoders move the field from ATK's reference radius (AtkHoa.refRadius, 1.5 m) to their own
-// (HoaNFCtrl: refRadius for AmbiX, binauralRadius): order n gains up to (radius / 1.5)^n toward DC
-// (+49.5 dB on order 3 at 10 m), so the sources' sub-audio content (envelopes, offsets) left on
-// channels 9-15 as loud as the music (measured on a HadronLake3 take, Oct 2026). hpFreq: a 4th-order
-// high-pass on every channel before it (Hz; nil: none). At 20 Hz, measured through the AmbiX decoder:
-// -66 dB at 3 Hz, -25 at 10, -6 at 20, -1.6 at 30, -0.5 at 40, -0.1 at 60, nothing above; a DC step
-// of 0.05 left an offset of 3.1 on order 3 without it, 0.0001 with it.
+// The near-field export (nearFieldExport, true by default): both decoders move the field from ATK's
+// reference radius (AtkHoa.refRadius, 1.5 m: a basic encoding is a source that near) to their own
+// (HoaNFCtrl: refRadius for AmbiX, binauralRadius), the proximity bass a 1.5 m source needs from a
+// farther array. Order n gains up to (radius / 1.5)^n toward DC (+49.5 dB on order 3 at 10 m); in the
+// audible bass, measured through the AmbiX decoder: orders 1/2/3 +1.3/+5.1/+12.9 dB at 60 Hz,
+// +3.8/+13.5/+28.2 at 30 Hz, unity above about 500 Hz. Headphones hide it (the ear signals' bass is
+// W's), a loudspeaker array plays it (HadronLake3 on the venue's rig, Oct 2026). nearFieldExport false
+// leaves the control filter out: the field leaves as plane waves, what an AmbiX decoder assumes, and
+// a source's own near field (HoaNFCtrl(sig, dist, AtkHoa.refRadius) in the instrument) is flat at
+// 1.5 m, lifted nearer, thinned farther. The stereo monitor follows the setting (its FoaProximity).
+// hpFreq: a 4th-order high-pass on every channel before the decoder (Hz; nil: none), kept with the
+// export off (DC and sub-audio off the speakers). With the export on it holds the sources' sub-audio
+// content (envelopes, offsets) that the lift left on channels 9-15 as loud as the music. At 20 Hz,
+// measured through the AmbiX decoder: -66 dB at 3 Hz, -25 at 10, -6 at 20, -1.6 at 30, -0.5 at 40,
+// -0.1 at 60, nothing above; a DC step of 0.05 left an offset of 3.1 on order 3 without it, 0.0001 with it.
 
 RAOutputChain {
 	classvar binauralState;      // server name → order → (status:, actions:)
@@ -34,21 +42,22 @@ RAOutputChain {
 
 	var <server, <order, <name;
 	var <decode, <outBus, <play, <useTransformer, <headphoneModel;
-	var <refRadius, <binauralRadius, <foaRefRadius, <fadeTime, <placeholder, <hpFreq;
+	var <refRadius, <binauralRadius, <foaRefRadius, <fadeTime, <placeholder, <hpFreq, <nearFieldExport;
 	var <stageNames, <proxies, <stageGroups, <stageSources, <playGroup, <parentGroup;
 	var <taps, <monitor, <isBuilt = false, <isOffline = false;
 
 	*new { |server, order = 3, name = \main, decode = \binaural, outBus = 0, play = true, useTransformer = true,
-		headphoneModel, refRadius = 10.0, binauralRadius = 3.25, foaRefRadius = 10.0, fadeTime = 1, placeholder = true, hpFreq = 20|
+		headphoneModel, refRadius = 10.0, binauralRadius = 3.25, foaRefRadius = 10.0, fadeTime = 1, placeholder = true, hpFreq = 20,
+		nearFieldExport = true|
 		^super.new.initRAOutputChain(server, order, name, decode, outBus, play, useTransformer, headphoneModel,
-			refRadius, binauralRadius, foaRefRadius, fadeTime, placeholder, hpFreq)
+			refRadius, binauralRadius, foaRefRadius, fadeTime, placeholder, hpFreq, nearFieldExport)
 	}
 
 	// The decoders' high-pass (see the header): two 2nd-order sections at freq, or the input as it is.
 	*subsonic { |in, freq| ^if(freq.isNil) { in } { HPF.ar(HPF.ar(in, freq), freq) } }
 
 	initRAOutputChain { |serverarg, orderarg, namearg, decodearg, outBusarg, playarg, useTransformerarg, headphoneModelarg,
-		refRadiusarg, binauralRadiusarg, foaRefRadiusarg, fadeTimearg, placeholderarg, hpFreqarg|
+		refRadiusarg, binauralRadiusarg, foaRefRadiusarg, fadeTimearg, placeholderarg, hpFreqarg, nearFieldExportarg|
 		server = serverarg ? Server.default;
 		order = orderarg;
 		name = namearg.asSymbol;
@@ -63,6 +72,7 @@ RAOutputChain {
 		fadeTime = fadeTimearg;
 		placeholder = placeholderarg;
 		hpFreq = hpFreqarg;
+		nearFieldExport = nearFieldExportarg;
 		proxies = IdentityDictionary.new;
 		stageGroups = IdentityDictionary.new;
 		stageSources = IdentityDictionary.new;
@@ -91,6 +101,7 @@ RAOutputChain {
 	fadeTime_ { |t| fadeTime = t; proxies.do { |p| p.fadeTime = t } }
 	placeholder_ { |p| placeholder = p; this.prConfig(\placeholder) }
 	hpFreq_ { |f| hpFreq = f; this.prConfig(\hpFreq) }
+	nearFieldExport_ { |bool| nearFieldExport = bool; this.prConfig(\nearFieldExport) }
 	useTransformer_ { |bool|
 		if(isBuilt) { RCLog.error(\ambi, "% useTransformer: clear the chain first".format(name)); ^this };
 		useTransformer = bool;
@@ -167,15 +178,19 @@ RAOutputChain {
 	// a source at az +90 deg is 5 dB louder on its channel 1): reversed into [left, right].
 	// Its headphone corrections are the same filter for both ears, so the reverse is exact.
 	prBinauralSource {
-		var n = this.numChannels, ord = order, radius = binauralRadius, model = headphoneModel, hp = hpFreq;
-		^{ var in = RAOutputChain.subsonic(\in.ar(0 ! n), hp); HOABinaural.ar(ord, HoaNFCtrl.ar(in, AtkHoa.refRadius, radius, ord), headphoneCorrection: model).reverse }
+		var n = this.numChannels, ord = order, radius = binauralRadius, model = headphoneModel, hp = hpFreq, near = nearFieldExport;
+		^{ var in = RAOutputChain.subsonic(\in.ar(0 ! n), hp); HOABinaural.ar(ord, RAOutputChain.nearField(in, radius, ord, near), headphoneCorrection: model).reverse }
 	}
 
 	prAmbixSource {
-		var n = this.numChannels, ord = order, radius = refRadius, hp = hpFreq;
+		var n = this.numChannels, ord = order, radius = refRadius, hp = hpFreq, near = nearFieldExport;
 		var matrix = HoaMatrixDecoder.newFormat(\ambix, ord);
-		^{ var in = RAOutputChain.subsonic(\in.ar(0 ! n), hp); HoaDecodeMatrix.ar(HoaNFCtrl.ar(in, AtkHoa.refRadius, radius, ord), matrix) }
+		^{ var in = RAOutputChain.subsonic(\in.ar(0 ! n), hp); HoaDecodeMatrix.ar(RAOutputChain.nearField(in, radius, ord, near), matrix) }
 	}
+
+	// The decoders' near-field export (see the header): the field moved from ATK's reference radius to
+	// the decoder's with HoaNFCtrl, or, with the export off, the field as it is (no filter built at all).
+	*nearField { |in, radius, order, export = true| ^if(export) { HoaNFCtrl.ar(in, AtkHoa.refRadius, radius, order) } { in } }
 
 	prSetDecoderSource { |online|
 		var dec = proxies[\decoder];

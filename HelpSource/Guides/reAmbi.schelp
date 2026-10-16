@@ -36,6 +36,15 @@ code::
 ~song.ambi.bus(\decoder);                                 // for a recorder
 ::
 
+section:: Decoder settings
+
+Set at boot or later, taken at the next build (a change on a built chain posts "takes effect at the next build"):
+
+list::
+## code::hpFreq:: (20): a 4th-order high-pass on every channel before the decoder, nil for none. It keeps DC and sub-audio off the speakers.
+## code::nearFieldExport:: (true): the decoders move the field from ATK's reference radius (1.5 m, where a basic encoding sits) to code::refRadius:: (AmbiX, 10 m: ATK's Format-Exchange recipe for "about infinity") or code::binauralRadius:: (3.25 m) with link::Classes/HoaNFCtrl::. That is the proximity bass of a 1.5 m source heard from the array: orders 1/2/3 +1.3/+5.1/+12.9 dB at 60 Hz, +3.8/+13.5/+28.2 dB at 30 Hz, unity above 500 Hz. Headphones hide it (the ear signals' bass is W's), a loudspeaker array plays it. code::false:: leaves the control filter out: the field leaves as plane waves, what an AmbiX decoder assumes, and a source's own near field (code::HoaNFCtrl.ar(sig, dist, AtkHoa.refRadius):: in the instrument) is flat at 1.5 m, lifted nearer, thinned farther. The stereo monitor's first-order link::Classes/FoaProximity:: follows it. An A/B in the room: code::~song.ambi.nearFieldExport = true:: (or false), then the scene init rebuilds the chain.
+::
+
 section:: Binaural decoding
 
 The binaural decoder needs the HRTF buffers of its order. link::Classes/RAOutputChain#*loadBinauralIRs:: loads them per order with a completion callback; a chain built before they are in gets its decoder synth when they arrive (the proxy, its group and links exist at once). A server reboot forgets the cache.

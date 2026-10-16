@@ -134,6 +134,39 @@ TestRAOutputChain : UnitTest {
 		}.protect { HOABinaural.binauralIRs = saved };
 	}
 
+	// The near-field export: HoaNFCtrl's sections (SOS / FOS per harmonic) in both decoders by default,
+	// none with nearFieldExport false (the field leaves as plane waves, the high-pass kept); the stereo
+	// monitor's FoaProximity follows the chain's setting.
+	test_near_field_export {
+		var saved = HOABinaural.binauralIRs, nfe, prox, hpfs, m;
+		var c = this.chain(\ambix, order: 3), plain = this.chain(\ambix, order: 3);
+		nfe = { |func, name| SynthDef(name, { Out.ar(0, func.value) }).children.count { |u| u.isKindOf(SOS) or: { u.isKindOf(FOS) } } };
+		prox = { |func, name| SynthDef(name, { Out.ar(0, func.value) }).children.count { |u| u.isKindOf(FoaProximity) } };
+		hpfs = { |func, name| SynthDef(name, { Out.ar(0, func.value) }).children.count { |u| u.isKindOf(HPF) } };
+		plain.nearFieldExport = false;
+		this.assert(c.nearFieldExport, "on by default");
+		this.assert(nfe.(c.prAmbixSource, \ra_test_nfe_ambix) > 0, "AmbiX: the near-field sections by default");
+		this.assertEquals(nfe.(plain.prAmbixSource, \ra_test_nfe_none), 0, "off: none");
+		this.assertEquals(hpfs.(plain.prAmbixSource, \ra_test_nfe_hp), 32, "off: the high-pass stays");
+		{
+			HOABinaural.binauralIRs = nil ! 7;
+			HOABinaural.binauralIRs[2] = (0..15);  // buffer numbers: the graph builds without a server
+			this.assert(nfe.(c.prBinauralSource, \ra_test_nfe_bin) > 0, "binaural: the sections by default");
+			this.assertEquals(nfe.(plain.prBinauralSource, \ra_test_nfe_bin_none), 0, "binaural off: none");
+		}.protect { HOABinaural.binauralIRs = saved };
+		m = RAStereoMonitor(16, 0);
+		c.build;
+		c.addMonitor(m);
+		this.assertEquals(prox.(m.prSource(16), \ra_test_prox_on), 1, "monitor: FoaProximity with the export on");
+		c.clear;
+		plain.build;
+		plain.addMonitor(m);
+		this.assertEquals(prox.(m.prSource(16), \ra_test_prox_off), 0, "monitor: none with the export off");
+		plain.nearFieldExport = true;
+		this.assert(this.logHas("nearFieldExport: takes effect at the next build"), "a change on a built chain says when it applies");
+		plain.clear;
+	}
+
 	test_stereo_monitor {
 		var c = this.chain.build;
 		var m = RAStereoMonitor(16, 18);

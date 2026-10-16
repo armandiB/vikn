@@ -7,7 +7,8 @@
 // The monitor taps the stage feeding the decoder (tap \monitor, re-mapped
 // when stages are inserted, removed or moved), in its own group after the
 // chain's play group, and plays two channels on outBus. Built and cleared
-// with the chain; the configuration survives a clear.
+// with the chain; the configuration survives a clear. Its first-order near-field
+// export (FoaProximity at the reference radius) follows the chain's nearFieldExport.
 
 RAStereoMonitor {
 	var <outBus, <ampDb, <hpFreq, <angleDeg, <pattern, <fadeTime;
@@ -55,12 +56,15 @@ RAStereoMonitor {
 		RCLog.post(\ambi, "stereo monitor on bus % (% dB)".format(outBus, ampDb));
 	}
 
+	// The chain's near-field export at first order: FoaProximity at the reference radius (the FOA
+	// equivalent of HoaNFProx, 1.5 m to infinity) when the chain exports it, nothing when it does not.
 	prSource { |n|
-		var hp = hpFreq, angle = angleDeg.degrad, pat = pattern;
+		var hp = hpFreq, angle = angleDeg.degrad, pat = pattern, near = chain.nearFieldExport;
 		^{ |amp = 1|
 			var in = \in.ar(0 ! n);
-			var foa = FoaEncode.ar(in.keep(AtkFoa.defaultOrder.asHoaOrder.size), FoaEncoderMatrix.newHoa1);
-			FoaDecode.ar(FoaProximity.ar(HPF.ar(foa, hp), AtkHoa.refRadius), FoaDecoderMatrix.newStereo(angle, pat)) * amp
+			var foa = HPF.ar(FoaEncode.ar(in.keep(AtkFoa.defaultOrder.asHoaOrder.size), FoaEncoderMatrix.newHoa1), hp);
+			if(near) { foa = FoaProximity.ar(foa, AtkHoa.refRadius) };
+			FoaDecode.ar(foa, FoaDecoderMatrix.newStereo(angle, pat)) * amp
 		}
 	}
 
