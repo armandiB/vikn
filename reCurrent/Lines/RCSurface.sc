@@ -106,22 +106,23 @@ RCSurface {
 		^(range[1] - range[0]) / cells
 	}
 
-	// n samples uniform over the ranges, seeded.
+	// n samples uniform over the ranges, seeded. Floats whatever the ranges are written with: rrand
+	// between two Integers answers an Integer, so the default #[0, 1] would give only the corners.
 	random { |n = 16, seed|
-		^RCUtil.seeded(seed, { n.collect { [rrand(uRange[0], uRange[1]), rrand(vRange[0], vRange[1])] } })
+		^RCUtil.seeded(seed, { n.collect { [rrand(uRange[0].asFloat, uRange[1].asFloat), rrand(vRange[0].asFloat, vRange[1].asFloat)] } })
 	}
 
 	// A random walk of n samples from `start` ([u, v], the ranges' middle by default), steps
 	// uniform in [-stepU, stepU] × [-stepV, stepV], wrapped over a periodic range, clipped
 	// otherwise; seeded.
 	walk { |n = 16, stepU = 0.1, stepV = 0.1, start, seed|
-		var u = start !? (_[0]) ?? { (uRange[0] + uRange[1]) / 2 };
-		var v = start !? (_[1]) ?? { (vRange[0] + vRange[1]) / 2 };
+		var u = (start !? (_[0]) ?? { (uRange[0] + uRange[1]) / 2 }).asFloat;
+		var v = (start !? (_[1]) ?? { (vRange[0] + vRange[1]) / 2 }).asFloat;
 		^RCUtil.seeded(seed, {
 			n.collect {
 				var sample = [u, v];
-				u = this.prFold(u + stepU.rand2, uRange, uPeriodic);
-				v = this.prFold(v + stepV.rand2, vRange, vPeriodic);
+				u = this.prFold(u + stepU.asFloat.rand2, uRange, uPeriodic);   // an Integer step would rand2 to Integers
+				v = this.prFold(v + stepV.asFloat.rand2, vRange, vPeriodic);
 				sample
 			}
 		})

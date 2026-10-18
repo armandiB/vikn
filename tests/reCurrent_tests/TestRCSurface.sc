@@ -66,6 +66,15 @@ TestRCSurface : UnitTest {
 		this.assert(this.dist(diag[8], (diag.first + diag.last) / 2) > 1e-3, "across the rulings a geodesic bends in R^3");
 	}
 
+	test_samplers_draw_floats_over_integer_ranges {
+		var s = RCSurface.new({ |u, v| [u, v, 0] });   // the default ranges #[0, 1], Integers
+		var r = s.random(64, 7), w = RCSurface.plane.walk(32, 1, 1, seed: 7);
+		this.assert(r.flatten.every(_.isFloat) and: { r.flatten.every { |x| x >= 0 and: { x <= 1 } } }, "random: Floats inside #[0, 1], not 0 or 1");
+		this.assert(r.flatten.asSet.size == 128 and: { r.count { |p| p[0] > 0.1 and: { p[0] < 0.9 } and: { p[1] > 0.1 } and: { p[1] < 0.9 } } > 30 }, "random: the inside of the square, every value its own");
+		this.assertEquals(s.random(8, 3), s.random(8, 3), "random: seeded");
+		this.assert(w.flatten.every(_.isFloat) and: { w.flatten.asSet.size > 40 } and: { w.flatten.every { |x| x >= -1 and: { x <= 1 } } }, "walk: Floats from the middle of #[-1, 1] by Integer steps, clipped");
+	}
+
 	test_parameter_lines {
 		var s = RCSurface.torus(2, 1);
 		var l = s.paramLine(0, 0, \u, 1.5pi, 24);   // the outer equator (radius 3): a quarter of it is 1.5 pi long
