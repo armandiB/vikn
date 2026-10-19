@@ -27,6 +27,7 @@ TestREScoreEditor : UnitTest {
 		RETap.mainThreadOnly = savedMainThreadOnly;
 		RCTestSupport.reset;
 		RCLog.rateLimit = savedRateLimit;
+		(root +/+ "*/*").pathMatch.do { |p| File.delete(p) };   // a render's folder first
 		(root +/+ "*").pathMatch.do { |p| File.delete(p) };
 		File.delete(root);
 	}
@@ -105,14 +106,17 @@ TestREScoreEditor : UnitTest {
 		ed = nil;
 	}
 
-	// a take with a render next to it: its files are not takes, Play plays the render when its WAV
-	// exists (playRendered \auto), always with true, never with false
+	// a take with a render next to it (its sidecar, and its folder <take>/ holding the WAV and the
+	// tape): its files are not takes, Play plays the render when its WAV exists (playRendered
+	// \auto), always with true, never with false
 	test_rendered_take {
-		var s = this.prTake, path = rec.lastPath, sidecar = REScore.renderPath(path), wav = path.drop(-5) ++ ".wav";
-		REJSON.write((format: "re-render", version: 1, take: path.basename, wav: wav.basename, channels: 16, hoa: "acn-n3d", latency: 0.2, duration: 1, tempo: 20), sidecar, 2, 2);
+		var s = this.prTake, path = rec.lastPath, sidecar = REScore.renderPath(path), dir = REScore.renderDir(path), wav;
+		File.mkdir(dir);
+		wav = dir +/+ (dir.basename ++ ".wav");
+		REJSON.write((format: "re-render", version: 1, take: path.basename, wav: wav, channels: 16, hoa: "acn-n3d", latency: 0.2, duration: 1, tempo: 20, tape: REScore.tapePath(path)), sidecar, 2, 2);
 		File.use(REScore.tapePath(path), "w", { |f| f.write("[]") });
 		ed = REScoreEditor(song, rec, root, "/edtest", "t", feed: { |kind, dict| feeds.add([kind, dict]) });
-		this.assertEquals(ed.takes, [path], "the sidecar and the tape are not listed");
+		this.assertEquals(ed.takes, [path], "the sidecar and the render's folder are not listed");
 		ed.play(path);
 		this.assert(ed.player.isKindOf(REScorePlayer) and: { ed.player.isKindOf(RERenderedPlayer).not }, "no WAV: the program plays the take");
 		this.assert(ed.isPlayingRender.not);

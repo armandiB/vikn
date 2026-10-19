@@ -3,7 +3,7 @@
 // to the language live (the positions and levels RCVisuals relays to HomewareVisuals as
 // /lsys/state, /orgnsm/state) are written into a Buffer instead, at the tap's rate, and the buffer
 // to a float sound file at the render's end; HomewareSC's scripts/analysis/hwa/viztape.py turns
-// the frames into entries of the visuals tape (<take>.viz.json).
+// the frames into entries of the visuals tape (<take>/<take>.viz.json).
 //
 //   // the SynthDef's offline variant (the rig's def block)
 //   SynthDef(\LSystem_VizTapBuf_w0_32, { |posBus = 0, levelBus = 0, rate = 20, bufnum = 0|

@@ -3,9 +3,9 @@
 //   [[seconds, "/address", arg, ...], ...]
 // one entry per line in the file, plain JSON (Symbols as strings: the pages read plain strings).
 // A render records one through the sink (the offline clock's seconds), shifts it to the take's
-// start (the WAV's timeline) and writes it next to the render as <take>.viz.json; a rendered take
-// played live (RERenderedPlayer) plays it back through RCVisuals, and a page plays it alone with
-// ?replay=<url>.
+// start (the WAV's timeline) and writes it next to the render's WAV, <take>/<take>.viz.json
+// (REScore.tapePath); a rendered take played live (RERenderedPlayer) plays it back through
+// RCVisuals, and a page plays it alone with ?replay=<url>.
 //
 //   t = REVisualsTape.record({ clock.seconds });   // the sink installed, the previous one kept
 //   ... the render runs ...

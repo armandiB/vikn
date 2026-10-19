@@ -1,10 +1,10 @@
 // reCording — a rendered take played live: the WAV that scripts/take.sh render --viz wrote (the
-// field, into the song's chain) and its visuals tape (<take>.viz.json, to HomewareVisuals through
+// field, into the song's chain) and its visuals tape (<take>/<take>.viz.json, to HomewareVisuals through
 // RCVisuals), from the take's aligned start on the song's clock, next to the takes the program
 // plays live. No event is fired (the render made the sound), the tempo events apart; every event
 // is still reported (onEvent: the score page's played marks) and the head runs (REScoreVisuals).
 //
-//   ~p = RERenderedPlayer.fromTake(path, ~song);   // the take and its sidecar, <take>.render.json
+//   ~p = RERenderedPlayer.fromTake(path, ~song);   // the take and its sidecar, <take>.render.json next to it (it names the WAV and the tape in <take>/)
 //   ~viz.attachPlayer(~p); ~p.play([4, 0]);
 //   ~p.stop; ~p.free;
 //

@@ -705,12 +705,19 @@ REScore {
 	}
 
 	// The files of a take rendered offline with its visuals (HomewareSC's scripts/take.sh render
-	// --viz), next to the take: <take>.render.json, the sidecar naming the WAV, its convention,
-	// the latency and the start of the render; <take>.viz.json, the visuals tape (REVisualsTape);
-	// <take>.state/, the state taps' files (REOfflineTap) until merged.
+	// --viz): next to the take <take>.render.json, the sidecar naming the WAV, its convention,
+	// the latency, the start of the render and the tape (readRender: the paths it names win);
+	// in the folder of the render, <take>/ next to the take (renderDir), the WAV <take>.wav, its
+	// binaural copy, the visuals tape <take>.viz.json (REVisualsTape) and <take>.state/, the
+	// state taps' files (REOfflineTap) until merged.
 	*renderPath { |path| ^this.prSibling(path, ".render.json") }
-	*tapePath { |path| ^this.prSibling(path, ".viz.json") }
-	*statePath { |path| ^this.prSibling(path, ".state") }
+	*renderDir { |path| ^this.prSibling(path, "") }
+	*tapePath { |path| ^this.prInRenderDir(path, ".viz.json") }
+	*statePath { |path| ^this.prInRenderDir(path, ".state") }
+	*prInRenderDir { |path, suffix|
+		var dir = this.renderDir(path);
+		^dir +/+ (dir.basename ++ suffix)
+	}
 	*prSibling { |path, suffix|
 		path = path.asString;
 		^(if(path.endsWith(".json")) { path.drop(-5) } { path }) ++ suffix

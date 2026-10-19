@@ -17,7 +17,8 @@ TestRERenderedPlayer : UnitTest {
 		File.mkdir(root);
 		path = root +/+ "260101_120000_rendered w0.json";
 		sidecar = REScore.renderPath(path);
-		wav = root +/+ "260101_120000_rendered w0.wav";
+		File.mkdir(REScore.renderDir(path));   // the render's folder, <take>/ next to the take
+		wav = REScore.renderDir(path) +/+ "260101_120000_rendered w0.wav";
 	}
 
 	tearDown {
@@ -25,6 +26,7 @@ TestRERenderedPlayer : UnitTest {
 		RETap.mainThreadOnly = savedMainThreadOnly;
 		RCTestSupport.reset;
 		RCLog.rateLimit = savedRateLimit;
+		(root +/+ "*/*").pathMatch.do { |p| File.delete(p) };   // the render's folder first
 		(root +/+ "*").pathMatch.do { |p| File.delete(p) };
 		File.delete(root);
 	}
@@ -45,9 +47,9 @@ TestRERenderedPlayer : UnitTest {
 	}
 
 	prSidecar { |hoa = "acn-n3d", channels = 16, extra|
-		var d = (format: "re-render", version: 1, take: path.basename, wav: wav.basename, channels: channels, hoa: hoa,
+		var d = (format: "re-render", version: 1, take: path.basename, wav: wav.dirname.basename +/+ wav.basename, channels: channels, hoa: hoa,
 			decode: if(hoa == "acn-sn3d") { "ambix" } { "raw" }, outBus: 0, latency: 0.2, sampleRate: 48000, tempo: 20,
-			startBeat: 0, startSecs: 0, duration: 3.15, tail: 3, level: 2, tape: "260101_120000_rendered w0.viz.json");
+			startBeat: 0, startSecs: 0, duration: 3.15, tail: 3, level: 2, tape: "260101_120000_rendered w0/260101_120000_rendered w0.viz.json");
 		extra !? { |e| e.keysValuesDo { |k, v| d[k] = v } };
 		REJSON.write(d, sidecar, 2, 2);
 		^d
@@ -56,8 +58,9 @@ TestRERenderedPlayer : UnitTest {
 	test_render_paths_and_sidecar {
 		var s = this.prTake, d;
 		this.assertEquals(REScore.renderPath(path), path.drop(-5) ++ ".render.json");
-		this.assertEquals(REScore.tapePath(path), path.drop(-5) ++ ".viz.json");
-		this.assertEquals(REScore.statePath(path), path.drop(-5) ++ ".state");
+		this.assertEquals(REScore.renderDir(path), path.drop(-5), "the render's folder named after the take");
+		this.assertEquals(REScore.tapePath(path), path.drop(-5) +/+ "260101_120000_rendered w0.viz.json", "the tape in it");
+		this.assertEquals(REScore.statePath(path), path.drop(-5) +/+ "260101_120000_rendered w0.state");
 		this.assert(REScore.isCompanion(sidecar) and: { REScore.isCompanion(REScore.tapePath(path)) } and: { REScore.isCompanion(REScore.companionPath(path, 2)) }, "the render's files are companions");
 		this.assert(REScore.isCompanion(path).not, "a take is not");
 		this.assert(REScore.readRender(path).isNil, "no sidecar: nil");
@@ -66,7 +69,7 @@ TestRERenderedPlayer : UnitTest {
 		d = REScore.readRender(path);
 		this.assertEquals(d[\format], "re-render");
 		this.assertEquals(d[\wav], wav, "a relative wav made absolute against the take's folder");
-		this.assertEquals(d[\tape], root +/+ "260101_120000_rendered w0.viz.json");
+		this.assertEquals(d[\tape], REScore.tapePath(path));
 		this.assertEquals(d[\latency], 0.2);
 		this.assert(REScore.hasRender(path).not, "no WAV yet");
 		File.use(wav, "w", { |f| f.write("") });
