@@ -108,7 +108,7 @@ REScoreVisuals {
 	prPlay { |p|
 		var s = p.score, evs = s.events.asArray.select { |e| (e[\level] ? 1) == 1 }, n = (evs.size / chunk).ceil.max(1);
 		name = (s.meta[\song].asString ++ " " ++ (s.meta[\created] ? "")).asSymbol;
-		this.send("/take", (name: name, song: s.meta[\song], state: "loaded", beat0: s.meta[\beat0], tempo: s.meta[\tempo], latency: s.meta[\latency],
+		this.send("/take", (name: name, song: s.meta[\song], state: "loaded", beat0: s.meta[\beat0], tempo: p.headTempo, latency: s.meta[\latency],
 			duration: s.duration, voices: s.voiceNames.collect(_.asString), controls: s.controls, events: evs.size, from: p.from, to: p.to, loop: p.loop));
 		evs.clump(chunk).do { |c, i| this.send("/events", (name: name, chunk: i, of: n, events: c.collect { |e| this.class.eventDict(e) })) };
 		this.prStartHead({ (name: name, beat: p.position ? p.from, state: "playing") }, { p.isPlaying });   // before the first event: the start

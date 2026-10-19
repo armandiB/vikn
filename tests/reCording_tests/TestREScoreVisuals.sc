@@ -74,7 +74,7 @@ TestREScoreVisuals : UnitTest {
 		var s = REScore(song), p, evs, played;
 		3.do { |i| s.add((beat: i * 0.1, secs: i * 0.1 / clock.tempo, kind: \action, voice: 'core/k', rc: REScore.rcRef(b), method: \set, args: REScore.encodeValue([\amp, 0.2 + (i / 10), nil, nil]))) };
 		s.meta[\duration] = 0.5;
-		s.meta[\tempo] = clock.tempo;
+		s.meta[\tempo] = clock.tempo * 2;   // the take's tempo; the replay at the clock's (\clock)
 		REScoreVisuals.chunk = 2;
 		p = REScorePlayer(s, song);
 		p.alignPhase = false;
@@ -84,6 +84,7 @@ TestREScoreVisuals : UnitTest {
 		this.assertEquals(this.of("/score/take").size, 1, "the loaded take announced");
 		this.assertEquals(this.of("/score/take")[0][\state], "loaded");
 		this.assertEquals(this.of("/score/take")[0][\events], 3);
+		this.assertEquals(this.of("/score/take")[0][\tempo], clock.tempo, "the tempo the head moves at, the clock's (not the take's)");
 		evs = this.of("/score/events");
 		this.assertEquals(evs.size, 2, "the events in two chunks of two");
 		this.assertEquals(evs[0][\of], 2);
