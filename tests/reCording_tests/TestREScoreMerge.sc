@@ -65,7 +65,8 @@ TestREScoreMerge : UnitTest {
 		this.assertEquals(pat.list[0].list.list, [0, 0.25, 0.5, 0.75], "the levels (Pstep keeps them in a Pseq)");
 		this.assertEquals(pat.list[0].durs.list, [2, 2, 2], "the beats between points");
 		vals = this.sampleOverBeats(pat, 9);
-		this.assertEquals(vals.collect(_.round(0.01)), [0, 0.13, 0.25, 0.38, 0.5, 0.63, 0.75, 0.75, 0.75], "a Pseg is a function of time: sampled every beat");
+		// to 0.001: 0.125 to 0.01 sits on the rounding edge, and the Pseg's position carries the clock's float error
+		this.assertEquals(vals.collect(_.round(0.001)), [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.75, 0.75], "a Pseg is a function of time: sampled every beat");
 		a.add(this.midi(2, \late, 0.2));
 		pat = a.curvePattern([\midi, \late]);
 		this.assertEquals(pat.list[0].list.list, [0.2, 0.2], "a first point after beat 0: its value held until then");
