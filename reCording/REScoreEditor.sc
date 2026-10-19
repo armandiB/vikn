@@ -30,6 +30,7 @@ REScoreEditor {
 	var defs, <player, <playingPath, <editing, feedRoutine, feedAddr, savedOnEvent, chained = false;
 	var <>onPlayer;   // { |player| } when /rec/play made one (the rig wires its own feed and the visuals)
 	var <>tag = \editor;
+	var <>tempoMode = \auto;   // the players' tempo (REScorePlayer tempoMode): \auto \take unless the song's clock has Link peers (then \clock, said), \take, \clock
 	var <>playRendered = \auto;   // a take rendered with its visuals (REScore.readRender): \auto plays the render (RERenderedPlayer) when its WAV exists, true always, false never (the program plays)
 
 	*new { |song, recorder, root, prefix, version, feed, feedPort = 32347|
@@ -80,10 +81,22 @@ REScoreEditor {
 		} {
 			REScorePlayer(s, song)
 		};
+		player.tempoMode = this.class.tempoModeFor(tempoMode, song.clock.tryPerform(\numPeers) ? 0, tag);
 		playingPath = path;
 		onPlayer.value(player);
 		player.play(quant ? [1, 0]);
 		^player
+	}
+
+	// \auto: \take (the take at its tempo, the clock's set back after) unless Link peers share the
+	// clock: a replay never moves their tempo (\clock, said); \take and \clock as they are.
+	*tempoModeFor { |mode, peers = 0, tag = \editor|
+		if(mode != \auto) { ^mode };
+		if(peers > 0) {
+			RCLog.warn(tag, "the clock has % Link peer(s): the take plays at the live tempo (tempoMode \\take moves theirs)".format(peers));
+			^\clock
+		};
+		^\take
 	}
 
 	// true while the player plays a render (the WAV and the tape), not the program

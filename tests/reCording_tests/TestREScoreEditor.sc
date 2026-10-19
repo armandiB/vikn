@@ -159,4 +159,24 @@ TestREScoreEditor : UnitTest {
 		this.assertEquals(own, 1, "free put the recorder's own onEvent back");
 		ed = nil;
 	}
+
+	// the players' tempo: \auto plays the take at its tempo on a clock without Link peers, \clock
+	// as set; with peers \auto keeps the live tempo, said
+	test_tempo_mode {
+		var s = this.prTake, path = rec.lastPath;
+		ed = REScoreEditor(song, rec, root, "/edtest", "t", feed: { |kind, dict| feeds.add([kind, dict]) });
+		this.assertEquals(ed.tempoMode, \auto, "\\auto by default");
+		ed.play(path);
+		this.assertEquals(ed.player.tempoMode, \take, "\\auto without peers: the take's tempo");
+		ed.stopPlay;
+		ed.tempoMode = \clock;
+		ed.play(path);
+		this.assertEquals(ed.player.tempoMode, \clock, "\\clock as set");
+		ed.stopPlay;
+		RCLog.reset;
+		this.assertEquals(REScoreEditor.tempoModeFor(\auto, 2), \clock, "Link peers: the live tempo");
+		this.assert(RCLog.history.any { |e| e[2].contains("2 Link peer(s)") }, "said");
+		this.assertEquals(REScoreEditor.tempoModeFor(\take, 2), \take, "\\take as asked");
+		this.assertEquals(REScoreEditor.tempoModeFor(\auto, 0), \take);
+	}
 }
