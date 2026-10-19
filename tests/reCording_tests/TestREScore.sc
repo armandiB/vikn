@@ -207,6 +207,19 @@ TestREScore : UnitTest {
 		File.delete(dir);
 	}
 
+	test_tempo_at {
+		var s = REScore(\t);
+		this.assertEquals(s.tempoAt(3), nil, "no tempo: nil");
+		s.meta[\tempo] = 2.0;
+		this.assertEquals(s.tempoAt(3), 2.0, "no map: the take's tempo");
+		s.tempoMap.add([8, 3.0]);
+		s.tempoMap.add([0, 2.0]);
+		this.assertEquals(s.tempoAt(0), 2.0);
+		this.assertEquals(s.tempoAt(7.9), 2.0);
+		this.assertEquals(s.tempoAt(8), 3.0, "from its beat on (the map sorted)");
+		this.assertEquals(s.tempoAt(-1), 2.0, "before the map: its first");
+	}
+
 	test_gitHead {
 		var vikn = REScore.filenameSymbol.asString.dirname.dirname;
 		var head = REScore.gitHead(vikn);

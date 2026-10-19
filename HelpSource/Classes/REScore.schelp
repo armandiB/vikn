@@ -224,6 +224,9 @@ The control's value at a beat: its last point at or before it, else its first.
 METHOD:: beatsToSecs
 argument:: beat
 Through the tempo map (piecewise constant).
+METHOD:: tempoAt
+argument:: beat
+The tempo at a beat: the tempo map's (before its first entry, that one's), else the take's code::tempo::; nil without either.
 
 EXAMPLES::
 

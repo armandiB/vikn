@@ -109,7 +109,19 @@ METHOD:: interpolated
 Interpolated values fired so far.
 
 METHOD:: followTempo
-Apply the recorded tempo events to the clock (false by default).
+Apply the recorded tempo events to the clock (false by default; always with code::tempoMode \take::).
+
+METHOD:: tempoMode
+code::\clock:: (the default): the take plays at the clock's tempo as it is, its beats where they were (in a set, the live tempo). code::\take::: at the start the clock goes to the take's tempo (link::Classes/REScore#-tempoAt:: code::from::, again at every pass of a loop) and follows its tempo events. A clock shared over Link moves its peers with it: link::Classes/REScoreEditor:: chooses code::\clock:: when it has some.
+
+METHOD:: restoreTempo
+With code::tempoMode \take::, the clock's former tempo is set back at stop and at the end (true).
+
+METHOD:: headTempo
+The tempo the head moves at from the start: the take's with code::\take::, else the clock's (a rendered take's: the take's, link::Classes/RERenderedPlayer::). link::Classes/REScoreVisuals:: sends it with the take.
+
+METHOD:: runClock
+The clock the routine runs on and the head counts on: code::clock::, or a rendered take's own (link::Classes/RERenderedPlayer#-ownClock::).
 METHOD:: useLatency
 Bundle each event's messages at the server's latency (true).
 METHOD:: fired

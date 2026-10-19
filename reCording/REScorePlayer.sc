@@ -24,7 +24,15 @@
 // watched: what ran is not played twice); fallback: true on the event plays
 // them all, fallback: false none. What cannot play is skipped with one
 // warning each. A replay starts on the take's own phase of the grid
-// (alignedStart), so what the take quantized lands as it did. A deferred
+// (alignedStart), so what the take quantized lands as it did.
+//
+// The tempo (tempoMode): \clock (the default) plays the take at the clock's
+// tempo as it is, its beats where they were (the take's tempo events only with
+// followTempo): in a set, the live tempo; \take sets the clock to the take's
+// tempo at the start (REScore.tempoAt from) and follows its tempo events, and
+// with restoreTempo (the default) sets the clock's former tempo back at stop
+// and at the end. A clock shared over Link moves its peers with it
+// (REScoreEditor's \auto chooses \clock when it has some). A deferred
 // voice (defer) or event (defer: true) is not fired: its effects play, and
 // the program's events under it (level 2) when the take holds them.
 
@@ -37,6 +45,9 @@ REScorePlayer {
 	var <>onEvent, <>onLoop, <>onDone;
 	var <>onPlay, <>onStop;   // { |player| } as play starts, as stop ends it (onDone: the end of the take)
 	var <>followTempo = false, <>useLatency = true;
+	var <>tempoMode = \clock;   // \clock: at the clock's tempo, as it is; \take: the clock at the take's tempo from the start, its tempo events followed
+	var <>restoreTempo = true;   // \take: the clock's former tempo set back at stop and at the end
+	var savedTempo;
 	var <>silent = true;   // what it fires is not recorded (RETap.silently); false: a render recording its replay as a take sees the lines and their effects
 	var <>interpolate = false, <>stepsPerBeat = 16;   // a continuous control ramps to its next point (off: the points, as played)
 	var <>alignPhase = true;   // play starts on the take's phase of the grid (quant, else the take's own, else the beat)
@@ -90,12 +101,43 @@ REScorePlayer {
 		// draws what it drew, as long as the same lines and inputs run in the same order
 		score.meta[\randData] !? { |d| RCGuard.call(\player, nil) { routine.randData = Int32Array.newFrom(d) } };
 		state = \playing;
-		case
-		{ atBeat.notNil } { clock.schedAbs(atBeat, routine) }
-		{ alignPhase } { clock.schedAbs(this.class.alignedStart(score, clock, quant), routine) }
-		{ routine.play(clock, quant) };
+		this.prSchedule(routine, quant, atBeat);
 		onPlay.value(this);
 	}
+
+	// The routine on the clock: at atBeat, else at the take's phase of the grid, else on quant.
+	prSchedule { |r, quant, atBeat|
+		case
+		{ atBeat.notNil } { clock.schedAbs(atBeat, r) }
+		{ alignPhase } { clock.schedAbs(this.class.alignedStart(score, clock, quant), r) }
+		{ r.play(clock, quant) };
+	}
+
+	// The clock the routine runs on and the head counts on (a rendered take's may be its own).
+	runClock { ^clock }
+
+	// The tempo the head moves at from the start: the take's with \take, else the clock's.
+	headTempo { ^if(tempoMode == \take) { score.tempoAt(from) ? clock.tempo } { this.runClock.tempo } }
+
+	// \take: the clock to the take's tempo at `from` (the tempo map's), its former tempo kept for
+	// stop and the end; at every pass of a loop again.
+	prStartTempo {
+		var t;
+		if(tempoMode != \take) { ^this };
+		t = score.tempoAt(from);
+		if(t.isNil or: { t <= 0 }) { ^this };
+		if(savedTempo.isNil) { savedTempo = clock.tempo };
+		if((clock.tempo - t).abs > 1e-9) { clock.tempo = t };
+	}
+
+	prRestoreTempo {
+		if(savedTempo.isNil) { ^this };
+		if(restoreTempo) { clock.tempo = savedTempo };
+		savedTempo = nil;
+	}
+
+	// a tempo event is applied with followTempo, and always with \take
+	followsTempo { ^followTempo or: { tempoMode == \take } }
 
 	// The next beat on the grid (quant's, else the take's own, else 1) with the take's
 	// phase of it (beat0 mod the grid): a line or a Routine the take quantized to that grid
@@ -129,13 +171,14 @@ REScorePlayer {
 		routine !? (_.stop);
 		routine = nil;
 		state = \stopped;
+		this.prRestoreTempo;
 		onStop.value(this);
 	}
 
 	isPlaying { ^state == \playing }
 
 	// The score beat the playhead is at, nil when stopped.
-	position { ^if(state == \playing and: { startBeat.notNil }) { clock.beats - startBeat + from } { nil } }
+	position { ^if(state == \playing and: { startBeat.notNil }) { this.runClock.beats - startBeat + from } { nil } }
 
 	mute { |voices| voices.asArray.do { |v| muted.add(v.asSymbol) } }
 	unmute { |voices| if(voices.isNil) { muted.clear } { voices.asArray.do { |v| muted.remove(v.asSymbol) } } }
@@ -148,6 +191,7 @@ REScorePlayer {
 	prRun { |events|
 		var idx, lastBeat, len, ev;
 		startBeat = thisThread.beats;
+		this.prStartTempo;
 		this.prStarted;
 		idx = (events.detectIndex { |e| e[\beat] >= from }) ? events.size;
 		lastBeat = from;
@@ -159,6 +203,7 @@ REScorePlayer {
 					this.prWaitUntil(to, lastBeat);
 					passes = passes + 1;
 					startBeat = startBeat + len;
+					this.prStartTempo;
 					idx = (events.detectIndex { |e| e[\beat] >= from }) ? events.size;
 					lastBeat = from;
 					ramps.clear;
@@ -183,6 +228,7 @@ REScorePlayer {
 	prEnded {
 		state = \stopped;
 		routine = nil;
+		this.prRestoreTempo;
 		onDone.value(this);
 	}
 
@@ -354,7 +400,7 @@ REScorePlayer {
 				\code, { this.prFireCode(ev) },
 				\snapshot, { this.prFireSnapshot(ev) },
 				\morph, { this.prFireMorph(ev) },
-				\tempo, { if(followTempo) { clock.tempo = ev[\tempo] }; true },
+				\tempo, { if(this.followsTempo) { this.runClock.tempo = ev[\tempo] }; true },
 				{ this.prSkip(ev, "unknown kind " ++ ev[\kind]) }
 			)
 		}

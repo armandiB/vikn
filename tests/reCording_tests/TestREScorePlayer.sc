@@ -366,4 +366,51 @@ TestREScorePlayer : UnitTest {
 		this.assert(done, "sampled on the clock");
 		this.assertEquals(vals.asArray.collect(_.round(0.01)), [0, 0.25, 0.5, 0.75, 1, 1, 1], "reaches the target in 4 beats and holds it");
 	}
+
+	// \take: the clock at the take's tempo from the start, its tempo events followed, the former
+	// tempo set back at the end and at stop (not without restoreTempo); \clock leaves the clock alone
+	test_tempo_mode {
+		var t0 = clock.tempo, s = REScore(\pl), long = REScore(\pl), p, tempos = List.new, done = false;
+		s.meta[\tempo] = t0 * 2;
+		s.tempoMap.add([0, t0 * 2]);
+		s.add((beat: 0, kind: \code, voice: \code, text: "nil"));
+		s.add((beat: 1, kind: \tempo, tempo: t0 * 3));
+		s.add((beat: 2, kind: \code, voice: \code, text: "nil"));
+		p = REScorePlayer(s, song);
+		this.assertEquals(p.tempoMode, \clock, "\\clock by default");
+		p.tempoMode = \take;
+		p.alignPhase = false;
+		p.onEvent = { tempos.add(clock.tempo) };
+		p.onDone = { done = true };
+		p.play(0);
+		this.assertEquals(p.headTempo, t0 * 2, "the head moves at the take's tempo");
+		(4 / t0).wait;
+		this.assert(done, "played");
+		this.assertEquals(tempos.asArray, [t0 * 2, t0 * 3, t0 * 3], "the clock at the take's tempo, then at its tempo event's");
+		this.assertEquals(clock.tempo, t0, "the former tempo back at the end");
+		long.meta[\tempo] = t0 * 2;
+		long.add((beat: 50, kind: \code, voice: \code, text: "nil"));
+		p = REScorePlayer(long, song).tempoMode_(\take).alignPhase_(false);
+		p.play(0);
+		(1 / t0).wait;
+		this.assertEquals(clock.tempo, t0 * 2, "no map: the take's tempo");
+		p.stop;
+		this.assertEquals(clock.tempo, t0, "and back at stop");
+		p.restoreTempo = false;
+		p.play(0);
+		(1 / t0).wait;
+		p.stop;
+		this.assertEquals(clock.tempo, t0 * 2, "restoreTempo false: left at the take's");
+		clock.tempo = t0;
+		tempos.clear;
+		done = false;
+		p = REScorePlayer(s, song).alignPhase_(false);
+		p.onEvent = { tempos.add(clock.tempo) };
+		p.onDone = { done = true };
+		p.play(0);
+		this.assertEquals(p.headTempo, t0, "\\clock: the head at the clock's tempo");
+		(4 / t0).wait;
+		this.assert(done, "played at the clock's tempo");
+		this.assertEquals(tempos.asArray, [t0, t0, t0], "the clock untouched, the tempo event not followed");
+	}
 }

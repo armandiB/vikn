@@ -119,6 +119,16 @@ REScore {
 
 	//////// editing: every operation answers a new score, the receiver untouched, ids kept
 
+	// The tempo at a beat: the tempo map's (piecewise constant; before its first entry, that one's),
+	// else the take's tempo; nil without either.
+	tempoAt { |beat = 0|
+		var map = tempoMap.asArray.copy.sort { |a, b| a[0] <= b[0] }, t;
+		if(map.isEmpty) { ^meta[\tempo] };
+		t = map[0][1];
+		map.do { |pair| if(pair[0] <= beat) { t = pair[1] } };
+		^t
+	}
+
 	// Seconds of a beat through the tempo map ([[beat, tempo], ...], piecewise constant).
 	beatsToSecs { |beat|
 		var map = tempoMap.asArray;
