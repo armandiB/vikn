@@ -130,7 +130,7 @@ TestRERenderedPlayer : UnitTest {
 		clock.tempo = 10;
 		RCLog.reset;
 		p.play;
-		this.assert(this.logHas("the clock is at tempo 10") and: { this.logHas("the take at 20") }, "a tempo mismatch warned about");
+		this.assert(this.logHas("the clock is at tempo 10") and: { this.logHas("the take at 20") }, "a tempo mismatch said");
 		this.assert(p.isPlaying.not);
 	}
 
@@ -144,5 +144,47 @@ TestRERenderedPlayer : UnitTest {
 		this.assertEquals(done, 1, "the parent's end hook ran once");
 		this.assertEquals(seen.asArray, [1, 2, 3], "every event reported (a tempo event counts as played even when not followed)");
 		this.assert(p.isPlaying.not);
+	}
+
+	// \clock: from the aligned start on the song's clock, the head on a clock of its own at the
+	// take's tempo, the take's tempo events on it, the song's clock untouched; dropped at stop
+	test_head_on_its_own_clock {
+		var s = REScore(\rendered), p;
+		clock.tempo = 10;
+		s.meta[\tempo] = 20;
+		s.meta[\latency] = 0.2;
+		s.meta[\beat0] = 0;
+		s.tempoMap.add([0, 20]);
+		s.add((id: 1, beat: 0, secs: 0, kind: \code, level: 1, voice: \code, text: "nil"));
+		s.add((id: 2, beat: 2, secs: 0.1, kind: \tempo, level: 1, tempo: 40));
+		s.add((id: 3, beat: 30, secs: 0.8, kind: \code, level: 1, voice: \code, text: "nil"));
+		p = RERenderedPlayer(s, song, this.prSidecar);
+		this.assertEquals(p.tempoMode, \clock, "\\clock by default");
+		p.prPlayNow(1, 0, nil, nil);   // the start without a server: no WAV, no tape
+		this.assert(p.ownClock.isNil, "no clock of its own before the start");
+		this.assertEquals(p.headTempo, 20, "the head moves at the take's tempo");
+		0.35.wait;
+		this.assert(p.ownClock.notNil, "a clock of its own from the start");
+		this.assertEquals(p.runClock, p.ownClock, "the head on it");
+		this.assertEquals(p.ownClock.tempo, 40, "the take's tempo event applied to it");
+		this.assertEquals(clock.tempo, 10, "the song's clock untouched");
+		this.assert(p.position > 6, "the head at the take's tempo (the song's clock would be under 3.5): " ++ p.position);
+		p.stop;
+		this.assert(p.ownClock.isNil and: { p.runClock == clock }, "dropped at stop");
+		this.assertEquals(p.position, nil);
+	}
+
+	// \take: the song's clock at the take's tempo from the start, the head on it, the former tempo
+	// back at stop
+	test_take_mode_on_the_song_clock {
+		var s = this.prTake, p;
+		clock.tempo = 10;
+		p = RERenderedPlayer(s, song, this.prSidecar).tempoMode_(\take);
+		p.prPlayNow(1, 0, nil, nil);
+		0.25.wait;
+		this.assert(p.ownClock.isNil, "no clock of its own");
+		this.assertEquals(clock.tempo, 20, "the song's clock at the take's tempo");
+		p.stop;
+		this.assertEquals(clock.tempo, 10, "and back at stop");
 	}
 }

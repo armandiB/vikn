@@ -13,9 +13,14 @@
 // latency bundle at the start beat (seconds S0), so WAV time w sounds at S0 + w - λr + λl, and a
 // tape message at t goes out at S0 + t - λr + λl, the same offset: the messages sent when a sound
 // starts land with it whatever the two latencies; a message a rig sends without latency (gone,
-// clear, hair) is off by λl - λr, nothing with the one server-options file. The WAV cannot stretch:
-// the clock must be at the take's tempo (warned), and the take's tempo events are applied (the
-// render's code lines changed its clock that way; they are not fired here).
+// clear, hair) is off by λl - λr, nothing with the one server-options file. The WAV cannot stretch,
+// so the head follows it (tempoMode): \clock (the default) starts at the aligned beat of the song's
+// clock and moves on to a clock of its own at the take's tempo, the same beats and seconds there
+// (ownClock): the head, the played marks and the take's tempo events follow the WAV whatever the
+// song's tempo, which is left alone (the render is then off the song's grid, said); \take sets the
+// song's clock to the take's tempo (REScorePlayer's) and the head stays on it. An own clock is
+// stopped at the end and kept a few seconds after (SC 3.14.1's TempoClock.stop ends the clock after
+// the evaluation: dropped before, it is collected under its thread).
 // Routing (routing: \auto, \signal or \out): a raw render (hoa acn-n3d, the chain's channels) is
 // summed into the chain's signal stage and decoded live as the instruments are; an AmbiX render
 // (acn-sn3d) or a stereo one goes onto the chain's output bus after the decoder (an AmbiX one only
@@ -23,7 +28,9 @@
 // groups are looked up at play: a scene init rebuilds them.
 
 RERenderedPlayer : REScorePlayer {
+	classvar held;   // own clocks stopped, kept until their C++ side has ended
 	var <render, <replay, <tape, <>routing = \auto, <>tapeClock, <route, <mediaSecs, fromSecs = 0, preparing = false;
+	var <ownClock;   // \clock: the head's clock at the take's tempo while it plays
 
 	*new { |score, song, render| ^super.new(score, song).initRERenderedPlayer(render) }
 
@@ -58,11 +65,11 @@ RERenderedPlayer : REScorePlayer {
 	}
 
 	play { |quant, from = 0, to, loop = false, atBeat|
-		var takeTempo = score.meta[\tempo], chain = song.ambi;
+		var takeTempo = score.tempoAt(from ? 0), chain = song.ambi;
 		if(render.isNil) { ^RCLog.error(\rendered, "no render: nothing to play") };
 		if(loop) { RCLog.warn(\rendered, "a rendered take does not loop: played once"); loop = false };
-		if(takeTempo.notNil and: { (clock.tempo - takeTempo).abs > 1e-6 }) {
-			RCLog.warn(\rendered, "the clock is at tempo %, the take at %: the head drifts from the sound".format(clock.tempo, takeTempo));
+		if(tempoMode != \take and: { takeTempo.notNil } and: { (clock.tempo - takeTempo).abs > 1e-6 }) {
+			RCLog.post(\rendered, "the clock is at tempo %, the take at %: the render and its head play at the take's, off the song's grid (tempoMode \\take sets the clock)".format(clock.tempo, takeTempo));
 		};
 		if((this.latency - song.server.latency).abs > 1e-6) {
 			RCLog.warn(\rendered, "rendered with latency %, the server's is %: the messages a rig sends without latency land % s off".format(this.latency, song.server.latency, (song.server.latency - this.latency).round(0.001)));
@@ -80,13 +87,46 @@ RERenderedPlayer : REScorePlayer {
 
 	prPlayNow { |quant, from, to, atBeat| ^super.play(quant, from, to, false, atBeat) }
 
+	// \clock: at the start on the song's clock, the routine goes on on a clock of its own at the
+	// take's tempo; \take, or a take without a tempo: the song's clock itself.
+	prSchedule { |r, quant, atBeat|
+		var t = score.tempoAt(from);
+		if(tempoMode == \take or: { t.isNil } or: { t <= 0 }) { ^super.prSchedule(r, quant, atBeat) };
+		super.prSchedule(Routine { this.prStartOwnClock(r, t) }, quant, atBeat);
+	}
+
+	// At the start (the song's clock's beat and second): a clock at the take's tempo with the same
+	// beat at the same second, the routine on it at once.
+	prStartOwnClock { |r, tempo|
+		this.prDropOwnClock;
+		if(state != \playing) { ^this };
+		ownClock = TempoClock(tempo, thisThread.beats, thisThread.seconds);
+		ownClock.schedAbs(thisThread.beats, r);
+	}
+
+	prDropOwnClock {
+		var c = ownClock;
+		if(c.isNil) { ^this };
+		ownClock = nil;
+		held = held ?? { List.new };
+		held.add(c);
+		c.clear;
+		c.stop;
+		AppClock.sched(5, { held.remove(c); nil });
+	}
+
+	runClock { ^ownClock ? clock }
+
+	// the head moves at the take's tempo either way (the WAV's), the clock's without one
+	headTempo { ^score.tempoAt(from) ? clock.tempo }
+
 	// The WAV cued from the take's beat `from` plus the render's latency, the tape read, the route set.
 	prPrepare { |from, chain, action|
 		var sf = SoundFile.openRead(this.wav), sr, frame;
 		if(sf.isNil) { preparing = false; ^RCLog.error(\rendered, "cannot open " ++ this.wav) };
 		sr = sf.sampleRate;
 		sf.close;
-		fromSecs = from / (score.meta[\tempo] ? clock.tempo);
+		fromSecs = if(score.meta[\tempo].isNil and: { score.tempoMap.isEmpty }) { from / clock.tempo } { score.beatsToSecs(from) };
 		frame = ((fromSecs + this.latency) * sr).asInteger;
 		tape = render[\tape] !? { |p| REVisualsTape.read(p) };
 		if(tape.isNil) { RCLog.warn(\rendered, "no visuals tape for %: the sound alone".format(render[\take])) };
@@ -103,7 +143,7 @@ RERenderedPlayer : REScorePlayer {
 	// In the Routine, at the aligned start beat: the WAV in a latency bundle, the tape on its clock.
 	prStarted {
 		mediaSecs = thisThread.seconds - this.latency + song.server.latency - fromSecs;
-		song.server.bind { replay.startNow };
+		replay !? { |r| song.server.bind { r.startNow } };
 		tape !? { |t| if(t.isEmpty.not) { t.play(mediaSecs, tapeClock, nil, fromSecs) } };
 		RCLog.post(\rendered, "% plays its render through the chain's % (% tape entries)".format(render[\take], route, tape !? (_.size) ? 0));
 	}
@@ -111,15 +151,17 @@ RERenderedPlayer : REScorePlayer {
 	// The last event reported: the sound and the tape go on to the render's end.
 	prEnded {
 		var rest = (mediaSecs ? thisThread.seconds) + this.duration - thisThread.seconds;
-		if(rest > 0) { (rest * clock.tempo).wait };
+		if(rest > 0) { (rest * this.runClock.tempo).wait };
 		this.prStopMedia;
 		super.prEnded;
+		this.prDropOwnClock;
 	}
 
 	stop {
 		super.stop;
 		preparing = false;
 		this.prStopMedia;
+		this.prDropOwnClock;
 	}
 
 	prStopMedia {

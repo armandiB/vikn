@@ -9,7 +9,7 @@ An link::Classes/REScorePlayer:: for a take that HomewareSC's code::scripts/take
 A section the live server cannot play whole (the LSystem's dense growths) is thus recorded as a take (the audio may break up: the take holds the lines and the inputs), rendered offline with its visuals, and played back as one piece of the set.
 
 subsection:: Timing
-WAV time 0 is the take's start on the render's clock. The render bundled its sounds with its latency λr, the live server plays with its own λl: the WAV is cued λr in and its synth sent in a latency bundle at the start beat (seconds S0), so WAV time code::w:: sounds at code::S0 + w - λr + λl::, and a tape message at code::t:: goes out at code::S0 + t - λr + λl::, the same offset: the messages sent when a sound starts (notes, births, cycles, lines) land with their sound whatever the two latencies; a message a rig sends without latency (gone, clear, hair) is off by code::λl - λr::, nothing with the one server-options file. The WAV cannot stretch: the clock must be at the take's tempo (warned otherwise), and the take's tempo events are applied (the render's code lines changed its clock that way; they are not fired here).
+WAV time 0 is the take's start on the render's clock. The render bundled its sounds with its latency λr, the live server plays with its own λl: the WAV is cued λr in and its synth sent in a latency bundle at the start beat (seconds S0), so WAV time code::w:: sounds at code::S0 + w - λr + λl::, and a tape message at code::t:: goes out at code::S0 + t - λr + λl::, the same offset: the messages sent when a sound starts (notes, births, cycles, lines) land with their sound whatever the two latencies; a message a rig sends without latency (gone, clear, hair) is off by code::λl - λr::, nothing with the one server-options file. The WAV cannot stretch, so the head follows it (link::Classes/REScorePlayer#-tempoMode::): code::\clock:: (the default) starts at the aligned beat of the song's clock and goes on on a clock of its own at the take's tempo, the same beat at the same second (link::#-ownClock::): the head, the played marks and the take's tempo events follow the WAV whatever the song's tempo, which is left alone (the render is then off the song's grid, said); code::\take:: sets the song's clock to the take's tempo and the head stays on it. An own clock is stopped at the end and kept a few seconds after (SuperCollider 3.14.1's code::TempoClock.stop:: ends the clock after the evaluation: dropped before, it is collected under its thread).
 
 subsection:: Routing
 A raw render (code::hoa acn-n3d::, the chain's channels) is summed into the chain's signal stage (the head of its group) and decoded live as the instruments are, at the gig and at home alike; an AmbiX render (code::acn-sn3d::, the chain's own decoded output) or a stereo one goes onto the chain's output bus after the decoder (an AmbiX one only when the live chain decodes to code::\ambix::: render with code::--decode raw:: otherwise). The chain's buses and groups are looked up at play: a scene init rebuilds them.
@@ -30,7 +30,7 @@ argument:: song
 INSTANCEMETHODS::
 
 METHOD:: play
-As the parent's, after the WAV is cued: refused without a running server or a WAV; code::loop:: is warned about and ignored; a clock not at the take's tempo and a latency other than the render's are warned about.
+As the parent's, after the WAV is cued: refused without a running server or a WAV; code::loop:: is warned about and ignored; a latency other than the render's is warned about; with code::\clock::, a song's clock not at the take's tempo is said (the render is off its grid).
 argument:: quant
 argument:: from
 The take's beat to start from: the WAV is cued there.
@@ -61,6 +61,9 @@ The render's.
 METHOD:: wav
 METHOD:: duration
 The render's seconds (the take and its tail).
+METHOD:: ownClock
+With code::tempoMode \clock::, while it plays: the head's clock at the take's tempo, from the start; nil otherwise.
+
 METHOD:: mediaSecs
 The seconds WAV time 0 corresponds to, once playing.
 
