@@ -41,6 +41,12 @@ argument:: delay
 argument:: path
 argument:: args
 
+METHOD:: ctl
+A value for the reprocessing of a take's video: code::'/fx/ctl' <name> <value>:: sent in code::delay:: seconds (the default server's latency), when the sound it goes with starts. HomewareVisuals' effects page maps it onto an effect's parameter (code::/fx/map::); in a take rendered offline it lands in the tape, which HomewareSC's code::take.sh render --viz:: sets apart as the take's control tape (link::Guides/reCording#Reprocessing::).
+argument:: name
+argument:: value
+argument:: delay
+
 METHOD:: sendForEvent
 Send when the event's sound starts: after code::eventDelay(ev)::.
 argument:: ev

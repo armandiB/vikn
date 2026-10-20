@@ -85,6 +85,15 @@ RCVisuals {
 
 	*sendForEvent { |ev, path, args| ^this.sendIn(this.eventDelay(ev), path, args) }
 
+	// A value for the reprocessing of a take's video (HomewareVisuals' effects page, which maps it
+	// onto an effect's parameter with /fx/map): '/fx/ctl' <name> <value>, sent in `delay` seconds
+	// (the default server's latency), when the sound it goes with starts, as the rigs' messages
+	// are. In a take rendered offline it lands in the tape; scripts/take.sh render then sets the
+	// /fx/ entries apart as the take's control tape (<take>/<take>.ctl.json).
+	*ctl { |name, value, delay|
+		^this.sendIn(delay ?? { Server.default.latency }, '/fx/ctl', [name.asString, value])
+	}
+
 	//////// hooks
 
 	// An attrDict value: at every non-rest event, func.(ev) → the args sent to
