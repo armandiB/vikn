@@ -1,7 +1,7 @@
 // RERenderedPlayer: a take with a render next to it (the sidecar), nothing fired but the tempo
 // events, the route of the WAV into the chain, the refusals and warnings without a server.
 TestRERenderedPlayer : UnitTest {
-	var clock, song, root, path, sidecar, wav, savedRateLimit, savedMainThreadOnly, savedTempo;
+	var clock, song, root, path, sidecar, wav, savedRateLimit, savedMainThreadOnly, savedTempo, savedSink, sent;
 
 	setUp {
 		clock = RCTestSupport.clock;
@@ -13,6 +13,9 @@ TestRERenderedPlayer : UnitTest {
 		savedMainThreadOnly = RETap.mainThreadOnly;
 		RETap.mainThreadOnly = false;
 		savedTempo = clock.tempo;
+		savedSink = RCVisuals.sink;   // the fx cue goes through RCVisuals: into a list, never onto the network
+		sent = List.new;
+		RCVisuals.sink = { |p, a| sent.add([p.asString, a]) };
 		root = PathName.tmp +/+ "re_rendered_test_" ++ UniqueID.next;
 		File.mkdir(root);
 		path = root +/+ "260101_120000_rendered w0.json";
@@ -22,6 +25,7 @@ TestRERenderedPlayer : UnitTest {
 	}
 
 	tearDown {
+		RCVisuals.sink = savedSink;
 		clock.tempo = savedTempo;
 		RETap.mainThreadOnly = savedMainThreadOnly;
 		RCTestSupport.reset;
@@ -172,6 +176,30 @@ TestRERenderedPlayer : UnitTest {
 		p.stop;
 		this.assert(p.ownClock.isNil and: { p.runClock == clock }, "dropped at stop");
 		this.assertEquals(p.position, nil);
+	}
+
+	// The effects page's cue: '/fx/start' with the WAV seconds of the take's `from` as the start
+	// sounds, '/fx/stop' at stop; the onStart hook with the media's seconds; nothing with fxCue off.
+	test_fx_cue_and_onStart {
+		var s = this.prTake, p, got;
+		p = RERenderedPlayer(s, song, this.prSidecar);
+		p.onStart = { |pl, media, from| got = [pl, media, from] };
+		p.prPlayNow(1, 2, nil, nil);   // from beat 2: 0.1 s at tempo 20
+		0.35.wait;
+		this.assert(got.notNil and: { got[0] === p }, "the hook ran with the player");
+		this.assertEquals(got[2], 0.1, "the WAV seconds of the take's `from`");
+		this.assert(got[1].isNumber and: { (got[1] + got[2] - clock.seconds).abs < 0.5 }, "the media's 0 placed so that `from` sounds about now");
+		this.assertEquals(sent.select { |m| m[0] == "/fx/start" }.collect(_[1]), [[0.1]], "'/fx/start' with the seconds, once");
+		p.stop;
+		this.assertEquals(sent.select { |m| m[0] == "/fx/stop" }.size, 1, "'/fx/stop' at stop");
+		p.stop;
+		this.assertEquals(sent.select { |m| m[0] == "/fx/stop" }.size, 1, "not again");
+		sent.clear;
+		p = RERenderedPlayer(s, song, this.prSidecar).fxCue_(false);
+		p.prPlayNow(1, 0, nil, nil);
+		0.3.wait;
+		p.stop;
+		this.assertEquals(sent.select { |m| m[0].beginsWith("/fx/") }.size, 0, "fxCue off: nothing sent");
 	}
 
 	// \take: the song's clock at the take's tempo from the start, the head on it, the former tempo

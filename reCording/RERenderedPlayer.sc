@@ -6,6 +6,7 @@
 //
 //   ~p = RERenderedPlayer.fromTake(path, ~song);   // the take and its sidecar, <take>.render.json next to it (it names the WAV and the tape in <take>/)
 //   ~viz.attachPlayer(~p); ~p.play([4, 0]);
+//   ~p.onStart = { |p, mediaSecs, fromSecs| };     // in the Routine at the start; fxCue (true): '/fx/start' <fromSecs> sent as the WAV's `from` sounds, '/fx/stop' at stop (an effects page follows)
 //   ~p.stop; ~p.free;
 //
 // Timing: WAV time 0 is the take's start on the render's clock. The render bundled its sounds with
@@ -31,6 +32,8 @@ RERenderedPlayer : REScorePlayer {
 	classvar held;   // own clocks stopped, kept until their C++ side has ended
 	var <render, <replay, <tape, <>routing = \auto, <>tapeClock, <route, <mediaSecs, fromSecs = 0, preparing = false;
 	var <ownClock;   // \clock: the head's clock at the take's tempo while it plays
+	var <>onStart;   // { |player, mediaSecs, fromSecs| } in the Routine at the start, the WAV and the tape started
+	var <>fxCue = true, fxStarted = false;   // '/fx/start' <fromSecs> through RCVisuals as the WAV's `from` sounds (an effects page cues its video to it), '/fx/stop' at stop and at the end
 
 	*new { |score, song, render| ^super.new(score, song).initRERenderedPlayer(render) }
 
@@ -126,7 +129,7 @@ RERenderedPlayer : REScorePlayer {
 		if(sf.isNil) { preparing = false; ^RCLog.error(\rendered, "cannot open " ++ this.wav) };
 		sr = sf.sampleRate;
 		sf.close;
-		fromSecs = if(score.meta[\tempo].isNil and: { score.tempoMap.isEmpty }) { from / clock.tempo } { score.beatsToSecs(from) };
+		fromSecs = this.prFromSecs(from);
 		frame = ((fromSecs + this.latency) * sr).asInteger;
 		tape = render[\tape] !? { |p| REVisualsTape.read(p) };
 		if(tape.isNil) { RCLog.warn(\rendered, "no visuals tape for %: the sound alone".format(render[\take])) };
@@ -140,11 +143,20 @@ RERenderedPlayer : REScorePlayer {
 		replay.prepare(frame, action);
 	}
 
-	// In the Routine, at the aligned start beat: the WAV in a latency bundle, the tape on its clock.
+	// WAV seconds of the take's beat `from` (its tempo map, else the clock's tempo)
+	prFromSecs { |beat| ^if(score.meta[\tempo].isNil and: { score.tempoMap.isEmpty }) { beat / clock.tempo } { score.beatsToSecs(beat) } }
+
+	// In the Routine, at the aligned start beat: the WAV in a latency bundle, the tape on its clock,
+	// the effects page cued, the hook.
 	prStarted {
+		fromSecs = this.prFromSecs(from);   // prPlayNow without prPrepare (a test): the same seconds
 		mediaSecs = thisThread.seconds - this.latency + song.server.latency - fromSecs;
 		replay !? { |r| song.server.bind { r.startNow } };
 		tape !? { |t| if(t.isEmpty.not) { t.play(mediaSecs, tapeClock, nil, fromSecs) } };
+		// the WAV's `from` sounds at mediaSecs + fromSecs (cued its latency in, started the server's later):
+		// the page's video at `from` lands with it
+		if(fxCue) { fxStarted = true; RCVisuals.sendIn((song.server.latency - this.latency).max(0), '/fx/start', [fromSecs]) };
+		onStart.value(this, mediaSecs, fromSecs);
 		RCLog.post(\rendered, "% plays its render through the chain's % (% tape entries)".format(render[\take], route, tape !? (_.size) ? 0));
 	}
 
@@ -167,6 +179,7 @@ RERenderedPlayer : REScorePlayer {
 	prStopMedia {
 		tape !? (_.stop);
 		replay !? (_.stop);
+		if(fxStarted) { fxStarted = false; RCVisuals.send('/fx/stop') };
 	}
 
 	free {
