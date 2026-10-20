@@ -729,6 +729,40 @@ TestREScoreRecorder : UnitTest {
 		File.delete(dir);
 	}
 
+	// merge: false: the old take plays, the new one is written alone on its timeline, naming it as
+	// its source (the basename: both under the recorder's root); the old file untouched.
+	test_overdub_without_merge {
+		var b = this.restBeat(layer, \k, [amp: 0.1]);
+		var s, path, out, files;
+		File.mkdir(dir);
+		rec.root = dir;
+		rec.version = "w0";
+		rec.arm(inputs: #[\actions]);
+		rec.record(snapshotAtStart: false);
+		b.set(\amp, 0.2);
+		(0.5 / clock.tempo).wait;
+		s = rec.stop;
+		path = rec.lastPath;
+		this.assert(path.notNil and: { File.exists(path) }, "the old take written under root");
+		rec.version = "fx";
+		rec.overdub(path, mode: \keep, merge: false);
+		(0.3 / clock.tempo).wait;
+		b.set(\amp, 0.9);
+		(0.2 / clock.tempo).wait;
+		out = rec.stop;
+		this.assertEquals(out.eventsOf('core/k').collect { |e| e[\args][1] }, [0.9], "the new event alone: nothing merged");
+		this.assertEquals(out.meta[\overdubs], nil, "no overdub noted");
+		this.assertEquals(out.meta[\source], path.basename, "the old take named as the source, by its basename under root");
+		this.assert(rec.lastPath.endsWith(" fx.json") and: { rec.lastPath != path }, "written as a take of its own: " ++ rec.lastPath);
+		this.assertEquals(REScore.read(rec.lastPath).meta[\source], path.basename, "the source read back");
+		this.assertEquals(REScore.read(path).size, 1, "the old file untouched");
+		files = (dir +/+ "*.json").pathMatch;
+		this.assertEquals(files.size, 2);
+		files.do { |f| File.delete(f) };
+		File.delete(dir);
+		rec.version = "";
+	}
+
 	// The same scripted session with recording off and on: the same sources,
 	// seeds, beats and log lines; the score is the only difference.
 	runScript { |record|

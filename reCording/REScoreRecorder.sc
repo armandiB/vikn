@@ -269,15 +269,21 @@ REScoreRecorder {
 		if(od.notNil) {
 			player.stop;
 			withPlayer !? (_.stop);
-			s = RCGuard.call(\score, s) {
-				var punch = [od[\from], od[\to] ? stopBeat], base = od[\score];
-				od[\with] !? { |w|
-					// the second take as it was heard: its events within the span, kept whole
-					var heard = w.copy;
-					heard.events.copy.do { |e| if(e[\beat] < punch[0] or: { e[\beat] >= punch[1] }) { heard.remove(e[\id]) } };
-					base = REScore.merge(base, heard, nil, \keep, punch, nil);
+			if(od[\merge] == false) {
+				// a take of its own on the old take's timeline: the old one named as its source (its basename
+				// when both live under the recorder's root)
+				od[\path] !? { |p| s.meta[\source] = if(root.notNil and: { p.dirname == root.asString }) { p.basename } { p } };
+			} {
+				s = RCGuard.call(\score, s) {
+					var punch = [od[\from], od[\to] ? stopBeat], base = od[\score];
+					od[\with] !? { |w|
+						// the second take as it was heard: its events within the span, kept whole
+						var heard = w.copy;
+						heard.events.copy.do { |e| if(e[\beat] < punch[0] or: { e[\beat] >= punch[1] }) { heard.remove(e[\id]) } };
+						base = REScore.merge(base, heard, nil, \keep, punch, nil);
+					};
+					REScore.merge(base, s, od[\voices], od[\mode], punch, if(od[\loop]) { punch } { nil })
 				};
-				REScore.merge(base, s, od[\voices], od[\mode], punch, if(od[\loop]) { punch } { nil })
 			};
 		};
 		withPlayer = nil;
@@ -317,8 +323,11 @@ REScoreRecorder {
 	// nearer than that moves one grid on. with: a second take (an REScore or a
 	// path) played live in sync (REScorePlayer, the program) from the same
 	// start over the same span; its events within the span join the merge
-	// first, kept whole, then the new take's by `mode`.
-	overdub { |scorearg, voices, mode, punch, loop = false, quant, rendered = false, with|
+	// first, kept whole, then the new take's by `mode`. merge: false writes the
+	// new take alone, on the old one's timeline (its beat 0 the old take's
+	// `from`), with meta.source naming the old take (its path: an effects
+	// program played over a render, recorded apart from it).
+	overdub { |scorearg, voices, mode, punch, loop = false, quant, rendered = false, with, merge = true|
 		var from, to, at, render, path, grid, lead, takeTempo;
 		if(state == \recording) { RCLog.warn(\score, "% already recording".format(song.name)); ^this };
 		if(scorearg.isString or: { scorearg.isKindOf(Symbol) }) {
@@ -362,7 +371,8 @@ REScoreRecorder {
 			if(mode == \replace) { player.mute(voices ?? { scorearg.voiceNames }) };
 		};
 		withPlayer = with !? { REScorePlayer(with, song) };
-		overdubbing = IdentityDictionary[\score -> scorearg, \voices -> voices, \mode -> mode, \from -> from, \to -> to, \loop -> loop, \with -> with, \rendered -> render.notNil];
+		overdubbing = IdentityDictionary[\score -> scorearg, \voices -> voices, \mode -> mode, \from -> from, \to -> to, \loop -> loop, \with -> with, \rendered -> render.notNil,
+			\merge -> (merge != false), \path -> path];
 		this.record(nil, false, atBeat: at, offsetBeat: from);
 		player.play(nil, from, to, loop, atBeat: at);
 		withPlayer !? (_.play(nil, from, to, loop, atBeat: at));

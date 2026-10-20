@@ -121,7 +121,13 @@ argument:: loop
 Play [in, out] again and again, each pass an overdub.
 argument:: quant
 Both start on that grid of the song's clock (nil: now).
-code::stop:: merges and writes the merge as a new file.
+argument:: rendered
+true plays the take's render instead of its program (link::Classes/RERenderedPlayer::: the WAV into the chain, the tape to the page, nothing fired, so the CPU stays with what is played over it; the server running and the take given by its path, the render next to it), code::\auto:: the render when the take has one, false (the default) the program. A render plays whole: code::\replace:: drops the old events from the file alone; it does not loop; the clock is set to its tempo (back at stop); a start nearer than half a second moves one grid on.
+argument:: with
+A second take (an REScore or a path) played in sync through the program from the same start over the same span; its events within the span join the merge first, kept whole.
+argument:: merge
+false: the new take is written alone, on the old one's timeline (its beat 0 the old take's punch-in), with code::meta.source:: naming the old take (an effects program over a render, link::Guides/reCording#Reprocessing::).
+code::stop:: merges and writes the merge as a new file (with code::merge: false::, the new take alone).
 
 METHOD:: player
 The link::Classes/REScorePlayer:: of the current overdub.
