@@ -160,9 +160,10 @@ REVisualsTape {
 
 	//////// playback
 
-	// A Routine on clock (SystemClock) from atSecs (now), each entry sent at atSecs + its seconds
-	// through RCVisuals.sendArgs, or func.(path, args); the entries before `from` seconds are
-	// skipped (a take played from a later beat). Returns the Routine.
+	// A Routine on clock (SystemClock): atSecs (now) is the time of the tape's 0, each entry sent
+	// at atSecs + its seconds through RCVisuals.sendArgs, or func.(path, args); the entries before
+	// `from` seconds are skipped (a take played from a later beat: the Routine starts at atSecs +
+	// from, where the first kept entry can land). Returns the Routine.
 	play { |atSecs, clock, func, from = 0|
 		var list = entries.asArray.select { |m| m[0] >= from };
 		var send = func ?? { { |path, args| RCVisuals.sendArgs(path.asSymbol, args) } };
@@ -178,7 +179,7 @@ REVisualsTape {
 			};
 			routine = nil;
 		};
-		clock.schedAbs(atSecs ?? { clock.seconds }, routine);
+		clock.schedAbs((atSecs ?? { clock.seconds }) + from, routine);
 		^routine
 	}
 

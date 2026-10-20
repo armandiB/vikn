@@ -47,12 +47,14 @@ argument:: path
 returns:: The path.
 
 METHOD:: play
-A Routine from code::atSecs:: on the clock, each entry sent at code::atSecs:: plus its seconds through code::RCVisuals.sendArgs::, or to code::func.(path, args)::.
+A Routine on the clock: code::atSecs:: is the time of the tape's 0, each entry sent at code::atSecs:: plus its seconds through code::RCVisuals.sendArgs::, or to code::func.(path, args)::.
 argument:: atSecs
-The clock's seconds (now when nil): on SystemClock, the logical seconds a take's player starts at.
+The clock's seconds the tape's 0 stands at (now when nil): on SystemClock, the logical seconds a take's player starts at, less the seconds of its code::from::.
 argument:: clock
 SystemClock; an link::Classes/REOfflineClock:: in a test.
 argument:: func
+argument:: from
+The tape's seconds to start from: the entries before it are skipped and the Routine begins at code::atSecs + from:: (a take played from a later beat: link::Classes/RERenderedPlayer::).
 returns:: The Routine.
 METHOD:: stop
 METHOD:: isPlaying

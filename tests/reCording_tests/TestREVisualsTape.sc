@@ -94,6 +94,29 @@ TestREVisualsTape : UnitTest {
 		this.assert(t.isPlaying.not);
 	}
 
+	// from: the entries before it skipped, the rest still at the start plus their own seconds
+	// (the start is the tape's 0, in the past when played from later: the Routine begins at
+	// start + from)
+	test_play_from_a_later_second {
+		var c = REOfflineClock(tempo: 1);
+		var t = REVisualsTape.new, got = List.new;
+		t.add(0, '/a', [1]);
+		t.add(0.5, '/b', [2]);
+		t.add(2, '/c', [3]);
+		c.advanceTo(1);
+		t.play(10, c, { |p, a| got.add([c.seconds, p]) }, from: 0.5);
+		c.advanceTo(10.4);
+		this.assertEquals(got.size, 0, "nothing at the tape's 0: the entry there is before `from`");
+		c.advanceTo(13);
+		this.assertEquals(got.collect(_[0]), [10.5, 12], "each kept entry at the start plus its own seconds");
+		this.assertEquals(got.collect(_[1]), ["/b", "/c"]);
+		got.clear;
+		c.advanceTo(20);
+		t.play(nil, c, { |p, a| got.add([c.seconds, p]) }, from: 2);   // atSecs nil: the tape's 0 is now
+		c.advanceTo(23);
+		this.assertEquals(got.collect(_[0]), [22], "now plus the entry's seconds");
+	}
+
 	test_default_send_goes_through_rcvisuals {
 		var c = REOfflineClock(tempo: 1);
 		var t = REVisualsTape.new, got = List.new;
