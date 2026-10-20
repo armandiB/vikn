@@ -41,7 +41,7 @@ REScoreRecorder {
 	var <>rateQuantum = 0.0625;   // beats: under the guard, one event per object, method and key per quantum
 	var rateCounts, rateKept, rateWarned;
 	var <>startSnapshot = true;
-	var <player, overdubbing;
+	var <player, <withPlayer, overdubbing;   // an overdub's player of the old take (a render's: RERenderedPlayer) and of the second take played with it
 	var <>onEvent;   // { |recorder, event| } after each recorded event (a view's live feed)
 	var <>onStart, <>onStop;   // { |recorder| } as a take starts, { |recorder, score, path| } as it stops (written or not)
 
@@ -268,11 +268,19 @@ REScoreRecorder {
 		overdubbing = nil;
 		if(od.notNil) {
 			player.stop;
+			withPlayer !? (_.stop);
 			s = RCGuard.call(\score, s) {
-				var punch = [od[\from], od[\to] ? stopBeat];
-				REScore.merge(od[\score], s, od[\voices], od[\mode], punch, if(od[\loop]) { punch } { nil })
+				var punch = [od[\from], od[\to] ? stopBeat], base = od[\score];
+				od[\with] !? { |w|
+					// the second take as it was heard: its events within the span, kept whole
+					var heard = w.copy;
+					heard.events.copy.do { |e| if(e[\beat] < punch[0] or: { e[\beat] >= punch[1] }) { heard.remove(e[\id]) } };
+					base = REScore.merge(base, heard, nil, \keep, punch, nil);
+				};
+				REScore.merge(base, s, od[\voices], od[\mode], punch, if(od[\loop]) { punch } { nil })
 			};
 		};
+		withPlayer = nil;
 		if(unrecorded > 0) { s.meta[\unrecorded] = unrecorded };
 		lastCheck = s.check;
 		if(lastCheck.notEmpty) { s.meta[\check] = lastCheck } { s.meta.removeAt(\check) };
@@ -297,21 +305,69 @@ REScoreRecorder {
 	// for the rest); punch: [in, out] in score beats (nil: from the start to
 	// the stop); loop: [in, out] again and again, each pass an overdub; quant:
 	// both start on that grid of the song's clock (nil: now).
-	overdub { |scorearg, voices, mode, punch, loop = false, quant|
-		var from, to, at;
+	// score: an REScore, or a take's path (read, the render next to it found).
+	// rendered: true plays the take's render instead of its program
+	// (RERenderedPlayer: the WAV into the chain and the tape to the page, no
+	// event fired, so the CPU stays with what is overdubbed; needs the server
+	// and the render next to the take, so a path), \auto the render when the
+	// take has one, false (the default) the program. A render plays whole:
+	// \replace drops the old events from the file alone, nothing is muted; it
+	// does not loop; it plays at the take's tempo (the clock set to it, back at
+	// stop: REScorePlayer's \take) and needs half a second to cue, so a start
+	// nearer than that moves one grid on. with: a second take (an REScore or a
+	// path) played live in sync (REScorePlayer, the program) from the same
+	// start over the same span; its events within the span join the merge
+	// first, kept whole, then the new take's by `mode`.
+	overdub { |scorearg, voices, mode, punch, loop = false, quant, rendered = false, with|
+		var from, to, at, render, path, grid, lead, takeTempo;
 		if(state == \recording) { RCLog.warn(\score, "% already recording".format(song.name)); ^this };
+		if(scorearg.isString or: { scorearg.isKindOf(Symbol) }) {
+			path = scorearg.asString;
+			scorearg = REScore.read(path);
+			if(scorearg.isNil) { ^RCLog.error(\score, "overdub: no take at " ++ path) };
+		};
+		if(scorearg.isKindOf(REScore).not) { ^RCLog.error(\score, "overdub: a take (an REScore or its path), not " ++ scorearg.class) };
+		if(with.notNil) {
+			if(with.isString or: { with.isKindOf(Symbol) }) { with = REScore.read(with.asString) };
+			if(with.isKindOf(REScore).not) { ^RCLog.error(\score, "overdub: with: a take (an REScore or its path)") };
+		};
+		if(rendered == true or: { rendered == \auto }) {
+			render = path !? { REScore.readRender(path) };
+			if(render.isNil and: { rendered == true }) {
+				^RCLog.error(\score, "overdub: no render % (scripts/take.sh render <take> --viz, then overdub the take's path)".format(path !? { "next to " ++ path } ? "for a score given without its path"))
+			};
+			if(render.notNil and: { song.server.serverRunning.not }) { ^RCLog.error(\score, "overdub: the render's WAV needs the server, which is not running") };
+		};
 		if(state == \off) { this.arm };
 		from = punch !? (_[0]) ? 0;
 		to = punch !? (_[1]);
+		if(loop and: { render.notNil }) { RCLog.warn(\score, "a render does not loop: played once"); loop = false };
 		if(loop and: { to.isNil }) { to = scorearg.duration };
 		// on the score's own phase of the grid, so that what it quantized lands as it did
 		at = quant !? { |q| REScorePlayer.alignedStart(scorearg, this.clock, q) } ?? { this.clock.beats };
-		player = REScorePlayer(scorearg, song);
-		if(mode == \replace) { player.mute(voices ?? { scorearg.voiceNames }) };
-		overdubbing = IdentityDictionary[\score -> scorearg, \voices -> voices, \mode -> mode, \from -> from, \to -> to, \loop -> loop];
+		if(render.notNil) {
+			// the WAV is cued before the start: a start nearer than half a second moves one grid on
+			grid = quant !? { |q| q.asQuant.quant } ? 1;
+			lead = (at - this.clock.beats) / this.clock.tempo;
+			if(lead < 0.5) { at = at + grid };
+			player = RERenderedPlayer(scorearg, song, render);
+			takeTempo = scorearg.tempoAt(from);
+			if(takeTempo.notNil and: { (this.clock.tempo - takeTempo).abs > 1e-6 }) {
+				player.tempoMode = \take;
+				RCLog.post(\score, "the render plays at the take's tempo %: the clock is set to it for the overdub (its % back at stop)".format(takeTempo, this.clock.tempo));
+			};
+			if(mode == \replace) { RCLog.warn(\score, "\\replace on a render: the old events leave the file, the render plays whole") };
+		} {
+			player = REScorePlayer(scorearg, song);
+			if(mode == \replace) { player.mute(voices ?? { scorearg.voiceNames }) };
+		};
+		withPlayer = with !? { REScorePlayer(with, song) };
+		overdubbing = IdentityDictionary[\score -> scorearg, \voices -> voices, \mode -> mode, \from -> from, \to -> to, \loop -> loop, \with -> with, \rendered -> render.notNil];
 		this.record(nil, false, atBeat: at, offsetBeat: from);
 		player.play(nil, from, to, loop, atBeat: at);
-		RCLog.post(\score, "% overdubbing % from beat %".format(song.name, voices ? "every voice", from));
+		withPlayer !? (_.play(nil, from, to, loop, atBeat: at));
+		RCLog.post(\score, "% overdubbing % from beat %%%".format(song.name, voices ? "every voice", from,
+			if(render.notNil) { " on the render" } { "" }, if(with.notNil) { " with a second take" } { "" }));
 	}
 
 	// Sets the state of a snapshot (by name, the latest one of the current
