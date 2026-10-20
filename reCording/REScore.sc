@@ -26,11 +26,13 @@ REScore {
 	var index, nextId = 1;
 
 	*initClass {
-		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \beat0, \time0, \tempo, \latency, \quant,
+		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \source, \beat0, \time0, \tempo, \latency, \quant,
 			\duration, \inputs, \randData, \levels, \level1, \unrecorded, \check, \tempoMap, \voices, \controls, \events,
 			\id, \beat, \secs, \kind, \level, \voice, \cause, \by, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
 			\value, \text, \latency, \msgs, \replay, \defer, \raised, \fallback, \loopback, \loopbackOf, \state];
-		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \beat0, \time0, \tempo, \latency, \quant, \duration, \overdubs,
+		// source: the take this one was played over (an effects program recorded over a render, a cue
+		// sheet's //@source): the path, its basename when both takes live in one folder
+		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \source, \beat0, \time0, \tempo, \latency, \quant, \duration, \overdubs,
 			\inputs, \randData, \levels, \unrecorded, \check];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
 		// classes whose compile string is the value itself (a Function needs its source, see prEncode)
@@ -724,6 +726,11 @@ REScore {
 	*renderDir { |path| ^this.prSibling(path, "") }
 	*tapePath { |path| ^this.prInRenderDir(path, ".viz.json") }
 	*statePath { |path| ^this.prInRenderDir(path, ".state") }
+	// A take's lines replayed offline into a tape alone, no audio (take.sh tape): the tape
+	// <take>/<take>.tape.viz.json and its sidecar <take>.tape.json (format re-tape) next to the take;
+	// the render's files are left as they are.
+	*tapeSidecarPath { |path| ^this.prSibling(path, ".tape.json") }
+	*linesTapePath { |path| ^this.prInRenderDir(path, ".tape.viz.json") }
 	*prInRenderDir { |path, suffix|
 		var dir = this.renderDir(path);
 		^dir +/+ (dir.basename ++ suffix)
@@ -736,7 +743,7 @@ REScore {
 	// a take's companion files, never takes themselves (the folder listings skip them)
 	*isCompanion { |path|
 		path = path.asString;
-		^#[".l2.json", ".l3.json", ".edit.json", ".render.json", ".viz.json"].any { |s| path.endsWith(s) }
+		^#[".l2.json", ".l3.json", ".edit.json", ".render.json", ".viz.json", ".tape.json", ".ctl.json", ".video.json"].any { |s| path.endsWith(s) }
 	}
 
 	// The render's sidecar as a dictionary (its wav, tape and state paths made absolute against

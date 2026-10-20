@@ -207,6 +207,22 @@ TestREScore : UnitTest {
 		File.delete(dir);
 	}
 
+	// meta.source survives the file (a key outside metaKeys would be dropped by read with no error);
+	// the reprocessing's files are companions, never takes
+	test_source_and_companions {
+		var s = REScore(\demo, "P", "w0"), back;
+		s.meta[\source] = "260101_000000_demo w0.json";
+		back = REScore.fromJSONString(s.asJSONString);
+		this.assertEquals(back.meta[\source], "260101_000000_demo w0.json", "the source read back");
+		this.assert(s.asJSONString.find("\"source\"").notNil and: { s.asJSONString.find("\"source\"") < s.asJSONString.find("\"tempoMap\"") }, "written among the meta, before the tempo map");
+		#[".tape.json", ".ctl.json", ".video.json", ".render.json"].do { |suffix|
+			this.assert(REScore.isCompanion("/a/t" ++ suffix), suffix ++ " is a companion");
+		};
+		this.assert(REScore.isCompanion("/a/t.json").not);
+		this.assertEquals(REScore.tapeSidecarPath("/a/Scores/t.json"), "/a/Scores/t.tape.json");
+		this.assertEquals(REScore.linesTapePath("/a/Scores/t.json"), "/a/Scores/t/t.tape.viz.json");
+	}
+
 	test_tempo_at {
 		var s = REScore(\t);
 		this.assertEquals(s.tempoAt(3), nil, "no tempo: nil");
