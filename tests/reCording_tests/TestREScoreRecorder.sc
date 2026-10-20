@@ -662,6 +662,73 @@ TestREScoreRecorder : UnitTest {
 		this.assertEquals(s.size, 2, "the original take is untouched");
 	}
 
+	// An overdub with a second take played in sync (with:): its events within the span join the
+	// merge first, kept whole, then the new take's; neither player's events are recorded again.
+	test_overdub_with_a_second_take {
+		var b = this.restBeat(layer, \k, [amp: 0.1]);
+		var s, w, merged, wp;
+		rec.arm(inputs: #[\actions]);
+		rec.record(snapshotAtStart: false);
+		b.set(\amp, 0.2);
+		(1 / clock.tempo).wait;
+		s = rec.stop;                                   // the base: one event at the start
+		rec.record(snapshotAtStart: false);
+		(0.5 / clock.tempo).wait;
+		b.set(\amp, 0.5);
+		(0.5 / clock.tempo).wait;
+		w = rec.stop;                                   // the second take: one event at beat 0.5
+		this.assertEquals(w.size, 1);
+		rec.overdub(s, mode: \keep, with: w);
+		wp = rec.withPlayer;
+		this.assert(wp.notNil, "the second take has a player of its own");
+		(0.3 / clock.tempo).wait;
+		this.assert(rec.isRecording, "the recorder started");
+		(0.5 / clock.tempo).wait;
+		b.set(\amp, 0.9);                               // at beat 0.8 of the overdub
+		(0.2 / clock.tempo).wait;
+		merged = rec.stop;
+		this.assertEquals(rec.withPlayer, nil, "stop drops the second player");
+		this.assertEquals(rec.player.fired, 1, "the base's event was played by its player");
+		this.assertEquals(wp.fired, 1, "the second take's event was played live by its player, in sync");
+		this.assertEquals(merged.eventsOf('core/k').collect { |e| e[\args][1] }, [0.2, 0.5, 0.9], "the base's event, the second take's, the new one; the players' own firing not recorded");
+		this.assertEquals(merged.meta[\overdubs].size, 2, "two overdubs noted: the second take, then the new one");
+		this.assertEquals(merged.meta[\overdubs][0][\mode], "keep");
+		this.assertEquals(s.size, 1, "the base untouched");
+		this.assertEquals(w.size, 1, "the second take untouched");
+	}
+
+	// An overdub on a render (rendered: true) wants the take's path, the render next to it and the
+	// server; without them nothing starts, and it says so. \auto takes the render when there is one.
+	test_overdub_rendered_refusals {
+		var s, dir, path;
+		rec.arm(inputs: #[\actions]);
+		rec.record(snapshotAtStart: false);
+		(0.2 / clock.tempo).wait;
+		s = rec.stop;
+		rec.overdub(s, rendered: true);
+		this.assertEquals(rec.state, \armed, "a score given without its path has no render: not started");
+		this.assert(this.logHas("no render"), "said");
+		rec.overdub(PathName.tmp +/+ "re_rec_none_" ++ UniqueID.next ++ ".json", rendered: true);
+		this.assertEquals(rec.state, \armed, "no take at the path: not started");
+		this.assert(this.logHas("no take at"), "said");
+		dir = PathName.tmp +/+ "re_rec_render_" ++ UniqueID.next;
+		File.mkdir(dir);
+		path = dir +/+ "t.json";
+		s.write(path);
+		REJSON.write((format: "re-render", take: "t.json", wav: "t/t.wav", duration: 1.0, latency: 0.2, channels: 2), REScore.renderPath(path));
+		rec.overdub(path, rendered: true);
+		this.assertEquals(rec.state, \armed, "a render without the server: not started");
+		this.assert(this.logHas("needs the server"), "said");
+		rec.overdub(path, rendered: \auto, mode: \keep);
+		this.assertEquals(rec.state, \armed, "\\auto finds the render and wants the server as well");
+		rec.overdub(path, mode: \keep);
+		(0.3 / clock.tempo).wait;
+		this.assert(rec.isRecording and: { rec.player.notNil } and: { rec.player.isKindOf(RERenderedPlayer).not }, "without rendered: the program's player, from the path (an empty take: done at once)");
+		rec.stop;
+		(dir +/+ "*").pathMatch.do { |f| File.delete(f) };
+		File.delete(dir);
+	}
+
 	// The same scripted session with recording off and on: the same sources,
 	// seeds, beats and log lines; the score is the only difference.
 	runScript { |record|
