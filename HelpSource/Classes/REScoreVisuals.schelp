@@ -4,7 +4,7 @@ categories:: Libraries>reCording
 related:: Guides/reCording, Classes/REScoreRecorder, Classes/REScorePlayer, Classes/RCVisuals
 
 DESCRIPTION::
-Sends what a song's link::Classes/REScoreRecorder:: records and what an link::Classes/REScorePlayer:: plays to HomewareVisuals through link::Classes/RCVisuals:: (OSC 57121, the bridge, a page), so that a page draws the performance's score as it is made and as it replays (HomewareVisuals' code::public/lib/score-viz.js::, the page code::public/score/::). The protocol is the header of the class file: one JSON string per message under code::/score:: (code::take::, code::events::, code::event::, code::played::, code::head::, code::stop::, code::stopPlay::). It chains the recorder's and the player's hooks (their own keep running) and records nothing.
+Sends what a song's link::Classes/REScoreRecorder:: records and what an link::Classes/REScorePlayer:: plays to HomewareVisuals through link::Classes/RCVisuals:: (OSC 57300, the bridge, a page), so that a page draws the performance's score as it is made and as it replays (HomewareVisuals' code::public/lib/score-viz.js::, the page code::public/score/::). The protocol is the header of the class file: one JSON string per message under code::/score:: (code::take::, code::events::, code::event::, code::played::, code::head::, code::stop::, code::stopPlay::). It chains the recorder's and the player's hooks (their own keep running) and records nothing.
 
 CLASSMETHODS::
 

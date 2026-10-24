@@ -1,5 +1,5 @@
 // reCurrent — the visuals link: sound data from a song to HomewareVisuals
-// (SuperCollider → OSC/UDP 57121 → bridge.mjs → WebSocket → a page).
+// (SuperCollider → OSC/UDP 57300 → bridge.mjs → WebSocket → a page).
 //
 // Three things: one address, sends that land when the sound does, and the two
 // hooks a rig needs to describe its sounds — a per-event key for orgnsm
@@ -17,8 +17,11 @@
 // evaluated at an event's logical time sends at that time plus the server
 // latency, when the sound starts (HomewareVisuals' latency rule).
 
+// The bridge's port is far from sclang's own: sclang takes 57120 and, when that is busy, the next free one up,
+// so a second sclang (a headless check, a render) took 57121, the bridge's port until Oct 24 2026, and the
+// bridge could not start. A piece frozen before then sends to 57121: RCVisuals.setAddr("127.0.0.1", 57300).
 RCVisuals {
-	classvar <host = "127.0.0.1", <port = 57121;
+	classvar <host = "127.0.0.1", <port = 57300;
 	classvar addr;
 	classvar <>enabled = true;
 	classvar <>sink;
@@ -31,7 +34,7 @@ RCVisuals {
 
 	//////// address
 
-	*setAddr { |hostarg = "127.0.0.1", portarg = 57121|
+	*setAddr { |hostarg = "127.0.0.1", portarg = 57300|
 		host = hostarg;
 		port = portarg;
 		addr = NetAddr(host, port);
