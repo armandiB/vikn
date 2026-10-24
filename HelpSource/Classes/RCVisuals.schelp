@@ -4,7 +4,7 @@ categories:: Libraries>reCurrent
 related:: Classes/RCOrgnsm, Classes/RCOsc, Classes/SendReply
 
 DESCRIPTION::
-The link between a reCurrent song and HomewareVisuals (SuperCollider → OSC/UDP 57121 → bridge → WebSocket → a page). One address, sends that land when the sound does, and the two hooks a rig needs to describe its sounds: a per-event key for orgnsm templates and a relay of server replies (link::Classes/SendReply::) to the page.
+The link between a reCurrent song and HomewareVisuals (SuperCollider → OSC/UDP 57300 → bridge → WebSocket → a page). One address, sends that land when the sound does, and the two hooks a rig needs to describe its sounds: a per-event key for orgnsm templates and a relay of server replies (link::Classes/SendReply::) to the page.
 
 code::
 RCVisuals.send('/orgnsm/gone', 12);                                   // now
@@ -18,7 +18,7 @@ A delayed send goes on SystemClock from the calling thread's logical time: a Pfu
 CLASSMETHODS::
 
 METHOD:: setAddr
-The bridge address (default 127.0.0.1:57121).
+The bridge address (default 127.0.0.1:57300, far from the ports sclang takes for itself from 57120 up; 57121 until Oct 24 2026).
 argument:: hostarg
 argument:: portarg
 returns:: the link::Classes/NetAddr::

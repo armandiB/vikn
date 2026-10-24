@@ -39,9 +39,12 @@ TestRCVisuals : UnitTest {
 	}
 
 	test_addr {
-		var a = RCVisuals.setAddr("127.0.0.1", 57121);
-		this.assertEquals([a.ip, a.port], ["127.0.0.1", 57121], "the bridge address");
+		var a = RCVisuals.setAddr;
+		this.assertEquals([a.ip, a.port], ["127.0.0.1", 57300], "the bridge address by default: 57300, clear of the ports sclang takes");
 		this.assert(RCVisuals.addr === a, "addr keeps the NetAddr");
+		a = RCVisuals.setAddr("127.0.0.1", 57121);
+		this.assertEquals(a.port, 57121, "another port when asked (a frozen piece's bridge)");
+		RCVisuals.setAddr;
 	}
 
 	test_sendIn {
