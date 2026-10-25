@@ -22,6 +22,7 @@ TestRERenderedPlayer : UnitTest {
 		sidecar = REScore.renderPath(path);
 		File.mkdir(REScore.renderDir(path));   // the render's folder, <take>/ next to the take
 		wav = REScore.renderDir(path) +/+ "260101_120000_rendered w0.wav";
+		REVisualsTape.clearCache;
 	}
 
 	tearDown {
@@ -214,5 +215,62 @@ TestRERenderedPlayer : UnitTest {
 		this.assertEquals(clock.tempo, 20, "the song's clock at the take's tempo");
 		p.stop;
 		this.assertEquals(clock.tempo, 10, "and back at stop");
+	}
+
+	// waits for done.value (a load's action) at most 5 s
+	prWait { |done| var t0 = Main.elapsedTime; while { done.value.not and: { (Main.elapsedTime - t0) < 5 } } { 0.02.wait } }
+
+	// the tape read ahead once, kept while its options stay, read again when they change, none
+	// without visuals; another player on the take reads the cache
+	test_load_keeps_the_tape {
+		var s = this.prTake, p, q, t1, reads, done = false;
+		var tape = REVisualsTape.new;
+		20.do { |i| tape.add(i / 10, '/lsys/note', [i]); tape.add(i / 10, '/lsys/state', [0, 0.5]) };
+		tape.write(REScore.tapePath(path));
+		this.prSidecar;
+		p = RERenderedPlayer.fromTake(path, song);
+		this.assert(p.tape.isNil and: { p.isLoaded.not }, "fromTake reads no tape");
+		reads = REVisualsTape.reads;
+		p.load({ done = true });
+		this.prWait({ done });
+		this.assert(done and: { p.tape.size == 40 } and: { p.isLoaded }, "loaded: % entries".format(p.tape !? (_.size)));
+		t1 = p.tape;
+		done = false;
+		p.load({ done = true });
+		this.assert(done and: { p.tape === t1 }, "loaded again: the same tape at once");
+		this.assertEquals(REVisualsTape.reads, reads + 1, "the file read once");
+		p.tapeSkip = ['/lsys/state'];
+		this.assert(p.isLoaded.not, "other options: to load again");
+		done = false;
+		p.load({ done = true });
+		this.prWait({ done });
+		this.assertEquals(p.tape.size, 20, "the state frames left out");
+		p.visuals = false;
+		done = false;
+		p.load({ done = true });
+		this.assert(done and: { p.tape.isNil } and: { p.isLoaded }, "visuals false: no tape, nothing to wait for");
+		q = RERenderedPlayer.fromTake(path, song);
+		reads = REVisualsTape.reads;
+		done = false;
+		q.load({ done = true });
+		this.prWait({ done });
+		this.assertEquals(q.tape.size, 40, "another player on the take");
+		this.assertEquals(REVisualsTape.reads, reads, "from the cache");
+	}
+
+	// two loads with other options under way: the first one's waiters wait for the second
+	test_load_options_changed_while_loading {
+		var s = this.prTake, p, first = false, second = false;
+		var tape = REVisualsTape.new;
+		20.do { |i| tape.add(i / 10, '/lsys/note', [i]); tape.add(i / 10, '/lsys/state', [0, 0.5]) };
+		tape.write(REScore.tapePath(path));
+		this.prSidecar;
+		p = RERenderedPlayer.fromTake(path, song);
+		p.load({ first = true });
+		p.tapeSkip = ['/lsys/state'];
+		p.load({ second = true });
+		this.prWait({ first and: { second } });
+		this.assert(first and: { second }, "both waiters called");
+		this.assertEquals(p.tape.size, 20, "with the last options");
 	}
 }

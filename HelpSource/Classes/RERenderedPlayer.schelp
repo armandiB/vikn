@@ -61,6 +61,19 @@ The render's.
 METHOD:: wav
 METHOD:: duration
 The render's seconds (the take and its tail).
+METHOD:: load
+The visuals tape read ahead (link::Classes/REVisualsTape#*load::: the interpreter goes on meanwhile, progress posted), and kept while link::#-visuals::, link::#-tapeSkip:: and link::#-tapeRate:: stay: a later play reads nothing, and another player on the same take reads the cache. A play waits for the tape, then cues the WAV (a load not asked for happens there). Returns the player.
+argument:: action
+code::{ |player| }:: once the tape is there.
+METHOD:: isLoaded
+True when play has nothing to read.
+METHOD:: visuals
+false: no tape, the sound alone (true).
+METHOD:: tapeSkip
+Addresses the tape leaves out, e.g. code::['/lsys/state']:: (nil: none).
+METHOD:: tapeRate
+code::(address: frames a second)::, e.g. code::('/lsys/state': 10):: (nil: all of them).
+
 METHOD:: ownClock
 With code::tempoMode \clock::, while it plays: the head's clock at the take's tempo, from the start; nil otherwise.
 

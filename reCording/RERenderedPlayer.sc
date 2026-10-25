@@ -5,6 +5,8 @@
 // is still reported (onEvent: the score page's played marks) and the head runs (REScoreVisuals).
 //
 //   ~p = RERenderedPlayer.fromTake(path, ~song);   // the take and its sidecar, <take>.render.json next to it (it names the WAV and the tape in <take>/)
+//   ~p.load;                                       // the visuals tape read ahead, the interpreter going on (else at play)
+//   ~p.tapeSkip = ['/lsys/state']; ~p.tapeRate = ('/lsys/state': 10); ~p.visuals = false;   // less of it, or none
 //   ~viz.attachPlayer(~p); ~p.play([4, 0]);
 //   ~p.onStart = { |p, mediaSecs, fromSecs| };     // in the Routine at the start; fxCue (true): '/fx/start' <fromSecs> sent as the WAV's `from` sounds, '/fx/stop' at stop (an effects page follows)
 //   ~p.stop; ~p.free;
@@ -27,13 +29,17 @@
 // (acn-sn3d) or a stereo one goes onto the chain's output bus after the decoder (an AmbiX one only
 // when the live chain decodes to \ambix: render with --decode raw otherwise). The chain's buses and
 // groups are looked up at play: a scene init rebuilds them.
+// The tape (REVisualsTape.load): read once and kept while its options stay (tapeSkip, tapeRate,
+// visuals), in a Routine that lets the interpreter go on; play waits for it, then cues the WAV.
 
 RERenderedPlayer : REScorePlayer {
 	classvar held;   // own clocks stopped, kept until their C++ side has ended
 	var <render, <replay, <tape, <>routing = \auto, <>tapeClock, <route, <mediaSecs, fromSecs = 0, preparing = false;
 	var <ownClock;   // \clock: the head's clock at the take's tempo while it plays
 	var <>onStart;   // { |player, mediaSecs, fromSecs| } in the Routine at the start, the WAV and the tape started
-	var <>fxCue = true, fxStarted = false;   // '/fx/start' <fromSecs> through RCVisuals as the WAV's `from` sounds (an effects page cues its video to it), '/fx/stop' at stop and at the end
+	var <>fxCue = true, fxStarted = false;
+	var <>visuals = true, <>tapeSkip, <>tapeRate;   // the tape at all, the addresses left out, (address: frames a second)
+	var tapeKey, loadingKey, waiting, prepGen = 0;   // '/fx/start' <fromSecs> through RCVisuals as the WAV's `from` sounds (an effects page cues its video to it), '/fx/stop' at stop and at the end
 
 	*new { |score, song, render| ^super.new(score, song).initRERenderedPlayer(render) }
 
@@ -123,16 +129,49 @@ RERenderedPlayer : REScorePlayer {
 	// the head moves at the take's tempo either way (the WAV's), the clock's without one
 	headTempo { ^score.tempoAt(from) ? clock.tempo }
 
-	// The WAV cued from the take's beat `from` plus the render's latency, the tape read, the route set.
+	// The visuals tape read ahead (REVisualsTape.load: the interpreter goes on meanwhile, progress
+	// posted), kept while its options stay; action.(player) once it is there. A play meanwhile waits
+	// for it; visuals false: no tape. Returns the player.
+	load { |action|
+		var key = this.prTapeKey;
+		if(key.isNil) { tape = nil; tapeKey = nil; action.value(this); ^this };
+		if(tape.notNil and: { tapeKey == key }) { action.value(this); ^this };
+		if(waiting.notNil and: { loadingKey == key }) { action !? { |a| waiting.add(a) }; ^this };
+		loadingKey = key;
+		waiting = waiting ? List.new;   // a load with other options under way: its waiters wait for this one
+		action !? { |a| waiting.add(a) };
+		REVisualsTape.load(render[\tape], tapeSkip, tapeRate, { |t|
+			var w;
+			if(loadingKey == key) {
+				w = waiting;
+				tape = t;
+				tapeKey = key;
+				waiting = nil;
+				loadingKey = nil;
+				if(t.isNil) { RCLog.warn(\rendered, "no visuals tape for %: the sound alone".format(render[\take])) };
+				w.do { |a| a.value(this) };
+			};
+		});
+	}
+
+	isLoaded { ^this.prTapeKey.isNil or: { tape.notNil and: { tapeKey == this.prTapeKey } } }
+
+	prTapeKey { ^if(visuals and: { render.notNil } and: { render[\tape].notNil }) { [render[\tape], tapeSkip, tapeRate].asCompileString } }
+
+	// The WAV cued from the take's beat `from` plus the render's latency, once the tape is there, the
+	// route set (a later play or a stop meanwhile: this one does nothing).
 	prPrepare { |from, chain, action|
-		var sf = SoundFile.openRead(this.wav), sr, frame;
+		var sf = SoundFile.openRead(this.wav), sr, frame, gen;
 		if(sf.isNil) { preparing = false; ^RCLog.error(\rendered, "cannot open " ++ this.wav) };
 		sr = sf.sampleRate;
 		sf.close;
 		fromSecs = this.prFromSecs(from);
 		frame = ((fromSecs + this.latency) * sr).asInteger;
-		tape = render[\tape] !? { |p| REVisualsTape.read(p) };
-		if(tape.isNil) { RCLog.warn(\rendered, "no visuals tape for %: the sound alone".format(render[\take])) };
+		gen = prepGen = prepGen + 1;
+		this.load({ if(preparing and: { gen == prepGen }) { this.prCue(frame, chain, action) } });
+	}
+
+	prCue { |frame, chain, action|
 		replay !? (_.free);
 		replay = REReplay(song.server, this.wav, (render[\channels] ? 16).asInteger, clock);
 		if(route == \out) {
