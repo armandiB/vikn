@@ -14,8 +14,29 @@ argument:: timeFunc
 The seconds of a message (the calling thread's seconds by default; a render gives its offline clock's).
 
 METHOD:: read
-The file read back: the times and the numeric arguments as numbers, the rest as strings. Nil when the file is missing or is not a tape.
+The file read back: the times and the numbers as numbers, the strings as strings, code::null:: as nil. Nil when the file is missing or is not a tape. The file is read whole and cut into pieces of about link::#*chunkBytes:: at line ends, each compiled as an sclang literal array (a JSON array of numbers and strings is one; the compiler types the numbers): a 323 MB tape of 46 million values reads in about 5 s (it took 3 minutes through code::String:parseJSON::, whose scalars are all Strings). A piece with JSON's code::\u:: escapes (Python's code::json.dumps::) or one the compiler refuses goes through code::parseJSON::. The file is compiled: read the tapes you made. The last link::#*cacheSize:: tapes read are kept, by path, size, date and options: reading one again answers a tape of its own on the same entries at once.
 argument:: path
+argument:: skip
+Addresses left out (Strings or Symbols).
+argument:: rate
+code::(address: frames a second)::: an address's entries thinned per first argument (a tap's frames: code::/lsys/state::'s start slot), e.g. code::('/lsys/state': 10)::.
+
+METHOD:: load
+The same as link::#*read::, in a Routine on AppClock that yields between two pieces, so that the interpreter goes on scheduling meanwhile (progress posted every tenth). Returns the Routine.
+argument:: path
+argument:: skip
+argument:: rate
+argument:: action
+code::{ |tape| }:: at the end (nil when the file is not a tape).
+
+METHOD:: clearCache
+Forgets the tapes read.
+METHOD:: cacheSize
+The tapes kept (2).
+METHOD:: chunkBytes
+The text compiled at once (1 MB): a load yields between two.
+METHOD:: reads
+The files parsed so far (not the cache's answers).
 
 INSTANCEMETHODS::
 

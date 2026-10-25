@@ -9,6 +9,7 @@ TestREVisualsTape : UnitTest {
 		savedEnabled = RCVisuals.enabled;
 		RCVisuals.enabled = true;
 		path = PathName.tmp +/+ "re_tape_test_" ++ UniqueID.next ++ ".viz.json";
+		REVisualsTape.clearCache;
 	}
 
 	tearDown {
@@ -125,5 +126,86 @@ TestREVisualsTape : UnitTest {
 		t.play(0, c);
 		c.advanceTo(2);
 		this.assertEquals(got.asArray, [['/lsys/gone', [5, 2.0]]], "sent through RCVisuals.sendArgs, the address a Symbol");
+	}
+
+	// a tape of two taps' frames at 100 a second for a second, and notes
+	prFrames {
+		var t = REVisualsTape.new;
+		100.do { |i| [0, 32].do { |start| t.add(i / 100, '/lsys/state', [start, 0.5, 0.25]) } };
+		10.do { |i| t.add(i / 10 + 0.005, '/lsys/note', [i, 0, 440.0, 0.1]) };
+		^t.sort.write(path)
+	}
+
+	test_true_false_null_and_tiny_floats {
+		var t = REVisualsTape.new, r;
+		t.add(0, '/x', [true, false, nil, 1.5e-07, -2.5, 440.0, 7]);
+		t.write(path);
+		r = REVisualsTape.read(path);
+		this.assertEquals(r.entries[0], [0.0, "/x", true, false, nil, 1.5e-07, -2.5, 440.0, 7], "null read back as nil, the rest as written");
+		this.assert(r.entries[0][8].isInteger and: { r.entries[0][5].isFloat });
+	}
+
+	test_skip_and_rate {
+		var r, starts;
+		this.prFrames;
+		r = REVisualsTape.read(path, skip: ['/lsys/note']);
+		this.assertEquals(r.countBy["/lsys/note"], nil, "skipped");
+		this.assertEquals(r.countBy["/lsys/state"], 200, "the rest kept");
+		r = REVisualsTape.read(path, rate: ('/lsys/state': 10));
+		starts = r.entries.select { |e| e[1] == "/lsys/state" }.collect(_[2]);
+		this.assert(starts.occurrencesOf(0).inclusivelyBetween(9, 11) and: { starts.occurrencesOf(32).inclusivelyBetween(9, 11) },
+			"10 frames a second per tap, both taps: % and %".format(starts.occurrencesOf(0), starts.occurrencesOf(32)));
+		this.assertEquals(r.countBy["/lsys/note"], 10, "another address untouched");
+		this.assertEquals(r.entries.collect(_[0]), r.entries.collect(_[0]).copy.sort, "still in time order");
+	}
+
+	// a tape on one line with JSON's \u escapes (as Python's json.dumps writes): read through parseJSON
+	test_one_line_and_unicode_escapes {
+		var r;
+		File.use(path, "w", { |f| f.write("[[0.0,\"/a\",\"caf\\u00e9\",1],[0.5,\"/b\",2.5,-3]]") });
+		r = REVisualsTape.read(path);
+		this.assertEquals(r.size, 2);
+		this.assertEquals(r.entries[0], [0.0, "/a", "café", 1], "the escape decoded, the numbers typed");
+		this.assertEquals(r.entries[1], [0.5, "/b", 2.5, -3]);
+	}
+
+	test_not_a_tape {
+		File.use(path, "w", { |f| f.write("hello") });
+		this.assert(REVisualsTape.read(path).isNil, "no array: nil");
+		this.assert(REVisualsTape.read(path ++ ".nothing").isNil, "no file: nil");
+	}
+
+	test_cache {
+		var reads, a, b, c;
+		this.prFrames;
+		reads = REVisualsTape.reads;
+		a = REVisualsTape.read(path);
+		b = REVisualsTape.read(path);
+		this.assertEquals(REVisualsTape.reads, reads + 1, "read once, then from the cache");
+		this.assert(a !== b and: { a.entries == b.entries } and: { a.entries !== b.entries }, "a tape of its own each time, the same entries");
+		b.entries.add([9.0, "/x"]);
+		this.assertEquals(REVisualsTape.read(path).size, a.size, "what a reader adds stays its own");
+		REVisualsTape.read(path, skip: ['/lsys/note']);
+		this.assertEquals(REVisualsTape.reads, reads + 2, "other options: read again");
+		REVisualsTape.new.add(0, '/y', [1]).write(path);
+		c = REVisualsTape.read(path);
+		this.assertEquals(c.size, 1, "the file changed: read again");
+	}
+
+	test_load_yields_and_answers {
+		var got, done = false, ticks = 0, ticker, t0 = Main.elapsedTime;
+		var saved = REVisualsTape.chunkBytes;
+		this.prFrames;
+		REVisualsTape.chunkBytes = 200;   // many pieces: a yield between each
+		ticker = Routine { loop { ticks = ticks + 1; 0.001.wait } }.play(SystemClock);
+		REVisualsTape.load(path, action: { |t| got = t; done = true });
+		this.assert(done.not, "not read at once");
+		while { done.not and: { (Main.elapsedTime - t0) < 5 } } { 0.02.wait };
+		ticker.stop;
+		REVisualsTape.chunkBytes = saved;
+		this.assert(done, "the action called");
+		this.assert(ticks > 2, "other tasks ran meanwhile: % ticks".format(ticks));
+		this.assertEquals(got.size, 210, "the whole tape");
+		this.assertEquals(got.entries, REVisualsTape.read(path).entries, "the same as read");
 	}
 }
