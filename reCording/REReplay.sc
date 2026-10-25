@@ -120,8 +120,12 @@ REReplay {
 		if(targetKind == \proxy) { target !? { |t| if(isPrepared) { t.set(key, value) } } } { synth !? (_.set(key, value)) };
 	}
 
+	// The cue buffer closed, then freed: two messages, in that order. A free sent as the close's
+	// completion ran after whatever the server had queued meanwhile, while the language had given
+	// the number back at once: a new cue on it (a second prepare, a rendered take played again) was
+	// allocated, then freed under its DiskIn, which read silence.
 	prFreeBuffer {
-		buffer !? { |b| RCGuard.call(\replay, nil) { b.close({ |buf| buf.freeMsg }) } };
+		buffer !? { |b| RCGuard.call(\replay, nil) { b.close; b.free } };
 		buffer = nil;
 	}
 
