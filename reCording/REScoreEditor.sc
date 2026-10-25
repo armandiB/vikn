@@ -31,6 +31,7 @@ REScoreEditor {
 	var <>onPlayer;   // { |player| } when /rec/play made one (the rig wires its own feed and the visuals)
 	var <>tag = \editor;
 	var <>tempoMode = \auto;   // the players' tempo (REScorePlayer tempoMode): \auto \take unless the song's clock has Link peers (then \clock, said), \take, \clock
+	var <>tapeSkip, <>tapeRate, <>visuals = true;   // a render's tape (RERenderedPlayer): the addresses left out, (address: frames a second), the tape at all
 	var <>playRendered = \auto;   // a take rendered with its visuals (REScore.readRender): \auto plays the render (RERenderedPlayer) when its WAV exists, true always, false never (the program plays)
 
 	*new { |song, recorder, root, prefix, version, feed, feedPort = 32347|
@@ -77,7 +78,7 @@ REScoreEditor {
 		// render stale, the program plays it
 		render = if(playRendered != false and: { edited.not }) { REScore.readRender(path) };
 		player = if(render.notNil and: { playRendered == true or: { File.exists(render[\wav].asString) } }) {
-			RERenderedPlayer(s, song, render)
+			RERenderedPlayer(s, song, render).tapeSkip_(tapeSkip).tapeRate_(tapeRate).visuals_(visuals)
 		} {
 			REScorePlayer(s, song)
 		};

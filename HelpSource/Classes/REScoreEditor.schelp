@@ -51,6 +51,10 @@ argument:: quant
 Returns the link::Classes/REScorePlayer::: an link::Classes/RERenderedPlayer:: when the take has a render next to it (code::<take>.render.json::, link::Classes/REScore#*readRender::) whose WAV exists and link::#-playRendered:: allows it; a take being edited is played by the program (its render is stale).
 METHOD:: tempoMode
 The players' link::Classes/REScorePlayer#-tempoMode::: code::\auto:: (the default) is code::\take:: (the take at its tempo, the clock's set back after) unless the song's clock has Link peers, then code::\clock:: (a replay never moves their tempo, said); code::\take::, code::\clock::. Set before link::#-onPlayer::, which may change it.
+METHOD:: tapeSkip
+METHOD:: tapeRate
+METHOD:: visuals
+Given to the link::Classes/RERenderedPlayer:: a rendered take plays with (its link::Classes/RERenderedPlayer#-tapeSkip::, link::Classes/RERenderedPlayer#-tapeRate::, link::Classes/RERenderedPlayer#-visuals::).
 METHOD:: playRendered
 code::\auto:: (the default: the render when its WAV exists), code::true:: (always), code::false:: (never: the program plays the take).
 METHOD:: isPlayingRender
