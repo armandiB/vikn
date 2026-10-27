@@ -48,3 +48,18 @@ list::
 section:: Binaural decoding
 
 The binaural decoder needs the HRTF buffers of its order. link::Classes/RAOutputChain#*loadBinauralIRs:: loads them per order with a completion callback; a chain built before they are in gets its decoder synth when they arrive (the proxy, its group and links exist at once). A server reboot forgets the cache.
+
+section:: Effect objects
+
+link::Classes/RAFObject:: is an ambisonic fobject: a spatial effect object that picks a field bus up in a steerable beam at a centre (azimuth, elevation) as wide as asked, runs a chain of registered effect layers (link::Classes/RAFObjectLayers::: wash, freeze, shimmer, ring, grains, haze, fog, drone; one SynthDef per chain, built on demand) and puts the result back at the centre, spread over the object (the last layer's taps at their own places) at a distance (a point source's gain and air law, the near field). Its messages are flat Arrays for a rig's own bundles, live or into a collecting server (an NRT take); its online methods send them at the server's latency and record. HadronLake3's Bowls composition makes one per cosmic cloud of its page.
+
+code::
+o = RAFObject(s, \wash, inBus: pool, outBus: wet, params: (decay: 40));
+~send.(o.newMsgs(group, \addToHead), latency);           // /b_alloc… /s_new, /n_setn azs els times
+~send.(o.centerMsgs(0.4, 0.2) ++ o.tapsMsgs(azs, els) ++ [o.distMsg(3.2)], latency);
+~send.(o.setMsgs(\tune, \otonal, \decay, 30), latency);  // a language param recomputes its array
+~send.(o.releaseMsgs(4), latency); ... ~send.(o.freeMsgs, latency); o.didFree;
+o.start(0.2, group); o.center(0.4, 0.2); o.release(4); o.free;   // the same, sent and recorded
+RAFObject.defNames;                                       // for a rig's def list (an NRT score)
+RAFObject.def([\wash, \shimmer]);                         // a chain: layer 2's controls l2_…
+::

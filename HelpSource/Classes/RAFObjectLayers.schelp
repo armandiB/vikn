@@ -1,0 +1,45 @@
+TITLE:: RAFObjectLayers
+summary:: The effect layers of RAFObject: wash, freeze, shimmer, ring, grains, haze, fog, drone
+categories:: Libraries>reAmbi
+related:: Classes/RAFObject, Guides/reAmbi
+
+DESCRIPTION::
+The eight layers registered at class initialisation (link::Classes/RAFObject#*addLayer::) and their language laws. A layer's process takes the beam (mono), reads its controls from ctx under their bare names and gives its taps and the limiter's gain. Needs atk-sc3 and sc3-plugins (PV_Freeze from JoshUGens, Greyhole from DEINDUGens).
+
+definitionlist::
+## wash (6 taps, feeds back) || six combs chained inside one long feedback loop: a ping repeats at each comb's time, the sums of the times, their multiples. code::times[6]:: (/n_setn) from the language params code::time:: (0.75 s), code::tune:: (code::\harmonic::, code::\otonal::, code::\just::, code::\fifths::, code::\sub::, code::\golden::) and code::irrational:: (0: every echo on the grid of the tuning's ratios over code::time::; 1: the times offset by square roots of distinct primes, no common period). Controls code::decay:: 20 (seconds to -60 dB of the loop), code::regen:: 12 (each comb's own), code::taps:: 6 (combs running), code::held:: 0 (1: the loop held, the input shut), code::hp:: 120, code::dark:: 4000, code::drive:: 0.15, code::blur:: 0.6, code::wobble:: 0.3, code::wobbleRate:: 0.1. The taps ordered by radius.
+## freeze (3, a trigger) || a spectral hold (PV_Freeze) of what last sounded, refreshed by the trigger (code::auto:: 1: by its own rises too), fading over code::hold:: 20 s, code::smear:: bins, code::refresh:: 0.2 s open at a trigger, code::hp::, code::dark:: 8000; the taps decorrelated by a random phase per bin.
+## shimmer (3, feeds back) || a pitch-shifted feedback delay: code::ratio:: 2 (0.25-4), code::time:: 0.4, code::decay:: 12, code::held::, code::hp::, code::dark:: 6000 (what ends the climb).
+## ring (6) || six sympathetic resonators on code::freqs[6]:: from code::base:: 240, code::tune:: code::\just::, code::octave:: 0; a sine on a resonance at 0 dB whatever the decay and the sample rate; code::decay:: 8, code::gain:: 4, code::bright:: 0.5, code::strike:: 0 (1: driven by the rises only), code::hp:: 80, code::dark:: 12000. The taps ordered by elevation.
+## grains (6) || grains of the last code::window:: 2 s at code::rates[6]:: ([1, 2, 0.5, 3/2, 4/3, -1]: tap 1 the plain stream, negative backwards), code::density:: 12 a second in all, code::dur:: 0.15, code::scatter:: 0.5 (the share away from the plain stream), code::hp::, code::dark::.
+## haze (2, feeds back) || a frequency-shift feedback delay: code::shift:: 0.7071 Hz a pass (signed), its mirror at the other tap; code::time:: 0.5, code::decay:: 15, code::held::, code::hp::, code::dark::. The taps ordered by elevation.
+## fog (2) || a dense short diffusion (Greyhole) without a long tail: code::time:: 0.12, code::room:: 1.5, code::diff:: 0.8, code::feedback:: 0.35 (at most 0.7), code::damp:: 0.6, code::modDepth:: 0.15, code::modFreq:: 0.7, code::dark:: 5000 scaled by the distance (deep: darker), code::hp::, code::gain::.
+## drone (2, feeds back, a buffer, a need) || the beam convolved (Convolution2L) with the last 0.34 s of another bus's first channel (code::droneBus::, the caller gives it), a kernel the synth records into code::kernelBuf:: (allocated by the object) and reloads every code::refresh:: 1 s, coherently normalised (code::norm:: 3: a ping on one of the drone's partials at 0 dB, off them 33 dB down), fed back: the tail converges on the partials the ping shares; code::time:: 0.5, code::decay:: 20, code::held::, code::hp::, code::dark::. One frame (0.34 s) of pre-delay.
+::
+
+code::
+RAFObjectLayers.times(0.75, \otonal, 0.3);    // the wash's six delay times
+RAFObjectLayers.ringFreqs(240, \just, 1);     // the ring's six frequencies
+RAFObject.layer(\wash)[\controls];            // a layer's controls and defaults
+::
+
+CLASSMETHODS::
+
+METHOD:: tunes
+The tunings: ratios a delay time or a base frequency is multiplied by, tap by tap.
+METHOD:: tuneNames
+METHOD:: irrationals
+The fixed offsets of the delay times at irrational 1.
+METHOD:: times
+The wash's delay times: code::time × ratio × (1 + irrational × offset)::, 0.01 to 7.9 s.
+argument:: time
+argument:: tune
+argument:: irrational
+argument:: n
+METHOD:: ringFreqs
+The ring's frequencies: code::base × ratio × 2^octave::, 20 Hz to 18 kHz.
+argument:: base
+argument:: tune
+argument:: octave
+argument:: n
+METHOD:: grainRates
