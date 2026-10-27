@@ -2,7 +2,8 @@
 // field, into the song's chain) and its visuals tape (<take>/<take>.viz.json, to HomewareVisuals through
 // RCVisuals), from the take's aligned start on the song's clock, next to the takes the program
 // plays live. No event is fired (the render made the sound), the tempo events apart; every event
-// is still reported (onEvent: the score page's played marks) and the head runs (REScoreVisuals).
+// is still reported (onEvent: the score page's played marks), the cues' positions posted
+// (REScorePlayer's postCues, postEvery to the render's end) and the head runs (REScoreVisuals).
 //
 //   ~p = RERenderedPlayer.fromTake(path, ~song);   // the take and its sidecar, <take>.render.json next to it (it names the WAV and the tape in <take>/)
 //   ~p.load;                                       // the visuals tape read ahead, the interpreter going on (else at play)
@@ -199,10 +200,11 @@ RERenderedPlayer : REScorePlayer {
 		RCLog.post(\rendered, "% plays its render through the chain's % (% tape entries)".format(render[\take], route, tape !? (_.size) ? 0));
 	}
 
-	// The last event reported: the sound and the tape go on to the render's end.
+	// The last event reported: the sound and the tape go on to the render's end (the head with
+	// them: postEvery's posts go on).
 	prEnded {
 		var rest = (mediaSecs ? thisThread.seconds) + this.duration - thisThread.seconds;
-		if(rest > 0) { (rest * this.runClock.tempo).wait };
+		if(rest > 0) { this.prWaitUntil(headBeat + (rest * this.runClock.tempo), headBeat) };
 		this.prStopMedia;
 		super.prEnded;
 		this.prDropOwnClock;

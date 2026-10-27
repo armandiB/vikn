@@ -217,6 +217,20 @@ TestRERenderedPlayer : UnitTest {
 		this.assertEquals(clock.tempo, 10, "and back at stop");
 	}
 
+	// the cues posted as the parent's (nothing fired), postEvery's posts going on to the render's end
+	test_position_posts_to_the_end {
+		var s = this.prTake, p, posts;
+		p = RERenderedPlayer(s, song, this.prSidecar("acn-n3d", 16, (duration: 0.5)));
+		p.postEvery = 2;
+		p.postAs = \beat;
+		p.prPlayNow(1, 0, nil, nil);
+		0.8.wait;
+		this.assert(p.isPlaying.not, "ended with the render");
+		posts = RCLog.history.select { |e| e[2].beginsWith("RC[cue]") or: { e[2].beginsWith("RC[head]") } }.collect { |e| e[2] }.asArray;
+		this.assertEquals(posts.keep(4), ["RC[cue]: beat 0", "RC[cue]: beat 2", "RC[head]: beat 4", "RC[head]: beat 6"], "the two lines, the tempo event aside, then the ticks past the last event: " ++ posts);
+		this.assert(posts.drop(4).every { |t| t.beginsWith("RC[head]") }, "ticks to the end");
+	}
+
 	// waits for done.value (a load's action) at most 5 s
 	prWait { |done| var t0 = Main.elapsedTime; while { done.value.not and: { (Main.elapsedTime - t0) < 5 } } { 0.02.wait } }
 
