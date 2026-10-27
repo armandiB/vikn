@@ -77,10 +77,10 @@ RAFObjectLayers {
 			nTaps: 6, fbChannels: 1, tapOrder: \radius,
 			lang: [\time, 0.75, \tune, \harmonic, \irrational, 0],
 			arrays: [\times, (n: 6, from: [\time, \tune, \irrational], law: { |p, n| RAFObjectLayers.times(p[\time], p[\tune], p[\irrational], n) })],
-			controls: [\decay, 20, \regen, 12, \taps, 6, \held, 0, \hp, 120, \dark, 4000, \drive, 0.15, \blur, 0.6, \wobble, 0.3, \wobbleRate, 0.1],
+			controls: [\decay, 20, \regen, 2, \taps, 6, \held, 0, \hp, 120, \dark, 4000, \drive, 0.15, \blur, 0.6, \wobble, 0.3, \wobbleRate, 0.1],
 			doc: "six combs chained at high feedback inside one long loop: a long tail smeared, its rhythm from a tuning (time, tune, irrational)",
 			process: { |beam, nTaps, ctx|
-				var times = RAFObject.lagKr(ctx[\times], 2), decay = ctx[\decay], regen = ctx[\regen].clip(0.1, 60), nOn = ctx[\taps];
+				var times = RAFObject.lagKr(ctx[\times], 2), decay = ctx[\decay], regen = ctx[\regen].clip(0.1, 6), nOn = ctx[\taps];   // six combs in series resonate at every multiple of 1/time together: 12 s regen swelled the bass of a live pool to the limiter; 2 s adds about 4 dB
 				var fz = ctx[\held].clip(0, 1), hp = ctx[\hp], dark = ctx[\dark], drive = ctx[\drive].clip(0, 1), blur = ctx[\blur].clip(0, 1);
 				var wobble = ctx[\wobble].clip(0, 1), wobbleRate = ctx[\wobbleRate], fb = ctx[\fb][0];
 				var wob, t, on, g, loop, k, sat, x, outs, lim;
