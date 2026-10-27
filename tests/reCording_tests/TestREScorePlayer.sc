@@ -190,7 +190,7 @@ TestREScorePlayer : UnitTest {
 		p.alignPhase = false;
 		p.play;
 		(7 / clock.tempo).wait;
-		this.assertEquals(this.posts, ["RC[cue]: bar 1:1, beat 0", "RC[cue]: bar 2:2, beat 5"], "once a beat, an input and a line not replayed aside");
+		this.assertEquals(this.posts, ["RC[cue]: bar 0:0, beat 0", "RC[cue]: bar 1:1, beat 5"], "once a beat, an input and a line not replayed aside");
 		RCLog.reset;
 		p.postEvery = 2;
 		p.postAs = \beat;
@@ -205,9 +205,10 @@ TestREScorePlayer : UnitTest {
 		this.assertEquals(this.posts.keep(4), ["RC[head]: beat 0", "RC[head]: beat 2", "RC[head]: beat 0", "RC[head]: beat 2"], "cues off: the ticks alone, again at each pass: " ++ this.posts);
 		p.beatsPerBar = 3;
 		p.postAs = \both;
-		this.assertEquals(p.positionString(17.5), "bar 6:3.5, beat 17.5", "bars of beatsPerBar from the take's beat 0");
+		this.assertEquals(p.positionString(17.5), "bar 5:2.5, beat 17.5", "bars of beatsPerBar from the take's beat 0, counted from 0");
 		p.postAs = \bar;
-		this.assertEquals(p.positionString(3), "bar 2:1");
+		this.assertEquals(p.positionString(3), "bar 1:0");
+		this.assertEquals(p.positionString(2.9999999999), "bar 1:0", "a beat a hair under a bar line: that bar's first beat");
 	}
 
 	test_fallback_to_effects {

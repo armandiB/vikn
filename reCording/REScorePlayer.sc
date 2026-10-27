@@ -10,7 +10,7 @@
 //   p.mute(['core/kick']); p.solo([\lead]); p.stop;
 //   p.onEvent = { |player, ev| ... }; p.onLoop = { |player, pass| }; p.onDone = { |player| }
 //   p.fire(score.at(12));                        // one event, now
-//   p.postEvery = 4; p.postAs = \bar;            // the position every bar too, as "bar 5:1"
+//   p.postEvery = 4; p.postAs = \bar;            // the position every bar too, as "bar 4:0"
 //
 // How an event replays: a MIDI event through its mapping's action with the
 // recorded mapped value (RCMidi.replay), an OSC event through its def's
@@ -39,8 +39,9 @@
 //
 // The position (postCues, on by default): at each new cue (a level 1 code line,
 // action, snapshot or morph: cueKinds) the head's place is posted, once a beat,
-// as postAs says: \bar ("bar 5:1", bars of beatsPerBar from the take's beat 0,
-// nil: the clock's), \beat ("beat 16") or \both. postEvery (nil: off) posts it
+// as postAs says: \bar ("bar 4:0", bars of beatsPerBar from the take's beat 0,
+// nil: the clock's, counted from 0 as a cue sheet's beats are), \beat ("beat 16")
+// or \both. postEvery (nil: off) posts it
 // every so many beats too, on the take's grid from its beat 0, never twice at
 // one beat (a cue there posts it, as a cue).
 
@@ -288,12 +289,12 @@ REScorePlayer {
 		RCLog.post(if(cue) { \cue } { \head }, this.positionString(beat), true);
 	}
 
-	// A score beat as the posts say it (postAs): \bar "bar 5:1" (bars of barBeats from the take's
-	// beat 0, both counted from 1), \beat "beat 16", \both "bar 5:1, beat 16".
+	// A score beat as the posts say it (postAs): \bar "bar 4:0" (bars of barBeats from the take's
+	// beat 0, both counted from 0 as a cue sheet's beats are), \beat "beat 16", \both "bar 4:0, beat 16".
 	positionString { |beat|
 		var bpb = this.barBeats;
 		var bar = ((beat + 1e-9) / bpb).floor;
-		var bars = "bar %:%".format((bar + 1).asInteger, this.class.prNum(beat - (bar * bpb) + 1));
+		var bars = "bar %:%".format(bar.asInteger, this.class.prNum(beat - (bar * bpb)));
 		var beats = "beat %".format(this.class.prNum(beat));
 		^switch(postAs, \bar, { bars }, \beat, { beats }, { bars ++ ", " ++ beats })
 	}
