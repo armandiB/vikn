@@ -194,7 +194,7 @@ argument:: kinds
 METHOD:: trimmed
 argument:: from
 argument:: to
-The events of [from, to) rebased to 0, the latest snapshot before from kept at 0 and leading, the tempo map rebased.
+The events of [from, to) rebased to 0, the latest snapshot before from kept at 0 and leading, the tempo map rebased; the meter (link::#-barOf::) rebased from a bar line, dropped (said) from inside a bar.
 METHOD:: thinned
 argument:: tolerance
 A point of a continuous control within it of the line between its kept neighbours goes; the ends and the corners stay.
@@ -227,6 +227,14 @@ Through the tempo map (piecewise constant).
 METHOD:: tempoAt
 argument:: beat
 The tempo at a beat: the tempo map's (before its first entry, that one's), else the take's code::tempo::; nil without either.
+METHOD:: barOf
+argument:: beat
+The bar and the beats into it, code::[bar, beats]::, both counted from 0, through the take's meter: code::meta.meter::, a cue sheet's code:://@meter:: markers as HomewareSC's code::take.sh cue:: writes them, code::[[beat, bar, signature], ...]::, the first from beat 0, each on a bar line of the one before (the Symbolic suite's code::[[0, 0, "4/4"], [128, 32, "7/4"], [1178, 182, "11/8"]]::: beat 1398 is bar 222). Counted as HomewareSC's code::cues.py:: counts them. nil without a meter.
+METHOD:: meterSegments
+returns:: code::[[beat, bar, beats a bar], ...]:: in order; a signature that says no beats left out.
+METHOD:: signatureBeats
+argument:: sig
+returns:: The beats of a bar: code::"7/4":: 7, code::"11/8":: 5.5, a plain number that many; nil for none.
 
 EXAMPLES::
 

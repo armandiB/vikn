@@ -223,6 +223,27 @@ TestREScore : UnitTest {
 		this.assertEquals(REScore.linesTapePath("/a/Scores/t.json"), "/a/Scores/t/t.tape.viz.json");
 	}
 
+	// a cue sheet's meter (meta.meter, HomewareSC's cues.py): kept by a read, bars counted through
+	// its segments from 0 (the Symbolic suite's: 4/4, 7/4 from bar 32, 11/8 from bar 182)
+	test_meter {
+		var s = REScore(\t), back;
+		this.assertEquals(s.barOf(16), nil, "no meter: nil");
+		s.meta[\meter] = [[0.0, 0, "4/4"], [128.0, 32, "7/4"], [1178.0, 182, "11/8"]];
+		this.assertEquals(s.barOf(0), [0, 0]);
+		this.assertEquals(s.barOf(120), [30, 0], "4/4: bars of 4");
+		this.assertEquals(s.barOf(130), [32, 2], "7/4 from bar 32");
+		this.assertEquals(s.barOf(156), [36, 0]);
+		this.assertEquals(s.barOf(1398), [222, 0], "11/8 from bar 182, bars of 5.5: the sheet's //@ 222:0");
+		this.assertEquals(s.barOf(1200.75), [186, 0.75]);
+		this.assertEquals(s.barOf(1397.9999999999), [222, 0], "a hair under a bar line: that bar");
+		this.assertEquals(REScore.signatureBeats("11/8"), 5.5);
+		this.assertEquals(REScore.signatureBeats(3), 3.0, "a plain number of beats");
+		this.assertEquals(REScore.signatureBeats("5/0"), nil, "no beats: nil");
+		back = REScore.fromJSONString(s.asJSONString);
+		this.assertEquals(back.meta[\meter].size, 3, "read back (once a key outside metaKeys, dropped)");
+		this.assertEquals(back.barOf(1398), [222, 0], "and counted the same");
+	}
+
 	test_tempo_at {
 		var s = REScore(\t);
 		this.assertEquals(s.tempoAt(3), nil, "no tempo: nil");

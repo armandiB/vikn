@@ -39,11 +39,12 @@
 //
 // The position (postCues, on by default): at each new cue (a level 1 code line,
 // action, snapshot or morph: cueKinds) the head's place is posted, once a beat,
-// as postAs says: \bar ("bar 4:0", bars of beatsPerBar from the take's beat 0,
-// nil: the clock's, counted from 0 as a cue sheet's beats are), \beat ("beat 16")
-// or \both. postEvery (nil: off) posts it
-// every so many beats too, on the take's grid from its beat 0, never twice at
-// one beat (a cue there posts it, as a cue).
+// as postAs says: \bar ("bar 4:0", the bar and the beats into it counted from 0
+// as a cue sheet's are: by the take's meter, its //@meter markers, else in bars
+// of the clock's beatsPerBar from beat 0; beatsPerBar set: those, whatever the
+// take's), \beat ("beat 16") or \both. postEvery (nil: off) posts it every so
+// many beats too, on the take's grid from its beat 0, never twice at one beat
+// (a cue there posts it, as a cue).
 
 REScorePlayer {
 	classvar <orgnsmIdentityKeys;
@@ -62,7 +63,7 @@ REScorePlayer {
 	var <>alignPhase = true;   // play starts on the take's phase of the grid (quant, else the take's own, else the beat)
 	var <>playOrphans = false;   // program events with no cause (level 2, from nothing a human did) play too
 	var <>postCues = true, <>cueKinds;   // the position posted at each new cue (a level 1 event of these kinds), once a beat
-	var <>postEvery, <>postAs = \both, <>beatsPerBar;   // the position every so many beats too (nil: off); \bar, \beat or \both; the bars' beats (nil: the clock's)
+	var <>postEvery, <>postAs = \both, <>beatsPerBar;   // the position every so many beats too (nil: off); \bar, \beat or \both; the bars' beats (nil: the take's meter, else the clock's)
 	var lastPost, headBeat;   // the score beat last posted; the one the routine stands at
 	var <fired = 0, <skipped = 0, <interpolated = 0, <deferredCount = 0, warned, failedRoots, ranBeforeFail, ramps, nextOf, commitsChecked = false;
 
@@ -289,17 +290,27 @@ REScorePlayer {
 		RCLog.post(if(cue) { \cue } { \head }, this.positionString(beat), true);
 	}
 
-	// A score beat as the posts say it (postAs): \bar "bar 4:0" (bars of barBeats from the take's
-	// beat 0, both counted from 0 as a cue sheet's beats are), \beat "beat 16", \both "bar 4:0, beat 16".
+	// A score beat as the posts say it (postAs): \bar "bar 4:0" (barOf: the bar and the beats into
+	// it, both counted from 0 as a cue sheet's are), \beat "beat 16", \both "bar 4:0, beat 16".
 	positionString { |beat|
-		var bpb = this.barBeats;
-		var bar = ((beat + 1e-9) / bpb).floor;
-		var bars = "bar %:%".format(bar.asInteger, this.class.prNum(beat - (bar * bpb)));
+		var pos = this.barOf(beat);
+		var bars = "bar %:%".format(pos[0], this.class.prNum(pos[1]));
 		var beats = "beat %".format(this.class.prNum(beat));
 		^switch(postAs, \bar, { bars }, \beat, { beats }, { bars ++ ", " ++ beats })
 	}
 
-	// The beats of a bar the posts count: beatsPerBar, else the song's clock's.
+	// [bar, beats into it] of a score beat: beatsPerBar's bars from the take's beat 0 when it is
+	// set, else the take's meter (a cue sheet's //@meter markers, REScore.barOf), else bars of the
+	// clock's beatsPerBar.
+	barOf { |beat|
+		var bpb, bar;
+		if(beatsPerBar.isNil) { score.barOf(beat) !? { |pos| ^pos } };
+		bpb = this.barBeats;
+		bar = ((beat + 1e-9) / bpb).floor;
+		^[bar.asInteger, beat - (bar * bpb)]
+	}
+
+	// The beats of a bar the posts count without a meter in the take: beatsPerBar, else the song's clock's.
 	barBeats { ^beatsPerBar ?? { clock.tryPerform(\beatsPerBar) } ? 4 }
 
 	*prNum { |x| var r = x.round(0.001); ^if(r == r.round) { r.round.asInteger } { r } }
