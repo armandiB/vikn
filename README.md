@@ -35,7 +35,13 @@ Two small modules the songs hold by name (`~song.ambi`, `~song.recorder(\k)`):
 
 - `reAmbi/`: RAOutputChain (an ambisonic output chain built synchronously
   in ordered Groups: signal → transformer → inserted stages → AmbiX / binaural
-  decoder), RAStereoMonitor (FOA cardioid stereo feed of the chain). Guide:
+  decoder), RAStereoMonitor (FOA cardioid stereo feed of the chain),
+  RAFObject (an ambisonic fobject: a field bus picked up in a beam at a
+  centre as wide as asked, a chain of registered effect layers in one
+  SynthDef, the result put back at the centre's taps, spread, at a distance;
+  flat messages for a rig's own bundles, live or in an NRT score, and online
+  methods that send and record), RAFObjectLayers (its layers: wash, freeze,
+  shimmer, ring, grains, haze, fog, drone). Guide:
   `HelpSource/Guides/reAmbi.schelp`; tests in `tests/reAmbi_tests/`.
 - `reCording/`: RERecorder (tracks recorded together under a piece folder),
   REReplay (a take cued into a proxy or a bus), RETake (paths, and the

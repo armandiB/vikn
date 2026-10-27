@@ -1,0 +1,152 @@
+TITLE:: RAFObject
+summary:: An ambisonic fobject: a beam of the field in, layers of effects, the result spread back at a place and a distance
+categories:: Libraries>reAmbi
+related:: Guides/reAmbi, Classes/RAFObjectLayers, Classes/RAOutputChain, Classes/RECollectAddr, Classes/RETap
+
+DESCRIPTION::
+A spatial effect object in a third-order ambisonic field (ATK Hoa, ACN N3D, 16 channels). It picks a field bus up in a steerable energy beam at a centre (azimuth, elevation) as wide as asked, runs a chain of registered effect LAYERS (link::Classes/RAFObjectLayers::: wash, freeze, shimmer, ring, grains, haze, fog, drone) compiled into one SynthDef per chain (built on demand, cached, added to link::Classes/SynthDescLib::), and puts the result back into an output field bus at the centre, spread over the object (the last layer's taps at their own places, the degrees weighed by code::(1 - spread)^l::) at a distance (a point source's gain and air law, link::Classes/HoaNFCtrl::'s near field).
+
+Every server message is built as a flat Array (the strong::messages:: below), so that a rig sends it in its own bundles, live or into a collecting server (an NRT take: link::Classes/RECollectAddr::); the strong::online:: methods send them at the server's latency and record (link::Classes/RETap::). Nothing is allocated or sent by code::new::.
+
+The pickup: the field's degrees weighed by code::(1 - wide)^l::, the beam's on-axis gain put back to 1 whatever the width (wide 0: an order-3 energy beam, -3 dB at 28 degrees; 0.5: at 39 degrees; 1: W itself, an omni pickup). The output: each tap at its place by the real spherical harmonics at control rate (a moving tap costs 16 multiplies), a point source's law (gain code::ref / dist:: capped at code::maxGain::, a low-pass at code::lpfBase / dist::), the near field of code::dist:: (degree 0 untouched: no level law of its own). The centre and the taps are glided as unit vectors (0.3 s), not as angles: a tap crossing the back passes smoothly. Layer k + 1 hears the mean of layer k's taps (over sqrt(n)); code::through:: adds what the earlier layers made to the output; layer k's controls are prefixed code::l<k>_:: (layer 1's plain). One LocalIn/LocalOut pair per SynthDef: the builder shares its channels among the layers that feed back. Needs atk-sc3 and sc3-plugins.
+
+code::
+o = RAFObject(s, \wash, inBus: pool, outBus: wet, params: (decay: 40));
+~send.(o.newMsgs(group, \addToHead), latency);           // /b_alloc… /s_new, /n_setn azs els times
+~send.(o.centerMsgs(0.4, 0.2) ++ o.tapsMsgs(azs, els) ++ [o.distMsg(3.2)], latency);
+~send.(o.setMsgs(\tune, \otonal, \decay, 30), latency);  // a language param recomputes its array
+~send.(o.releaseMsgs(4), latency); ... ~send.(o.freeMsgs, latency); o.didFree;
+o.start(0.2, group); o.center(0.4, 0.2); o.release(4); o.free;   // the same, sent and recorded
+RAFObject.defNames;                                       // for a rig's def list (an NRT score)
+RAFObject.def([\wash, \shimmer]);                         // a chain: layer 2's controls l2_…
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: server
+argument:: layers
+A layer's name or an Array of names (a chain), from link::#*layerNames::.
+argument:: inBus
+The field bus picked up: a link::Classes/Bus:: or an index.
+argument:: outBus
+The field bus written to (the object's wet is added with Out.ar).
+argument:: order
+1 to 3.
+argument:: params
+The layers' params: a kv Array or an Event (layer 2's keys prefixed code::l2_::); RAFObject's own controls too (code::wide::, code::spread::, code::amp::, code::mix::, code::att::, code::release::, code::seed::).
+argument:: name
+
+subsection:: The layer registry
+
+METHOD:: addLayer
+Registers a layer. strong::spec::: an Event (read by brackets) with code::nTaps:: (the taps it outputs), code::controls:: (a kv Array of the def's controls and defaults, in order), code::lang:: (kv: language-side params, never sent), code::arrays:: (kv: name -> code::(n:, from: [the keys it reads], law: { |params, n| } or default: values)::, control arrays set by /n_setn and recomputed when a key they read changes), code::buffers:: (code::[(control:, frames:, channels:)]::, server buffers allocated per start), code::needs:: (controls the caller must give, a bus index), code::tapOrder:: (code::\radius::, code::\elevation::, code::\none::), code::trigger:: (true: it reads code::ctx[\trig]::, the def's code::\t_trig::), code::fbChannels:: (channels of the shared LocalIn it needs; it sets code::ctx[\fbOut]::), code::process:: (code::{ |beam, nTaps, ctx| ... [taps, lim] }::: nTaps mono signals and the limiter's gain, see link::#*limit::), code::doc::. code::ctx:: carries every control, array, buffer and need under its bare name, code::dist::, code::ref::, code::maxGain::, code::lpfBase::, code::trig::, code::fb::, code::sr::, code::index::. A name that is a method of Event (code::size::, code::freeze::...) or the builder's own is refused. Returns the name, nil when refused (logged).
+METHOD:: layer
+The spec of a layer.
+METHOD:: layerNames
+METHOD:: removeLayer
+
+subsection:: Chains and SynthDefs
+
+METHOD:: chain
+A name or an Array -> an Array of Symbols; nil (logged) on an unknown name.
+METHOD:: defName
+code::\RAFObject_o3_wash::, code::\RAFObject_o3_wash_shimmer::.
+METHOD:: def
+The SynthDef of a chain: built once, added, its name kept in link::#*defNames::; the name, nil when it could not be built.
+METHOD:: defNames
+Every def this class added, in order (a rig's def list for an NRT score).
+METHOD:: controlsOf
+The def's controls and defaults (kv).
+METHOD:: langOf
+The language-side params and defaults (kv), prefixed as the controls are.
+METHOD:: sumDef
+METHOD:: sumDefName
+METHOD:: sumSynth
+The sum: several objects' wet on one private bus added to the field bus under one ceiling (0.95), Sanitize'd, gated; a link::Classes/Synth#*basicNew:: of it.
+METHOD:: limit
+The taps' shared limiter: the loudest tap's peak held under 0.95 by one gain -> code::[the limited signals, the gain]::.
+METHOD:: sphKr
+The real spherical harmonics (ACN, N3D) to the order at a unit vector, times a signal: link::Classes/HoaEncodeDirection:: at the reference radius as 16 multiplies.
+
+subsection:: Geometry
+
+ATK's axes: +x front, +y left, +z up.
+METHOD:: dir
+Degrees -> a unit vector.
+METHOD:: azel
+A vector -> code::[az, el]:: in radians.
+METHOD:: azelDeg
+METHOD:: hash
+A seeded hash in [0, 1).
+METHOD:: gaussianDraws
+n Gaussian pairs from the hash: draws in sigma units, the same for a seed.
+METHOD:: tapPoints
+The taps' places: a centre (a unit vector or code::[az, el]:: degrees), a Gaussian's sigmas across and up (degrees), its lean (degrees) and draws in sigma units -> code::[azs, els]:: in radians.
+METHOD:: orderTaps
+The places ordered: code::\radius:: by angular distance from the centre, code::\elevation::, code::\none::.
+METHOD:: widthOf
+A Gaussian's sigma (degrees) as a width 0..1 (1 at code::refDeg:: and beyond).
+
+INSTANCEMETHODS::
+
+subsection:: Messages (flat Arrays; nothing sent, nothing recorded: a rig bundles them)
+
+METHOD:: newMsgs
+The object started: its buffers allocated (/b_alloc), its synth made (/s_new with the scalar params; an Array value goes by /n_setn after), the taps' places and every array control set. strong::args::: more params. Refused (code::[]:: and a log) without its layers, while sounding, when a layer's need is missing, or when the def cannot be built.
+METHOD:: setMsgs
+Params set live (kv): the scalar controls in one /n_set, an array control by /n_setn, a language param stored then the arrays that read it recomputed.
+METHOD:: setnMsg
+METHOD:: centerMsgs
+The centre (radians) -> code::[[/n_set az el]]:: (code::[]:: when not sounding; the centre is kept either way).
+METHOD:: tapsMsgs
+The taps' places (radians, exactly nTaps each).
+METHOD:: distMsg
+The distance (metres).
+METHOD:: trigMsg
+A trigger for the layers that take one; nil when none does.
+METHOD:: releaseMsgs
+The synth released over strong::fade:: seconds (nil: its own release).
+METHOD:: freeMsgs
+The buffers' /b_free (and /n_free of a synth not released when strong::kill::).
+METHOD:: didFree
+After freeMsgs went out: the buffer numbers given back, the synth forgotten.
+
+subsection:: Online (the same, sent at the server's latency, recorded)
+
+METHOD:: start
+METHOD:: set
+METHOD:: setAll
+METHOD:: center
+METHOD:: taps
+METHOD:: distance
+METHOD:: trig
+METHOD:: release
+The buffers are freed after the fade, on the offline clock when a render's thread calls.
+METHOD:: free
+METHOD:: isOffline
+
+subsection:: State
+
+METHOD:: server
+METHOD:: name
+METHOD:: layers
+METHOD:: order
+METHOD:: nTaps
+METHOD:: defName
+METHOD:: inBus
+METHOD:: outBus
+METHOD:: params
+METHOD:: synth
+METHOD:: group
+METHOD:: buffers
+METHOD:: az
+METHOD:: el
+METHOD:: azs
+METHOD:: els
+METHOD:: wide
+METHOD:: spread
+METHOD:: dist
+METHOD:: isStarted
+METHOD:: isReleased
+METHOD:: isFreed
