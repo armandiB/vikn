@@ -209,6 +209,12 @@ TestREScorePlayer : UnitTest {
 		p.postAs = \bar;
 		this.assertEquals(p.positionString(3), "bar 1:0");
 		this.assertEquals(p.positionString(2.9999999999), "bar 1:0", "a beat a hair under a bar line: that bar's first beat");
+		s.meta[\meter] = [[0, 0, "4/4"], [8, 2, "7/4"]];
+		this.assertEquals(p.positionString(16), "bar 5:1", "beatsPerBar set: its bars, whatever the take's meter");
+		p.beatsPerBar = nil;
+		this.assertEquals(p.positionString(16), "bar 3:1", "else the take's meter (a cue sheet's): 7/4 from bar 2");
+		s.meta.removeAt(\meter);
+		this.assertEquals(p.positionString(16), "bar 4:0", "without one, the clock's 4/4");
 	}
 
 	test_fallback_to_effects {

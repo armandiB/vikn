@@ -138,9 +138,13 @@ Beats between posts of the position (code::RC[head]: ...::) on the take's grid f
 METHOD:: postAs
 code::\both:: (the default, code::bar 4:0, beat 16::), code::\bar:: (code::bar 4:0::) or code::\beat:: (code::beat 16::). The bar, the beat in it and the beat are counted from 0, as a cue sheet's code:://@ <beat>:: markers are.
 METHOD:: beatsPerBar
-The bars the posts count, from the take's beat 0 (bar 0, beat 0); nil (the default): the song's clock's code::beatsPerBar::.
+When set, the posts count bars of that many beats from the take's beat 0 (bar 0, beat 0), whatever the take's meter. nil (the default): the take's meter (a cue sheet's code:://@meter:: markers, link::Classes/REScore#-barOf::: 7/4 and 11/8 bars as the sheet counts them), else bars of the song's clock's code::beatsPerBar::.
+METHOD:: barOf
+argument:: beat
+A score beat.
+returns:: code::[bar, beats into it]::, both from 0, as the posts count them (link::#-beatsPerBar::).
 METHOD:: barBeats
-returns:: code::beatsPerBar::, else the clock's.
+returns:: The beats of a bar without a meter in the take: code::beatsPerBar::, else the clock's.
 METHOD:: positionString
 argument:: beat
 A score beat.
