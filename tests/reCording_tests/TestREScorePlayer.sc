@@ -174,6 +174,42 @@ TestREScorePlayer : UnitTest {
 		this.assert(p.isPlaying.not, "stopped");
 	}
 
+	posts { ^RCLog.history.select { |e| e[2].beginsWith("RC[cue]") or: { e[2].beginsWith("RC[head]") } }.collect { |e| e[2] }.asArray }
+
+	// The head's position posted at each new cue (a level 1 line, action, snapshot or morph),
+	// once a beat; postEvery posts it on the take's grid too, never twice at one beat.
+	test_position_posts {
+		var s = REScore(\pl);
+		var p = REScorePlayer(s, song);
+		s.add((beat: 0, kind: \code, voice: \code, text: "nil"));
+		s.add((beat: 0, kind: \code, voice: \code, text: "nil"));
+		s.add((beat: 1, kind: \midi, voice: \knob, name: \gone, raw: 1, value: 1));
+		s.add((beat: 5, kind: \code, voice: \code, text: "nil"));
+		s.add((beat: 6, kind: \code, voice: \code, text: "nil", replay: false));
+		this.assert(p.postCues and: { p.postEvery.isNil }, "the cues posted by default, nothing at a rate");
+		p.alignPhase = false;
+		p.play;
+		(7 / clock.tempo).wait;
+		this.assertEquals(this.posts, ["RC[cue]: bar 1:1, beat 0", "RC[cue]: bar 2:2, beat 5"], "once a beat, an input and a line not replayed aside");
+		RCLog.reset;
+		p.postEvery = 2;
+		p.postAs = \beat;
+		p.play;
+		(7 / clock.tempo).wait;
+		this.assertEquals(this.posts, ["RC[cue]: beat 0", "RC[head]: beat 2", "RC[head]: beat 4", "RC[cue]: beat 5", "RC[head]: beat 6"], "every 2 beats too, a cue's beat once, the last event's beat at the end");
+		RCLog.reset;
+		p.postCues = false;
+		p.play(from: 0, to: 4, loop: true);
+		(9 / clock.tempo).wait;
+		p.stop;
+		this.assertEquals(this.posts.keep(4), ["RC[head]: beat 0", "RC[head]: beat 2", "RC[head]: beat 0", "RC[head]: beat 2"], "cues off: the ticks alone, again at each pass: " ++ this.posts);
+		p.beatsPerBar = 3;
+		p.postAs = \both;
+		this.assertEquals(p.positionString(17.5), "bar 6:3.5, beat 17.5", "bars of beatsPerBar from the take's beat 0");
+		p.postAs = \bar;
+		this.assertEquals(p.positionString(3), "bar 2:1");
+	}
+
 	test_fallback_to_effects {
 		var b = this.restBeat(\k, [amp: 0.1]);
 		var s = REScore(\pl);

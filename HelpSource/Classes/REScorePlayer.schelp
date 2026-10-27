@@ -127,6 +127,25 @@ Bundle each event's messages at the server's latency (true).
 METHOD:: fired
 METHOD:: skipped
 
+subsection:: The position posted
+
+METHOD:: postCues
+true (the default): at each new cue, a level 1 event of link::#-cueKinds:: (not muted, not marked code::replay: false::), the head's position is posted (code::RC[cue]: bar 5:1, beat 16::) before the cue runs, once a beat however many cues share it. A rendered take's are posted too (link::Classes/RERenderedPlayer::: nothing fired, every cue reported).
+METHOD:: cueKinds
+The kinds a cue is: code::#[\code, \action, \snapshot, \morph]:: (a cue sheet's lines, the actions and snapshots of a take). Add code::\midi:: or code::\osc:: for a take's inputs.
+METHOD:: postEvery
+Beats between posts of the position (code::RC[head]: ...::) on the take's grid from its beat 0, e.g. code::4:: every bar in 4/4; nil (the default): none. Never twice at one beat: a cue there posts it, as a cue; a loop posts again from its start at each pass.
+METHOD:: postAs
+code::\both:: (the default, code::bar 5:1, beat 16::), code::\bar:: (code::bar 5:1::) or code::\beat:: (code::beat 16::).
+METHOD:: beatsPerBar
+The bars the posts count, from the take's beat 0 (bar 1, beat 1); nil (the default): the song's clock's code::beatsPerBar::.
+METHOD:: barBeats
+returns:: code::beatsPerBar::, else the clock's.
+METHOD:: positionString
+argument:: beat
+A score beat.
+returns:: The beat as the posts say it (link::#-postAs::).
+
 EXAMPLES::
 
 code::
@@ -134,4 +153,8 @@ code::
 ~p.play([4, 0]);
 ~p.play(from: 8, to: 16, loop: true);
 ~p.stop;
+
+// the position every bar too, as bars alone (the cues still say theirs)
+~p.postEvery = 4; ~p.postAs = \bar;
+~p.postCues = false;   // the ticks alone
 ::

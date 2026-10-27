@@ -10,6 +10,7 @@
 //   p.mute(['core/kick']); p.solo([\lead]); p.stop;
 //   p.onEvent = { |player, ev| ... }; p.onLoop = { |player, pass| }; p.onDone = { |player| }
 //   p.fire(score.at(12));                        // one event, now
+//   p.postEvery = 4; p.postAs = \bar;            // the position every bar too, as "bar 5:1"
 //
 // How an event replays: a MIDI event through its mapping's action with the
 // recorded mapped value (RCMidi.replay), an OSC event through its def's
@@ -35,6 +36,13 @@
 // (REScoreEditor's \auto chooses \clock when it has some). A deferred
 // voice (defer) or event (defer: true) is not fired: its effects play, and
 // the program's events under it (level 2) when the take holds them.
+//
+// The position (postCues, on by default): at each new cue (a level 1 code line,
+// action, snapshot or morph: cueKinds) the head's place is posted, once a beat,
+// as postAs says: \bar ("bar 5:1", bars of beatsPerBar from the take's beat 0,
+// nil: the clock's), \beat ("beat 16") or \both. postEvery (nil: off) posts it
+// every so many beats too, on the take's grid from its beat 0, never twice at
+// one beat (a cue there posts it, as a cue).
 
 REScorePlayer {
 	classvar <orgnsmIdentityKeys;
@@ -52,6 +60,9 @@ REScorePlayer {
 	var <>interpolate = false, <>stepsPerBeat = 16;   // a continuous control ramps to its next point (off: the points, as played)
 	var <>alignPhase = true;   // play starts on the take's phase of the grid (quant, else the take's own, else the beat)
 	var <>playOrphans = false;   // program events with no cause (level 2, from nothing a human did) play too
+	var <>postCues = true, <>cueKinds;   // the position posted at each new cue (a level 1 event of these kinds), once a beat
+	var <>postEvery, <>postAs = \both, <>beatsPerBar;   // the position every so many beats too (nil: off); \bar, \beat or \both; the bars' beats (nil: the clock's)
+	var lastPost, headBeat;   // the score beat last posted; the one the routine stands at
 	var <fired = 0, <skipped = 0, <interpolated = 0, <deferredCount = 0, warned, failedRoots, ranBeforeFail, ramps, nextOf, commitsChecked = false;
 
 	*initClass {
@@ -72,6 +83,7 @@ REScorePlayer {
 		ranBeforeFail = IdentityDictionary.new;
 		ramps = List.new;
 		nextOf = IdentityDictionary.new;
+		cueKinds = #[\code, \action, \snapshot, \morph];
 	}
 
 	//////// transport
@@ -90,6 +102,7 @@ REScorePlayer {
 		interpolated = 0;
 		deferredCount = 0;
 		passes = 0;
+		lastPost = nil;
 		warned.clear;
 		failedRoots.clear;
 		ranBeforeFail.clear;
@@ -189,32 +202,34 @@ REScorePlayer {
 	undefer { |voices| if(voices.isNil) { deferred.clear } { voices.asArray.do { |v| deferred.remove(v.asSymbol) } } }
 
 	prRun { |events|
-		var idx, lastBeat, len, ev;
+		var idx, len, ev;
 		startBeat = thisThread.beats;
 		this.prStartTempo;
 		this.prStarted;
 		idx = (events.detectIndex { |e| e[\beat] >= from }) ? events.size;
-		lastBeat = from;
+		headBeat = from;
 		len = to !? { to - from };
 		while { state == \playing } {
 			ev = events[idx];
 			if(ev.isNil or: { to.notNil and: { ev[\beat] >= to } }) {
 				if(loop) {
-					this.prWaitUntil(to, lastBeat);
+					this.prWaitUntil(to, headBeat);
 					passes = passes + 1;
 					startBeat = startBeat + len;
 					this.prStartTempo;
 					idx = (events.detectIndex { |e| e[\beat] >= from }) ? events.size;
-					lastBeat = from;
+					headBeat = from;
+					lastPost = nil;
 					ramps.clear;
 					onLoop.value(this, passes);
 				} {
+					this.prPostDue;
 					this.prEnded;
 					^this
 				};
 			} {
-				this.prWaitUntil(ev[\beat], lastBeat);
-				lastBeat = ev[\beat];
+				this.prWaitUntil(ev[\beat], headBeat);
+				headBeat = ev[\beat];
 				this.prPlayEvent(ev);
 				idx = idx + 1;
 			};
@@ -233,17 +248,60 @@ REScorePlayer {
 	}
 
 	// Waits until `beat` on the clock; on the way, every stepsPerBeat, the controls on a
-	// ramp get their interpolated values.
+	// ramp get their interpolated values, and every postEvery beats the position is posted
+	// (one at `beat` itself waits for the events there: a cue among them posts it).
 	prWaitUntil { |beat, lastBeat|
-		var now = lastBeat;
+		var now = lastBeat, rampNow = lastBeat;
 		var step = 1 / stepsPerBeat;
-		while { ramps.notEmpty and: { (beat - now) > step } } {
-			step.wait;
-			now = now + step;
-			this.prRampStep(now);
+		var tick = this.prNextTick(lastBeat);
+		var rampAt, tickAt, next;
+		while {
+			rampAt = if(ramps.notEmpty and: { (beat - rampNow) > step }) { rampNow + step } { inf };
+			tickAt = if(tick < beat) { tick } { inf };
+			next = min(rampAt, tickAt);
+			next < inf
+		} {
+			if(next > now) { (next - now).wait; now = next };
+			if(tickAt <= now) { this.prPost(tickAt, false); tick = this.prNextTick(tickAt) };
+			if(rampAt <= now) { rampNow = rampAt; this.prRampStep(rampNow) };
 		};
 		if(beat > now) { (beat - now).wait };
 	}
+
+	// The next beat of the posts' grid (postEvery from the take's beat 0) at or after `beat`,
+	// past the one last posted; inf without postEvery.
+	prNextTick { |beat|
+		var t;
+		if(postEvery.isNumber.not or: { postEvery <= 0 }) { ^inf };
+		t = ((beat / postEvery) - 1e-9).ceil * postEvery;
+		if(lastPost.notNil and: { (t - lastPost).abs < 1e-9 }) { t = t + postEvery };
+		^t
+	}
+
+	// A tick due at the beat the routine stands at (its events played, no cue among them).
+	prPostDue { if((this.prNextTick(headBeat) - headBeat).abs < 1e-9) { this.prPost(headBeat, false) } }
+
+	// The head's position at the score beat posted, once a beat: a cue and a tick there post once.
+	prPost { |beat, cue|
+		if(lastPost.notNil and: { (beat - lastPost).abs < 1e-9 }) { ^this };
+		lastPost = beat;
+		RCLog.post(if(cue) { \cue } { \head }, this.positionString(beat), true);
+	}
+
+	// A score beat as the posts say it (postAs): \bar "bar 5:1" (bars of barBeats from the take's
+	// beat 0, both counted from 1), \beat "beat 16", \both "bar 5:1, beat 16".
+	positionString { |beat|
+		var bpb = this.barBeats;
+		var bar = ((beat + 1e-9) / bpb).floor;
+		var bars = "bar %:%".format((bar + 1).asInteger, this.class.prNum(beat - (bar * bpb) + 1));
+		var beats = "beat %".format(this.class.prNum(beat));
+		^switch(postAs, \bar, { bars }, \beat, { beats }, { bars ++ ", " ++ beats })
+	}
+
+	// The beats of a bar the posts count: beatsPerBar, else the song's clock's.
+	barBeats { ^beatsPerBar ?? { clock.tryPerform(\beatsPerBar) } ? 4 }
+
+	*prNum { |x| var r = x.round(0.001); ^if(r == r.round) { r.round.asInteger } { r } }
 
 	prRampStep { |now|
 		ramps.copy.do { |r|
@@ -298,6 +356,8 @@ REScorePlayer {
 				if(failedRoots.includes(ev[\cause]).not) { ^this };   // its root played
 				if(this.prRootDidIt(ev)) { ^this };                    // its root did it again before failing
 			} {
+				// a cue: its position posted before it runs (what it posts comes after)
+				if(postCues and: { cueKinds.asArray.includes(ev[\kind]) } and: { ev[\replay] != false }) { this.prPost(ev[\beat], true) };
 				if(this.prDeferred(ev)) {                              // not fired: its effects play instead
 					failedRoots.add(ev[\id]);
 					deferredCount = deferredCount + 1;
