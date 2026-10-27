@@ -27,13 +27,14 @@ REScore {
 
 	*initClass {
 		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \source, \beat0, \time0, \tempo, \latency, \quant,
-			\duration, \inputs, \randData, \levels, \level1, \unrecorded, \check, \tempoMap, \voices, \controls, \events,
+			\duration, \inputs, \randData, \levels, \level1, \unrecorded, \check, \tempoMap, \meter, \voices, \controls, \events,
 			\id, \beat, \secs, \kind, \level, \voice, \cause, \by, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
 			\value, \text, \latency, \msgs, \replay, \defer, \raised, \fallback, \loopback, \loopbackOf, \state];
 		// source: the take this one was played over (an effects program recorded over a render, a cue
-		// sheet's //@source): the path, its basename when both takes live in one folder
+		// sheet's //@source): the path, its basename when both takes live in one folder; meter: a cue
+		// sheet's //@meter markers, [[beat, bar, signature], ...] (barOf)
 		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \source, \beat0, \time0, \tempo, \latency, \quant, \duration, \overdubs,
-			\inputs, \randData, \levels, \unrecorded, \check];
+			\inputs, \randData, \levels, \unrecorded, \check, \meter];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
 		// classes whose compile string is the value itself (a Function needs its source, see prEncode)
 		scClasses = [Pattern, Ref, Env, Rest, Quant, ControlSpec, Association, Char, Class, Point, Rect, Interval, Tuning, Scale];
@@ -145,6 +146,37 @@ REScore {
 		^secs
 	}
 
+	// The bar and the beats into it of a beat, both counted from 0, through the take's meter
+	// (meta.meter, a cue sheet's //@meter markers: [[beat, bar, signature], ...], the first from
+	// beat 0, each on a bar line of the one before; a signature n/d is n * 4/d beats, a plain
+	// number that many), as HomewareSC's cues.py counts them; nil without a meter.
+	barOf { |beat|
+		var segs = this.meterSegments, seg, n, offset;
+		if(segs.isEmpty) { ^nil };
+		seg = if(beat >= -1e-9) { segs.select { |s| s[0] <= (beat + 1e-9) }.last } ? segs[0];
+		n = (((beat - seg[0]) / seg[2]) + 1e-9).floor;
+		offset = beat - seg[0] - (n * seg[2]);
+		if(offset.abs < 1e-9) { offset = 0 };
+		^[(seg[1] + n).asInteger, offset]
+	}
+
+	// The meter's segments, [beat, bar, beats a bar] in order; a signature that says no beats is left out.
+	meterSegments {
+		^(meta[\meter] ? []).collect { |s| [s[0].asFloat, s[1].asInteger, this.class.signatureBeats(s[2])] }
+			.reject { |s| s[2].isNil }.sort { |a, b| a[0] <= b[0] }
+	}
+
+	// The beats of a bar of a signature: "7/4" 7, "11/8" 5.5, a plain number that many; nil for none.
+	*signatureBeats { |sig|
+		var parts, beats;
+		if(sig.isNumber) { beats = sig.asFloat } {
+			parts = sig.asString.split($/);
+			beats = parts[0].asFloat;
+			if(parts.size > 1) { beats = if(parts[1].asInteger > 0) { beats * 4 / parts[1].asInteger } { 0 } };
+		};
+		^if(beats > 0) { beats } { nil }
+	}
+
 	prSelected { |e, voices, kinds|
 		^(voices.isNil or: { voices.includes(e[\voice]) }) and: { kinds.isNil or: { kinds.includes(e[\kind]) } }
 	}
@@ -203,6 +235,7 @@ REScore {
 		};
 		res.events.do { |e| e[\beat] = max(0, e[\beat] - from) };
 		res.prRebaseTempoMap(from);
+		res.prRebaseMeter(from);
 		res.events.do { |e| e[\secs] = res.beatsToSecs(e[\beat]) };
 		res.meta[\duration] = to - from;
 		res.sort;
@@ -219,6 +252,25 @@ REScore {
 		before.last !? { |p| res.add([0, p[1]]) };
 		after.do { |p| res.add([p[0] - from, p[1]]) };
 		tempoMap = res;
+	}
+
+	// From a bar line: the meter there from beat 0, bar 0, the later ones moved with it; from
+	// inside a bar the bars would not start at beat 0: the meter is dropped, said.
+	prRebaseMeter { |from|
+		var map = meta[\meter], pos, segs, res;
+		if(map.isNil or: { from <= 0 }) { ^this };
+		pos = this.barOf(from);
+		if(pos.isNil) { ^this };
+		if(pos[1].abs > 1e-9) {
+			meta.removeAt(\meter);
+			RCLog.post(\score, "trimmed from beat %, inside bar %: the meter dropped".format(from, pos[0]));
+			^this
+		};
+		segs = map.asArray.sort { |a, b| a[0] <= b[0] };
+		res = List.new;
+		segs.select { |s| s[0] <= (from + 1e-9) }.last !? { |s| res.add([0.0, 0, s[2]]) };
+		segs.select { |s| s[0] > (from + 1e-9) }.do { |s| res.add([s[0] - from, s[1] - pos[0], s[2]]) };
+		meta[\meter] = res.asArray;
 	}
 
 	// Without the points of a continuous control that lie within tolerance of the line

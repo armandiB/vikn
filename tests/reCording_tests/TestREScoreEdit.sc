@@ -92,6 +92,20 @@ TestREScoreEdit : UnitTest {
 		this.assertEquals(s.size, 11, "the receiver untouched");
 	}
 
+	// a cue sheet's meter rebased by a trim from a bar line, dropped by one from inside a bar
+	test_trimmed_meter {
+		var s = REScore(\e), m;
+		s.meta[\meter] = [[0.0, 0, "4/4"], [128.0, 32, "7/4"], [1178.0, 182, "11/8"]];
+		s.add((beat: 1400, kind: \code, voice: \code, text: "x"));
+		m = s.trimmed(128);
+		this.assertEquals(m.meta[\meter], [[0.0, 0, "7/4"], [1050.0, 150, "11/8"]], "from bar 32: the meter there from beat 0, the later one moved");
+		this.assertEquals(m.barOf(1398 - 128), [190, 0], "bar 222 now bar 190");
+		m = s.trimmed(130);
+		this.assert(m.meta[\meter].isNil, "from inside a bar: dropped");
+		this.assert(RCLog.history.any { |e| e[2].contains("the meter dropped") }, "said");
+		this.assertEquals(s.meta[\meter].size, 3, "the receiver untouched");
+	}
+
 	test_thinned_and_smoothed {
 		var s = REScore(\t);
 		var m;
