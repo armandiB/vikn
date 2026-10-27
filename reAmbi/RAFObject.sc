@@ -231,6 +231,10 @@ RAFObject {
 			(35 / 8).sqrt * x * (x2 - (3 * y2))].keep((order + 1).squared) * sig
 	}
 
+	// a control lagged by `time` seconds, but not at the start: the lag's time grows from 0 over the first 50 ms, so a
+	// value set by /n_setn in the synth's first bundle is taken at once, not glided to from the def's default
+	*lagKr { |x, time = 0.3| ^Lag.kr(x, Line.kr(0, time, 0.05)) }
+
 	*prBuild { |chain, order, name|
 		var specs = chain.collect { |n| registry[n] }, nOut = specs.last[\nTaps], nCh = (order + 1).squared;
 		var nFb = specs.sum { |s| s[\fbChannels] }, hasTrig = specs.any { |s| s[\trigger] == true };
@@ -280,7 +284,7 @@ RAFObject {
 			s = Lag.kr(c[\spread], 0.5).clip(0, 1);
 			sl = Array.newClear(order + 1); sl[0] = 1; Array.series(order, 1).do { |l| sl[l] = sl[l - 1] * (1 - s) };
 			sum = Array.fill(nOut, { |k|
-				var tx = Lag.kr(els[k].cos * azs[k].cos, 0.3), ty = Lag.kr(els[k].cos * azs[k].sin, 0.3), tz = Lag.kr(els[k].sin, 0.3);
+				var tx = cls.lagKr(els[k].cos * azs[k].cos, 0.3), ty = cls.lagKr(els[k].cos * azs[k].sin, 0.3), tz = cls.lagKr(els[k].sin, 0.3);
 				var len = (tx.squared + ty.squared + tz.squared).sqrt.max(1e-6);
 				cls.sphKr(tx / len, ty / len, tz / len, order, LPF.ar(taps[k] * gain, lpf))
 			}).sum * lDeg.collect { |l| sl[l] };

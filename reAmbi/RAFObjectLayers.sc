@@ -80,7 +80,7 @@ RAFObjectLayers {
 			controls: [\decay, 20, \regen, 12, \taps, 6, \held, 0, \hp, 120, \dark, 4000, \drive, 0.15, \blur, 0.6, \wobble, 0.3, \wobbleRate, 0.1],
 			doc: "six combs chained at high feedback inside one long loop: a long tail smeared, its rhythm from a tuning (time, tune, irrational)",
 			process: { |beam, nTaps, ctx|
-				var times = Lag.kr(ctx[\times], 2), decay = ctx[\decay], regen = ctx[\regen].clip(0.1, 60), nOn = ctx[\taps];
+				var times = RAFObject.lagKr(ctx[\times], 2), decay = ctx[\decay], regen = ctx[\regen].clip(0.1, 60), nOn = ctx[\taps];
 				var fz = ctx[\held].clip(0, 1), hp = ctx[\hp], dark = ctx[\dark], drive = ctx[\drive].clip(0, 1), blur = ctx[\blur].clip(0, 1);
 				var wobble = ctx[\wobble].clip(0, 1), wobbleRate = ctx[\wobbleRate], fb = ctx[\fb][0];
 				var wob, t, on, g, loop, k, sat, x, outs, lim;
@@ -156,7 +156,7 @@ RAFObjectLayers {
 			controls: [\decay, 8, \gain, 4, \bright, 0.5, \strike, 0, \hp, 80, \dark, 12000],
 			doc: "six sympathetic resonators on a tuning over a base (base, tune, octave); strike 0 driven continuously, 1 by the rises only",
 			process: { |beam, nTaps, ctx|
-				var freqs = Lag.kr(ctx[\freqs], 0.5).clip(30, 8000), decay = Lag.kr(ctx[\decay], 1).clip(0.3, 60);
+				var freqs = RAFObject.lagKr(ctx[\freqs], 0.5).clip(30, 8000), decay = Lag.kr(ctx[\decay], 1).clip(0.3, 60);
 				var gain = ctx[\gain], bright = ctx[\bright].clip(0, 1), strike = ctx[\strike].clip(0, 1), hp = ctx[\hp], dark = ctx[\dark];
 				var exc = HPF.ar(beam, hp.clip(10, 2000)), fast, slow, hit, norm, taps;
 				fast = Amplitude.ar(exc, 0.001, 0.03); slow = Amplitude.ar(exc, 0.08, 0.4);
@@ -177,7 +177,7 @@ RAFObjectLayers {
 			doc: "grains of the last window seconds at the taps' rates (tap 1 the plain stream; negative backwards), density a second in all, scatter the share away from the plain stream",
 			process: { |beam, nTaps, ctx|
 				var frames = 192000, buf = LocalBuf(frames).clear;                         // 4 s at 48 kHz; cleared: a local buffer is not
-				var rates = Lag.kr(ctx[\rates], 0.5).clip(-4, 4);
+				var rates = RAFObject.lagKr(ctx[\rates], 0.5).clip(-4, 4);
 				var density = ctx[\density].clip(0, 60), dur = ctx[\dur].clip(0.02, 1), window = ctx[\window].clip(0.1, 3), scatter = ctx[\scatter].clip(0, 1);
 				var hp = ctx[\hp], dark = ctx[\dark], wr = Phasor.ar(0, 1, 0, frames), head, taps;
 				BufWr.ar(HPF.ar(beam, hp.clip(10, 2000)), buf, wr, 1);
