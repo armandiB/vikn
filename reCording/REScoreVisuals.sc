@@ -1,5 +1,5 @@
 // reCording — the visuals feed: what a song's recorder records and what its player plays, sent
-// to HomewareVisuals through RCVisuals (OSC 57300 → the bridge → a page), so that a page draws
+// to HomewareVisuals through RCVisuals (OSC to its address, 57300 from the IDE → the bridge → a page), so that a page draws
 // the performance's score as it is made and as it replays (public/lib/score-viz.js there,
 // public/score/).
 //

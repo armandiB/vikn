@@ -20,8 +20,12 @@
 // The bridge's port is far from sclang's own: sclang takes 57120 and, when that is busy, the next free one up,
 // so a second sclang (a headless check, a render) took 57121, the bridge's port until Oct 24 2026, and the
 // bridge could not start. A piece frozen before then sends to 57121: RCVisuals.setAddr("127.0.0.1", 57300).
+// The default port is RC_VISUALS_PORT when the environment sets it, else 57300 (the bridge of the user's
+// stack, which the IDE reaches): HomewareSC's headless runs set it to their checkout's own bridge (a
+// HomewareVisuals worktree's port) or to a port nothing binds, so a check never draws on the pages the
+// user has open. setAddr with a port still wins (HomewareVisuals' demos name their checkout's bridge).
 RCVisuals {
-	classvar <host = "127.0.0.1", <port = 57300;
+	classvar <host = "127.0.0.1", <port, <defaultPort = 57300;
 	classvar addr;
 	classvar <>enabled = true;
 	classvar <>sink;
@@ -29,14 +33,18 @@ RCVisuals {
 	classvar <sent = 0;
 
 	*initClass {
+		var env = "RC_VISUALS_PORT".getenv;
 		relays = IdentityDictionary.new;
+		// an empty variable reads "", not nil
+		if(env.notNil and: { env.asInteger > 0 }) { defaultPort = env.asInteger };
+		port = defaultPort;
 	}
 
 	//////// address
 
-	*setAddr { |hostarg = "127.0.0.1", portarg = 57300|
+	*setAddr { |hostarg = "127.0.0.1", portarg|
 		host = hostarg;
-		port = portarg;
+		port = portarg ? defaultPort;
 		addr = NetAddr(host, port);
 		^addr
 	}
