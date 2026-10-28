@@ -18,10 +18,14 @@ A delayed send goes on SystemClock from the calling thread's logical time: a Pfu
 CLASSMETHODS::
 
 METHOD:: setAddr
-The bridge address (default 127.0.0.1:57300, far from the ports sclang takes for itself from 57120 up; 57121 until Oct 24 2026).
+The bridge address (default 127.0.0.1 and link::#*defaultPort::, far from the ports sclang takes for itself from 57120 up; 57121 until Oct 24 2026).
 argument:: hostarg
 argument:: portarg
+The port; nil: link::#*defaultPort::.
 returns:: the link::Classes/NetAddr::
+
+METHOD:: defaultPort
+The port when none is named: the environment's code::RC_VISUALS_PORT:: when set, else 57300, the bridge of the user's stack (HomewareVisuals' main checkout), which the IDE reaches. HomewareSC's headless runs (its code::scripts/lib.sh:: code::run_sclang::) set it to their checkout's own bridge (a paired HomewareVisuals worktree's) or to 57399, which nothing binds, so a check or a probe never draws on the pages the user has open; its rig's live side sets it to the bridge it means to feed. A script that should reach a bridge names it: code::RCVisuals.setAddr("127.0.0.1", port)::, as HomewareVisuals' demos do with their checkout's port.
 
 METHOD:: addr
 The NetAddr messages go to.

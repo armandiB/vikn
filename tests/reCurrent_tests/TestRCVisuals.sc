@@ -39,11 +39,15 @@ TestRCVisuals : UnitTest {
 	}
 
 	test_addr {
-		var a = RCVisuals.setAddr;
-		this.assertEquals([a.ip, a.port], ["127.0.0.1", 57300], "the bridge address by default: 57300, clear of the ports sclang takes");
+		var env = "RC_VISUALS_PORT".getenv, a = RCVisuals.setAddr;
+		var expected = if(env.notNil and: { env.asInteger > 0 }) { env.asInteger } { 57300 };
+		this.assertEquals(RCVisuals.defaultPort, expected, "the default port: RC_VISUALS_PORT when set (a headless run), else 57300, clear of the ports sclang takes");
+		this.assertEquals([a.ip, a.port], ["127.0.0.1", expected], "setAddr without a port: the default");
 		this.assert(RCVisuals.addr === a, "addr keeps the NetAddr");
 		a = RCVisuals.setAddr("127.0.0.1", 57121);
 		this.assertEquals(a.port, 57121, "another port when asked (a frozen piece's bridge)");
+		a = RCVisuals.setAddr("127.0.0.1", 57300);
+		this.assertEquals(a.port, 57300, "57300 when named, whatever the environment (the user's stack)");
 		RCVisuals.setAddr;
 	}
 
