@@ -5,7 +5,7 @@
 //       (cc: 0, ctl: "symbolic_wave", op: \add, range: [-0.5, 0.5]),   // a ctl knob: mixed with the tape's /fx/ctl symbolic_wave
 //       (cc: 1, set: ["colour", "mix"], range: [0, 1])                 // a set knob: /fx/set colour mix <lo + k·(hi - lo)>, no tape, no states
 //   ]));
-//   r.start;                                   // MIDIClient.init, MIDIIn.connectAll, the mappings (guarded: no device, a warning; the mixes still work)
+//   r.start;                                   // MIDIClient.init, the device's source connected, the mappings (guarded: no device, a warning; the mixes still work)
 //   r.tapeValue("symbolic_wave", 0.3, now);    // the console's chase filter: the mix's output for the tape's value, nil for a name no knob takes
 //   r.tick(now);                               // the mixes gliding after a hold: their values sent
 //   r.knobReceived(0, 0.5, now); r.buttonReceived(0, 100, now);   // what the MIDI handlers call (tests drive them)
@@ -20,12 +20,15 @@
 // /fx/set <effect> <param> <value>; a button's press sends the mix's output when it has one. `op`
 // \add (the default) or \scale, `range` [lo, hi] ([0, 1]); `glide` the mixes' convergence (1.0 s).
 // Sends go through sendFunc (RCVisuals.sendArgs); `now` is timeFunc.value (Main.elapsedTime).
+// `stop` frees the mappings, disconnects the source and, when `start` initialized the MIDI client
+// itself, disposes it (the console's quit: the process then ends at 0.exit).
 
 REShowRoto {
 	var <spec, <deviceName, <glide, <knobChan = 0, <buttonChan = 1;
 	var <knobs, <byCtl;   // cc → knob (an Event: cc, name, set, op, lo, hi, mix); ctl name (String) → knob
 	var <>sendFunc, <>timeFunc;
-	var <midi, <started = false;
+	var <midi, <started = false, ownsMidi = false;   // ownsMidi: start initialized the MIDI client itself (stop disposes it)
+	var <source, sourceIndex;   // the device's MIDIEndPoint connected by start (nil: not found), its index among the sources
 
 	*new { |spec| ^super.new.initREShowRoto(spec) }
 
@@ -73,20 +76,35 @@ REShowRoto {
 
 	//////// the device
 
-	// MIDI up and the mappings installed: a fine pair per knob on knobChan, a 7-bit one per button on
-	// buttonChan, through RCMidi (its fine pairing). Without the device every mapping listens to all
-	// sources (RCMidi says so once per mapping); without MIDI at all the mixes still work from tapeValue.
+	// MIDI up, the device's source connected (that one alone: MIDIIn.connectAll with this Mac's twenty
+	// sources, network sessions among them, made MIDIIn.disconnectAll and MIDIClient.disposeClient
+	// deadlock one time in six, and a headless sclang then never ended at 0.exit, Oct 29 2026; with no
+	// source connected the client disposes every time) and the mappings installed: a fine pair per knob
+	// on knobChan, a 7-bit one per button on buttonChan, through RCMidi (its fine pairing). Without the
+	// device nothing is connected (a warning: plug it in and start again); without MIDI at all the mixes
+	// still work from tapeValue.
 	start {
 		if(started) { ^this };
 		started = true;
-		if(MIDIClient.initialized.not) { RCGuard.call(\roto, nil) { MIDIClient.init(verbose: false) } };
+		if(MIDIClient.initialized.not) {
+			RCGuard.call(\roto, nil) { MIDIClient.init(verbose: false) };
+			ownsMidi = MIDIClient.initialized;
+		};
 		if(MIDIClient.initialized) {
-			RCGuard.call(\roto, nil) { MIDIIn.connectAll(false) };
+			sourceIndex = (MIDIClient.sources ? []).detectIndex { |e| e.name == deviceName or: { e.device == deviceName } };
+			if(sourceIndex.isNil) {
+				source = nil;
+				RCLog.warn(\roto, "MIDI device \"%\" not found among % sources: no source connected (plug it in, start again)".format(deviceName, MIDIClient.sources.size));
+			} {
+				source = MIDIClient.sources[sourceIndex];
+				RCGuard.call(\roto, nil) { MIDIIn.connect(sourceIndex, source) };
+			};
 		} {
 			RCLog.warn(\roto, "MIDI not initialized: the knobs are not heard (the tape plays alone)");
 		};
 		this.installMappings;
-		RCLog.post(\roto, "% knobs on % (chan % knobs, chan % buttons)".format(knobs.size, deviceName, knobChan + 1, buttonChan + 1), true);
+		RCLog.post(\roto, "% knobs on % (chan % knobs, chan % buttons)%".format(knobs.size, deviceName, knobChan + 1, buttonChan + 1,
+			if(source.notNil) { ", connected" } { "" }), true);
 	}
 
 	// The mappings alone (start does this after MIDI is up; a test without MIDI drives their MIDIdefs):
@@ -112,9 +130,18 @@ REShowRoto {
 	// A fine value (msb + lsb/128, RCMidi's) as a position 0..1: the 14-bit value over 16383.
 	*positionOf { |v| ^(v * 128 / 16383).clip(0, 1) }
 
+	// The mappings freed, the source start connected disconnected, the MIDI client start brought up
+	// disposed (one a session had up before stays as it was).
 	stop {
 		midi !? (_.freeAll);
 		midi = nil;
+		source !? { |s| RCGuard.call(\roto, nil) { MIDIIn.disconnect(sourceIndex, s) } };
+		source = nil;
+		sourceIndex = nil;
+		if(ownsMidi) {
+			ownsMidi = false;
+			RCGuard.call(\roto, nil) { MIDIClient.disposeClient };
+		};
 		started = false;
 	}
 
