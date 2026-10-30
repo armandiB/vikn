@@ -266,25 +266,29 @@ RCAttractor {
 		)
 	}
 
-	// x warped by the attractor in the controls c (a buffer of `size` values, filled when the synth
-	// starts): x as it is when the strength is 0, the set holds fewer than two values, or x lies outside
-	// a set that does not repeat.
+	// x warped by the attractor in the controls c (the set's `size` values, sorted, padded high): x as it
+	// is when the strength is 0, the set holds fewer than two values, or x lies outside a set that does
+	// not repeat. The set and the weights are read from their control arrays at every control cycle, so an
+	// /n_set with another set reaches a running synth (a continuous grain's thread chained through a sieve
+	// change). Until Oct 30 2026 they were copied once into LocalBufs by SetBuf, which runs at the synth's
+	// start only: a thread chained across a change then warped through the old set with the new count,
+	// period and root, its pitch garbage (Ataxy's Jonchaies strata fell silent or not, by whether the
+	// chain happened to break).
 	*prWarp { |c, x, size|
-		var n = size ? (maxDegrees + 2);
-		var buf = LocalBuf(n), wbuf = LocalBuf(n);
-		var fill = [SetBuf(buf, c[\set]), SetBuf(wbuf, c[\weights])];   // before anything reads them
+		var set = c[\set], weights = c[\weights];
 		var periodic = c[\period] > 0;
 		var f = x - c[\root];
 		var k = Select.kr(periodic, [0, (f / c[\period].max(1e-9)).floor]);
 		var r = f - (k * c[\period]);
 		var last = (c[\n] - 1).max(1);
-		var i0 = IndexInBetween.kr(buf, r).floor.clip(0, last - 1);
-		var a = Index.kr(buf, i0), b = Index.kr(buf, i0 + 1);
-		var wa = Index.kr(wbuf, i0), wb = Index.kr(wbuf, i0 + 1);
+		var below = set.collect { |v| v <= r }.sum;   // the values at or under r (the padding, 1e9, never): IndexInBetween's floor
+		var i0 = (below - 1).clip(0, last - 1);
+		var a = Select.kr(i0, set), b = Select.kr(i0 + 1, set);
+		var wa = Select.kr(i0, weights), wb = Select.kr(i0 + 1, weights);
 		var u = ((r - a) / (b - a).max(1e-12)).clip(0, 1);
 		var m = Select.kr((wa + wb) > 0, [-1, wa / (wa + wb).max(1e-12)]);   // -1: two weights of 0, an even segment
 		var shape = this.prShape(u, c[\str].max(1e-3), m);
-		var inside = (periodic + ((r >= Index.kr(buf, 0)) * (r <= Index.kr(buf, last)))).min(1);
+		var inside = (periodic + ((r >= set[0]) * (r <= Select.kr(last, set)))).min(1);
 		var on = (c[\str] > 1e-3) * (c[\n] >= 2) * inside;
 		^Select.kr(on, [x, c[\root] + (k * c[\period]) + a + ((b - a) * shape)])
 	}

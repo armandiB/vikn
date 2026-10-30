@@ -159,6 +159,6 @@ TestRCAttractor : UnitTest {
 		});
 		var names = def.allControlNames.collect(_.name);
 		this.assert(names.includesAll([\pitch_astr, \pitch_aset, \pitch_aweights, \pitch_an, \pitch_aperiod, \pitch_aroot, \progress_astr, \progress_aset, \progress_x0, \progress_x1, \progress_alo, \progress_ahi, \progress_mlo, \progress_mhi]), "the warp and the time warp declare their controls");
-		this.assert(def.children.count { |u| u.isKindOf(LocalBuf) } == 4 and: { def.children.count { |u| u.isKindOf(SetBuf) } == 4 } and: { def.children.any { |u| u.isKindOf(IndexInBetween) } }, "each a LocalBuf of values and one of weights, filled at the start, searched by IndexInBetween");
+		this.assert(def.children.any { |u| u.isKindOf(LocalBuf) or: { u.isKindOf(SetBuf) } or: { u.isKindOf(IndexInBetween) } }.not and: { def.children.count { |u| u.isKindOf(Select) } >= 8 }, "no buffer filled at the start: the sets and weights read from their control arrays at every cycle (Select), so an /n_set with another set reaches a running synth");
 	}
 }
