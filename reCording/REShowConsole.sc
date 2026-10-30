@@ -20,10 +20,12 @@
 //                                                                   { "cc": 1, "set": ["colour", "mix"], "range": [0, 1] } ] } }
 // A cue's tape is its take's control tape, named `ctl` by the take's render sidecar (<take>.render.json:
 // <take>/<take>.ctl.json, take.sh render --viz); without one the sidecar's `tape` (the .viz.json) is read
-// and kept to its /fx/ entries; a cue may name a `tape` itself instead of a take. `end` defaults to
-// start + the sidecar's `duration` (else the cue's own `duration`, else the tape's length, said);
-// `videoOffset` to 0; `video` is passed to the page as written (a URL it can load). `start` and `end`
-// are on the show clock, Reaper's timeline plus the offset (small: write Reaper positions).
+// and kept to its /fx/ entries. `take` is the take file (the sidecar next to it) or the sidecar itself
+// (a path ending in .render.json); a cue may name a `tape` itself instead. `end` defaults to start +
+// the sidecar's `duration` (else the cue's own `duration`); a cue with neither is open (end inf, said):
+// current from its start until a later cue starts, sent to the page with `openEnd` (1e9 s) as its end.
+// `videoOffset` defaults to 0; `video` is passed to the page as written (a URL it can load). `start` and
+// `end` are on the show clock, Reaper's timeline plus the offset (small: write Reaper positions).
 //
 // Reaper → console (UDP, the console's port, 57150: Reaper's OSC control surface with the default
 // patterns): /time <seconds>, /play <0|1>, /stop <0|1>, /pause <0|1>. The transport is also derived
@@ -40,6 +42,7 @@
 // Every handler and every tick is guarded (RCGuard): one bad entry never kills the console.
 
 REShowConsole {
+	classvar <>openEnd = 1e9;   // the end sent for an open cue (inf inside: a finite float32 on the wire)
 	var <show, <path, <dir;
 	var <port = 57150, <offset = 0.0, <rate = 15, <live = false;
 	var <>sendFunc, <>timeFunc;
@@ -153,9 +156,10 @@ REShowConsole {
 		currentCue = nil;
 	}
 
-	// A cue as kept: name, video, start, end, videoOffset, tape (the path read), chase.
+	// A cue as kept: name, video, start, end (inf when open), videoOffset, take, sidecar, tape (the
+	// path read), chase.
 	prReadCue { |c, i|
-		var cue = (), tapePath, render, fxOnly = false, tape, entries, duration, end;
+		var cue = (), tapePath, render, folder, fxOnly = false, tape, entries, duration, end, given;
 		cue[\name] = (c[\name] ?? { "cue" ++ (i + 1) }).asString;
 		cue[\video] = (c[\video] ? "").asString;
 		cue[\start] = (c[\start] ? 0).asFloat;
@@ -164,13 +168,24 @@ REShowConsole {
 			tapePath = this.prPath(c[\tape]);
 		} {
 			if(c[\take].isNil) { RCLog.warn(\console, "cue %: neither take nor tape: it has no control tape".format(cue[\name])) } {
-				cue[\take] = this.prPath(c[\take]);
-				render = REScore.readRender(cue[\take]);
-				if(render.isNil) {
-					RCLog.warn(\console, "cue %: no render sidecar next to % (take.sh render --viz): no control tape".format(cue[\name], cue[\take].basename));
+				given = this.prPath(c[\take]);
+				if(given.endsWith(".render.json")) {
+					// the sidecar itself: the take's folder is its own
+					cue[\sidecar] = given;
+					render = this.prReadSidecar(given);
+					folder = given.dirname;
+					cue[\take] = (render !? { |r| r[\take] !? { |t| folder +/+ t.asString } }) ? given;
+					if(render.isNil) { RCLog.warn(\console, "cue %: no render sidecar at % (take.sh render --viz): no control tape".format(cue[\name], given)) };
 				} {
+					cue[\take] = given;
+					cue[\sidecar] = REScore.renderPath(given);
+					render = REScore.readRender(given);
+					folder = given.dirname;
+					if(render.isNil) { RCLog.warn(\console, "cue %: no render sidecar next to % (take.sh render --viz): no control tape".format(cue[\name], given.basename)) };
+				};
+				render !? {
 					duration = render[\duration] !? (_.asFloat);
-					tapePath = render[\ctl] !? { |p| p = p.asString; if(p.beginsWith("/")) { p } { cue[\take].dirname +/+ p } };
+					tapePath = render[\ctl] !? { |p| p = p.asString; if(p.beginsWith("/")) { p } { folder +/+ p } };
 					if(tapePath.isNil or: { File.exists(tapePath).not }) {
 						tapePath = render[\tape] !? (_.asString);
 						fxOnly = true;
@@ -192,14 +207,25 @@ REShowConsole {
 		if(end.isNil) { c[\duration] !? { |d| end = cue[\start] + d.asFloat } };
 		if(end.isNil) { duration !? { |d| end = cue[\start] + d } };
 		if(end.isNil) {
-			end = cue[\start] + (entries.last !? (_[0]) ? 0);
-			RCLog.warn(\console, "cue %: no end, no duration: it ends with its tape, at % s".format(cue[\name], end.round(0.01)));
+			end = inf;
+			RCLog.warn(\console, "cue %: no end, no duration: open from % s until a later cue starts".format(cue[\name], cue[\start]));
 		};
 		cue[\end] = end;
 		cue[\chase] = REShowChase(entries, cue[\start]);
 		cue[\chase].sendFunc = { |p, args| this.prSend(p, args) };
 		cue[\chase].filter = { |e| this.prFilter(e) };
 		^cue
+	}
+
+	// A render sidecar read by its own path (REScore.readRender reads it next to a take): nil when
+	// missing or not one; its wav, tape and state made absolute against its folder.
+	prReadSidecar { |p|
+		var d, dir = p.dirname;
+		if(File.exists(p).not) { ^nil };
+		d = REJSON.read(p);
+		if(d.isNil or: { d[\format] != "re-render" }) { RCLog.warn(\console, "% is not a render sidecar: ignored".format(p.basename)); ^nil };
+		[\wav, \tape, \state].do { |k| d[k] !? { |v| if(v.asString.beginsWith("/").not) { d[k] = dir +/+ v.asString } } };
+		^d
 	}
 
 	// a path of the show file: relative to its folder
@@ -212,7 +238,7 @@ REShowConsole {
 
 	prSendCues {
 		this.prSend('/fx/cues', []);
-		cues.do { |cue| this.prSend('/fx/cue', [cue[\name], cue[\video], cue[\start], cue[\end], cue[\videoOffset]]) };
+		cues.do { |cue| this.prSend('/fx/cue', [cue[\name], cue[\video], cue[\start], if(cue[\end] == inf) { openEnd } { cue[\end] }, cue[\videoOffset]]) };
 	}
 
 	// a mapped /fx/ctl carries the mix's value; everything else goes as it is
@@ -249,7 +275,7 @@ REShowConsole {
 		if(secs.isNumber.not) { ^this };
 		secs = secs.asFloat;
 		if(lastTime.isNil) {
-			jump = playing.not;
+			jump = true;   // the first time: the page lands there (the extrapolation starts here when playing)
 		} {
 			if(playing) {
 				predicted = lastTime + (now - lastArrival);
@@ -275,19 +301,22 @@ REShowConsole {
 		^this.prStop(now)
 	}
 
+	// Before any /time the clock is unknown: the transport is said, the first /time lands the page.
 	prPlay { |now|
 		if(playing) { ^this };
 		playing = true;
 		lastArrival = now;   // the extrapolation runs from here, at the time Reaper last said
 		this.prSend('/fx/transport', [1]);
-		this.prSeek(this.prShowTime(now));
+		this.prShowTime(now) !? { |t| this.prSeek(t) };
 	}
 
 	prStop { |now|
 		if(playing.not) { ^this };
 		playing = false;
-		lastShowTime = (lastTime ? 0) + offset;
-		this.prSend('/fx/time', [lastShowTime]);
+		lastTime !? { |lt|
+			lastShowTime = lt + offset;
+			this.prSend('/fx/time', [lastShowTime]);
+		};
 		this.prSend('/fx/transport', [0]);
 	}
 
@@ -320,7 +349,7 @@ REShowConsole {
 		var t, cue, sentT;
 		now = now ?? { timeFunc.value };
 		ticks = ticks + 1;
-		if(playing) {
+		if(playing and: { lastTime.notNil }) {
 			if((now - lastArrival) > staleAfter) {
 				this.prStop(now);
 			} {
@@ -341,20 +370,24 @@ REShowConsole {
 		^sentT
 	}
 
-	// the show clock at `now`: Reaper's time extrapolated while playing, as last said otherwise, plus the offset
+	// the show clock at `now`: Reaper's time extrapolated while playing, as last said otherwise, plus
+	// the offset; nil before Reaper said any time
 	prShowTime { |now|
+		if(lastTime.isNil) { ^nil };
 		if(playing and: { lastArrival.notNil }) { ^lastTime + (now - lastArrival) + offset };
-		^(lastTime ? 0) + offset
+		^lastTime + offset
 	}
 
 	//////// reading
 
 	// The show clock now (nil before Reaper said anything).
-	time { ^if(lastTime.isNil) { nil } { this.prShowTime(timeFunc.value) } }
+	time { ^this.prShowTime(timeFunc.value) }
 
-	// The cue at show time t: the last started among those holding t (start <= t < end), nil between cues.
+	// The cue at show time t: the last started among those holding t (start <= t < end; an open cue
+	// holds everything after its start), nil between cues or without a time.
 	cueAt { |t|
 		var found;
+		if(t.isNil) { ^nil };
 		cues.do { |cue| if(cue[\start] <= t and: { t < cue[\end] }) { found = cue } };
 		^found
 	}
@@ -367,7 +400,7 @@ REShowConsole {
 		s = "REShowConsole: % %".format(
 			if(started.not) { "not started" } { if(playing) { "playing" } { "stopped" } },
 			t !? { "at % s".format(t.round(0.01)) } ? "(no time from Reaper yet)");
-		cue !? { s = s ++ ", cue % (% s in, % entries)".format(cue[\name], (t - cue[\start]).round(0.01), cue[\chase].size) };
+		cue !? { s = s ++ ", cue % (% s in, % entries%)".format(cue[\name], (t - cue[\start]).round(0.01), cue[\chase].size, if(cue[\end] == inf) { ", open" } { "" }) };
 		if(t.notNil and: { cue.isNil }) { s = s ++ ", between cues" };
 		s = s ++ "; offset % s, port %, % a second, % cues".format(offset, port, rate, cues.size);
 		roto !? { |r| s = s ++ ", roto % knobs".format(r.size) };

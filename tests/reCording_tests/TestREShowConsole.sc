@@ -243,10 +243,11 @@ TestREShowConsole : UnitTest {
 		c.stop;
 	}
 
-	// a cue naming a take: the control tape through the render sidecar, `end` from its duration; a
-	// take without a `ctl` tape: the visuals tape kept to its /fx/ entries; a cue without anything
+	// a cue naming a take: the control tape through the render sidecar, `end` from its duration; the
+	// sidecar itself as the take; a take without a `ctl` tape: the visuals tape kept to its /fx/
+	// entries; cues without an end (open), without anything, with a missing sidecar
 	test_cues_from_takes {
-		var take = root +/+ "260101_120000_show w0.json", c, show, viz;
+		var take = root +/+ "260101_120000_show w0.json", c, show, viz, cueLines;
 		var renderDir = REScore.renderDir(take);
 		File.mkdir(renderDir);
 		REJSON.write((format: "re-render", version: 1, take: take.basename, wav: "x.wav", duration: 7.25, ctl: tapePath), REScore.renderPath(take), 2, 2);
@@ -257,23 +258,39 @@ TestREShowConsole : UnitTest {
 			(name: "b", tape: "one.ctl.json", start: 200, duration: 3),
 			(name: "c", start: 300),
 			(name: "d", take: "nothing.json", start: 400),
-			(name: "e", tape: "one.ctl.json", start: 500)
+			(name: "e", tape: "one.ctl.json", start: 500),
+			(name: "f", take: REScore.renderPath(take).basename, start: 600),
+			(name: "g", take: "nothing.render.json", start: 700)
 		]);
 		c = this.prConsole(show);
 		c.start;
-		this.assertEquals(c.cues.size, 5);
+		this.assertEquals(c.cues.size, 7);
 		this.assertEquals(c.cues[0][\tape], tapePath, "the sidecar's ctl tape");
+		this.assertEquals(c.cues[0][\sidecar], REScore.renderPath(take), "the sidecar found next to the take");
 		this.assertEquals(c.cues[0][\end], 107.25, "start plus the render's duration");
 		this.assertEquals(c.cues[0][\chase].size, 7);
 		this.assertEquals(c.cues[1][\tape], root +/+ "one.ctl.json", "a path relative to the show's folder");
 		this.assertEquals(c.cues[1][\end], 203.0, "the cue's own duration");
 		this.assertEquals(c.cues[2][\chase].size, 0, "no take, no tape: an empty chase");
-		this.assertEquals(c.cues[2][\end], 300.0);
-		this.assert(this.logHas("neither take nor tape") and: { this.logHas("no end, no duration") });
+		this.assertEquals(c.cues[2][\end], inf, "no end, no duration: open");
+		this.assert(this.logHas("neither take nor tape") and: { this.logHas("no end, no duration: open") });
 		this.assertEquals(c.cues[3][\chase].size, 0, "a take without a render: said, no tape");
-		this.assert(this.logHas("no render sidecar"));
-		this.assertEquals(c.cues[4][\end], 506.0, "no end anywhere: the tape's last entry");
-		this.assertEquals(sent.select { |m| m[0] == "/fx/cue" }.collect(_[1]), ["a", "b", "c", "d", "e"]);
+		this.assert(this.logHas("no render sidecar next to nothing.json"));
+		this.assertEquals(c.cues[4][\end], inf, "a tape but no end: open too (the tape's length says nothing about the audio's)");
+		this.assertEquals(c.cues[5][\tape], tapePath, "the sidecar itself as the take: its ctl tape");
+		this.assertEquals(c.cues[5][\take], take, "the take named by the sidecar, in its folder");
+		this.assertEquals(c.cues[5][\end], 607.25, "its duration");
+		this.assertEquals(c.cues[5][\chase].size, 7);
+		this.assertEquals(c.cues[6][\chase].size, 0, "a sidecar path that is not there: no tape");
+		this.assert(this.logHas("no render sidecar at " ++ root +/+ "nothing.render.json"), "said with its path");
+		this.assertEquals(c.cues[6][\end], inf);
+		cueLines = sent.select { |m| m[0] == "/fx/cue" };
+		this.assertEquals(cueLines.collect(_[1]), ["a", "b", "c", "d", "e", "f", "g"]);
+		this.assertEquals(cueLines[2][4], REShowConsole.openEnd, "an open cue's end goes to the page as openEnd (1e9 s), never inf");
+		this.assertEquals(cueLines[0][4], 107.25);
+		this.assertEquals(c.cueAt(350), c.cues[2], "an open cue holds every later time...");
+		this.assertEquals(c.cueAt(450), c.cues[3], "...until a later cue starts");
+		this.assertEquals(c.cueAt(1e8), c.cues[6], "the last open cue for ever");
 		c.stop;
 		// the same take without a ctl tape: the visuals tape, /fx/ entries alone
 		REJSON.write((format: "re-render", version: 1, take: take.basename, wav: "x.wav", duration: 7.25, tape: renderDir.basename +/+ viz.basename), REScore.renderPath(take), 2, 2);
@@ -283,6 +300,44 @@ TestREShowConsole : UnitTest {
 		this.assertEquals(c.cues[0][\tape], viz);
 		this.assertEquals(c.cues[0][\chase].size, 6, "the /lsys/ entry left out");
 		this.assert(this.logHas("visuals tape read for its /fx/ entries"));
+		c.stop;
+	}
+
+	// a cue with no sidecar, no tape, no end: the console runs, the cue is current from its start,
+	// nothing is sent for it but /fx/time, no error; and the transport before any time
+	test_open_cue_without_anything {
+		var c = this.prConsole((cues: [(name: "bare", start: 10), (name: "next", start: 30, end: 40, tape: tapePath)]));
+		c.start;
+		this.assertSent([["/fx/chase", 1], ["/fx/cues"], ["/fx/cue", "bare", "", 10.0, REShowConsole.openEnd, 0.0], ["/fx/cue", "next", "", 30.0, 40.0, 0.0]]);
+		this.assertEquals(c.cues[0][\end], inf);
+		this.assertEquals(c.cueAt(9.9), nil);
+		this.assertEquals(c.cueAt(10), c.cues[0], "current from its start");
+		this.assertEquals(c.cueAt(29.9), c.cues[0]);
+		this.assertEquals(c.cueAt(30), c.cues[1], "a later cue takes over");
+		this.assertEquals(c.cueAt(40), c.cues[0], "and the open cue holds again after it");
+		sent.clear;
+		c.transportReceived(1);
+		this.assertSent([["/fx/transport", 1]], "play before any time: the transport alone, no clock to seek");
+		this.assertEquals(c.time, nil);
+		this.assertEquals(c.tick(0.1), nil, "a tick without a time: nothing");
+		this.assertEquals(sent.size, 1);
+		now = 0.2;
+		c.timeReceived(9.0);
+		this.assertSent([["/fx/transport", 1], ["/fx/time", 9.0]], "the first time lands the page: between cues, the time alone");
+		sent.clear;
+		now = 2.0;
+		c.tick(now);
+		this.assertSent([["/fx/time", 10.8]], "the bare cue entered: its (empty) state, the time alone");
+		this.assertEquals(c.currentCue[\name], "bare");
+		this.assert(c.status.contains("cue bare") and: { c.status.contains("open") });
+		sent.clear;
+		now = 3.0;
+		c.tick(now);
+		this.assertSent([["/fx/time", 11.8]], "and on");
+		this.assert(RCLog.history.any { |e| e[1] == \error }.not, "no error logged: %".format(RCLog.history.select { |e| e[1] == \error }.collect(_[2])));
+		sent.clear;
+		c.transportReceived(0);
+		this.assertSent([["/fx/time", 9.0], ["/fx/transport", 0]], "stop: where Reaper last said");
 		c.stop;
 	}
 
