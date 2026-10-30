@@ -1,0 +1,89 @@
+TITLE:: REShowRoto
+summary:: The Roto-Control at the show console: knobs mixed into the tapes' values, buttons choosing states
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REShowConsole, Classes/REKnobMix, Classes/RCMidi
+
+DESCRIPTION::
+The device of HadronLake3's show console (link::Classes/REShowConsole::), from the show file's code::"roto":: object. Each strong::ctl knob:: owns an link::Classes/REKnobMix:: for one control name of the effects page: the take's code::/fx/ctl <name>:: value and the knob's position mixed into one value; the console's chase asks link::#-tapeValue:: for every such entry and sends the mix's output in place of the tape's, a knob's move sends code::/fx/ctl <name> <out>:: at once, and link::#-tick:: sends the mixes still converging after a hold. A strong::set knob:: drives an effect's parameter directly: code::/fx/set <effect> <param> <lo + k·(hi - lo)>::, no tape, no states. The knob's strong::button:: chooses the mix's state by thirds of its value: below 43, state 1 (both live); below 86, state 2 (the tape held); else 3 (the knob held).
+
+The device: knobs send CCs 0-31 on MIDI channel 1 (sclang chan 0, code::knobChan::) as fine pairs (cc, cc + 32), through link::Classes/RCMidi::'s pairing (the MSB completed by its LSB), the position k = (msb + lsb/128) × 128 / 16383 (link::#*positionOf::: the 14-bit value over 16383, 1 at the top; a device sending the MSB alone reaches 0.992); the buttons send the same CCs on MIDI channel 2 (sclang chan 1, code::buttonChan::), 7-bit. link::#-start:: brings MIDI up (code::MIDIClient.init::, code::MIDIIn.connectAll::, guarded: without the device every mapping listens to all sources, RCMidi says so; without MIDI at all the mixes still work from tapeValue) and installs the mappings. The handlers call link::#-knobReceived:: and link::#-buttonReceived::, which a test drives directly; sends go through link::#-sendFunc::, code::now:: comes from link::#-timeFunc::.
+
+The spec (an Event or the dictionary REJSON reads): code::device:: ("Roto-Control"), code::glide:: (1.0, the mixes'), code::knobChan:: (0), code::buttonChan:: (1), code::knobs::: a list (or an object keyed by cc) of code::(cc:, ctl: "name", op: \add | \scale, range: [lo, hi]):: or code::(cc:, set: ["effect", "param"], range: [lo, hi])::; code::op:: defaults to add, code::range:: to [0, 1].
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: spec
+
+METHOD:: stateOf
+A button's value, 0..127, as a state 1, 2 or 3.
+argument:: v
+
+METHOD:: positionOf
+A fine value (msb + lsb/128, RCMidi's) as a position 0..1.
+argument:: v
+
+INSTANCEMETHODS::
+
+METHOD:: start
+MIDI up and the mappings installed (code::rc_roto_knob_<cc>::, its code::_lsb::, code::rc_roto_button_<cc>::).
+METHOD:: installMappings
+The mappings alone, without touching MIDI (a test drives their MIDIdefs). Returns the link::Classes/RCMidi::.
+METHOD:: stop
+The mappings freed.
+
+METHOD:: knobReceived
+A knob at position code::k:: (0..1): a ctl knob's mix updated and its output sent, a set knob's value sent. Returns what was sent, nil for an unmapped cc.
+argument:: cc
+argument:: k
+argument:: now
+METHOD:: buttonReceived
+A button's value code::v:: (0..127): the state on the knob's mix, the output sent when there is one. Returns the state, nil for a set knob or an unmapped cc.
+argument:: cc
+argument:: v
+argument:: now
+METHOD:: tapeValue
+The tape's value for a control name: the mix's output (the knob mixed in), nil for a name no knob takes or a value that is no number (the entry goes as it is).
+argument:: name
+argument:: v
+argument:: now
+METHOD:: tick
+The mixes still moving send their values. Returns the number sent.
+argument:: now
+
+METHOD:: knob
+The knob of a cc: an Event with code::cc::, code::name:: or code::set::, code::op::, code::lo::, code::hi::, code::mix::, code::k:: (its last position).
+argument:: cc
+METHOD:: mix
+The link::Classes/REKnobMix:: of a ctl knob.
+argument:: cc
+METHOD:: mixes
+METHOD:: ctlNames
+The control names the knobs take, sorted.
+METHOD:: size
+METHOD:: status
+One line per knob.
+METHOD:: sendFunc
+code::{ |path, args| }::; code::RCVisuals.sendArgs:: by default.
+METHOD:: timeFunc
+code::{ seconds }::; code::Main.elapsedTime:: by default.
+METHOD:: deviceName
+METHOD:: glide
+METHOD:: knobChan
+METHOD:: buttonChan
+METHOD:: midi
+METHOD:: started
+METHOD:: spec
+
+EXAMPLES::
+
+code::
+r = REShowRoto((device: "Roto-Control", glide: 1.0, knobs: [
+	(cc: 0, ctl: "symbolic_wave", op: \add, range: [-0.5, 0.5]),
+	(cc: 1, set: ["colour", "mix"], range: [0, 1])
+]));
+r.start;
+r.tapeValue("symbolic_wave", 0.3, Main.elapsedTime);   // the chase's question: 0.3 plus the knob's offset
+r.status.do(_.postln);
+r.stop;
+::

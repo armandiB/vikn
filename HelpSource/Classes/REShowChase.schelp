@@ -1,0 +1,59 @@
+TITLE:: REShowChase
+summary:: A take's control tape chased to a clock it does not own
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REShowConsole, Classes/REVisualsTape, Classes/RERenderedPlayer, Classes/RCVisuals
+
+DESCRIPTION::
+At HadronLake3's show (link::Classes/REShowConsole::) Reaper plays the pieces' stems and owns the clock; the take's control tape (link::Classes/REVisualsTape::, the code::/fx/:: entries code::take.sh render --viz:: sets apart) cannot simply play from its start as link::Classes/RERenderedPlayer:: plays it. A chase holds the tape's entries, code::[secs, "/address", args...]:: on the take's timeline, sorted, and the cue's code::start:: on the show clock (an entry at code::secs:: belongs at show time code::start + secs::). link::#-seek:: sends the strong::state:: at a time: for every state key the last entry at or before it, in tape order (the chain before what it holds, a clear before what follows it); link::#-advance:: streams the entries of a window, in order (the console's heartbeat, from the previous tick's time to this one's). A link::#-filter:: rewrites an entry before it goes out (the console puts the Roto's mix in place of a mapped code::/fx/ctl::'s value, link::Classes/REShowRoto::); every send goes through one link::#-sendFunc:: (code::RCVisuals.sendArgs::), which a test replaces.
+
+The state keys (link::#*keyOf::): code::/fx/chain::, code::/fx/clear::, code::/fx/level::: the address alone; code::/fx/ctl::: (address, name); code::/fx/set::, code::/fx/glide::: (address, effect, param); code::/fx/map::: (address, effect, param), its arguments 2 and 3 (argument 1 is the control's name); code::/fx/on::, code::/fx/points::: (address, effect); code::/fx/layer::: (address, index); code::/fx/look::: (address, key); anything else: the address and its first string argument. Transient, never part of a state, streamed by advance alone: code::/fx/rain::, code::/fx/drop::. Dropped always: code::/fx/start::, code::/fx/stop::, code::/fx/page:: (in chase mode the page's video follows code::/fx/time::).
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: entries
+code::[secs, "/address", args...]:: each, sorted by seconds (a tape's code::entries::).
+argument:: start
+The cue's start on the show clock.
+
+METHOD:: keyOf
+The state key of an entry: a Symbol (code::'/fx/set|colour|mix'::), code::\transient:: or code::\dropped::.
+argument:: e
+
+METHOD:: transient
+METHOD:: dropped
+The addresses so treated.
+
+INSTANCEMETHODS::
+
+METHOD:: seek
+The state at show time code::t::: the last entry at or before it per key, in tape order, through the filter and out. Returns the number sent.
+argument:: t
+
+METHOD:: advance
+The entries with code::from < show time <= to::, in order, transients included, dropped addresses not. Returns the number sent.
+argument:: from
+argument:: to
+
+METHOD:: filter
+A Function of an entry answering the entry to send, or nil for none; an error in it drops the entry.
+METHOD:: sendFunc
+code::{ |path, args| }::, the address a Symbol; code::RCVisuals.sendArgs:: by default.
+METHOD:: entries
+METHOD:: start
+METHOD:: size
+METHOD:: duration
+The last entry's seconds.
+METHOD:: end
+code::start + duration::.
+METHOD:: sent
+Entries sent so far.
+
+EXAMPLES::
+
+code::
+t = REVisualsTape.read("~/Music/.../Scores/<take>/<take>.ctl.json");
+c = REShowChase(t.entries, 120.0);    // the cue starts at 2:00 on the show clock
+c.seek(130.5);                        // the page's effects as the take had them 10.5 s in
+c.advance(130.5, 130.6);              // what happens in the next tenth
+::
