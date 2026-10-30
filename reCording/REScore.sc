@@ -849,9 +849,10 @@ REScore {
 		var unsafe = code.select { |e| e[\replay] == false and: { e[\loopback].isNil } };
 		var loops = code.select { |e| e[\loopback].notNil };
 		var raised = code.select { |e| e[\raised] == true };
-		var random = code.select { |e| randoms.any { |p| e[\text].asString.contains(p) } };
-		var routines = code.select { |e| untagged.any { |p| e[\text].asString.contains(p) } };
-		var played = code.select { |e| var t = e[\text].asString; t.contains(".play(") and: { patterns.any { |p| t.contains(p) } } };
+		var bare = { |e| this.class.codeOnly(e[\text]) };
+		var random = code.select { |e| var t = bare.(e); randoms.any { |p| t.contains(p) } };
+		var routines = code.select { |e| var t = bare.(e); untagged.any { |p| t.contains(p) } };
+		var played = code.select { |e| var t = bare.(e); t.contains(".play(") and: { patterns.any { |p| t.contains(p) } } };
 		if(unsafe.notEmpty) { out.add("% code line(s) not replayed (%): their effects play instead".format(unsafe.size, unsafe.collect(_[\id]))) };
 		if(loops.notEmpty) { out.add("% code line(s) sent a message to this song (%): the input replays, not the line".format(loops.size, loops.collect(_[\id]))) };
 		if(raised.notEmpty) { out.add("% code line(s) raised (%): their effects are what they did before".format(raised.size, raised.collect(_[\id]))) };
@@ -863,6 +864,50 @@ REScore {
 		if(played.notEmpty) { out.add("% code line(s) play a pattern by hand (%): its events belong to no beat; play it through a beat (RCBeat) or a tagged player".format(played.size, played.collect(_[\id]))) };
 		(meta[\unrecorded] ? 0) !? { |n| if(n > 0) { out.add("% program action(s) on the main thread were not recorded (level 2 off): the program does them again at replay".format(n)) } };
 		^out.asArray
+	}
+
+	// A code line as the check reads it: its comments (// to the line's end, /* */ nested) and the
+	// insides of its strings left out, so that a comment saying "random" draws nothing. Symbols and
+	// character literals ($" $/) stay as they are.
+	*codeOnly { |text|
+		var out = CollStream.on(String.new), i = 0, n, c, next, depth, quote;
+		text = text.asString;
+		n = text.size;
+		while { i < n } {
+			c = text[i];
+			next = text[i + 1];
+			case
+			{ c == $$ } {
+				out << text.copyRange(i, (i + if(next == $\\) { 2 } { 1 }).min(n - 1));
+				i = i + if(next == $\\) { 3 } { 2 };
+			}
+			{ c == $/ and: { next == $/ } } {
+				while { i < n and: { text[i] != Char.nl } } { i = i + 1 };
+			}
+			{ c == $/ and: { next == $* } } {
+				depth = 1;
+				i = i + 2;
+				while { i < n and: { depth > 0 } } {
+					case
+					{ text[i] == $/ and: { text[i + 1] == $* } } { depth = depth + 1; i = i + 2 }
+					{ text[i] == $* and: { text[i + 1] == $/ } } { depth = depth - 1; i = i + 2 }
+					{ i = i + 1 };
+				};
+			}
+			{ c == $" or: { c == $' } } {
+				quote = c;
+				out << c;
+				i = i + 1;
+				while { i < n and: { text[i] != quote } } {
+					if(quote == $') { out << text.copyRange(i, (i + if(text[i] == $\\) { 1 } { 0 }).min(n - 1)) };
+					i = i + if(text[i] == $\\) { 2 } { 1 };
+				};
+				if(i < n) { out << quote };
+				i = i + 1;
+			}
+			{ out << c; i = i + 1 };
+		};
+		^out.contents
 	}
 
 	// Short commit of the git checkout holding dir, nil outside one.

@@ -257,6 +257,22 @@ TestREScore : UnitTest {
 		this.assertEquals(s.tempoAt(-1), 2.0, "before the map: its first");
 	}
 
+	// The check reads a line's code: what its comments and strings say draws nothing.
+	test_check_reads_code_not_comments {
+		var s = REScore(\c), check;
+		this.assertEquals(REScore.codeOnly("~set.(\\bias, 1);   // 0: as random as before"), "~set.(\\bias, 1);   ", "a line comment left out");
+		this.assertEquals(REScore.codeOnly("x = \"a rand string\".size; /* a /* nested */ fork { } */ y"), "x = \"\".size;  y", "a string's insides and a nested block comment");
+		this.assertEquals(REScore.codeOnly("x = $/; y = $\"; z = 'a//b'; w = \"\\\"choose\""), "x = $/; y = $\"; z = 'a//b'; w = \"\"", "characters and symbols kept, an escaped quote inside a string");
+		this.assertEquals(REScore.codeOnly("a = 1;\n// rand\nb = 2.rand"), "a = 1;\n\nb = 2.rand", "a comment to its line's end only");
+		this.assertEquals(REScore.codeOnly(nil), "nil");
+		s.add((beat: 0.0, secs: 0.0, kind: \code, voice: \code, text: "b.set(\\amp, 1.0.rand)"));
+		s.add((beat: 1.0, secs: 0.5, kind: \code, voice: \code, text: "~set.(\\bias, 1);   // 0: as random as without the map"));
+		s.add((beat: 2.0, secs: 1.0, kind: \code, voice: \code, text: "~go.();   // a Routine { } of its own, Pbind(...).play(...)"));
+		check = s.check;
+		this.assertEquals(check.size, 1, "one problem: " ++ check);
+		this.assert(check[0].beginsWith("1 code line(s) draw random numbers") and: { check[0].contains("([1])") }, "the line drawing, not the comment saying random: " ++ check);
+	}
+
 	test_gitHead {
 		var vikn = REScore.filenameSymbol.asString.dirname.dirname;
 		var head = REScore.gitHead(vikn);
