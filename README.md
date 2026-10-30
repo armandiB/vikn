@@ -45,7 +45,10 @@ Two small modules the songs hold by name (`~song.ambi`, `~song.recorder(\k)`):
   `HelpSource/Guides/reAmbi.schelp`; tests in `tests/reAmbi_tests/`.
 - `reCording/`: RERecorder (tracks recorded together under a piece folder),
   REReplay (a take cued into a proxy or a bus), RETake (paths, and the
-  record-a-replay session). Guide: `HelpSource/Guides/reCording.schelp`;
+  record-a-replay session); the score recorder and its players; the show
+  console (REShowConsole: Reaper's clock to the effects page, the takes'
+  control tapes chased to it by REShowChase, the Roto-Control's knobs mixed
+  in by REShowRoto and REKnobMix). Guide: `HelpSource/Guides/reCording.schelp`;
   tests in `tests/reCording_tests/`.
 
 ### Extensions of SuperCollider's classes

@@ -1,0 +1,106 @@
+TITLE:: REShowConsole
+summary:: HadronLake3's show console: Reaper's clock to the effects page, the takes' control tapes chased to it, the Roto mixed in
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REShowChase, Classes/REShowRoto, Classes/REKnobMix, Classes/REVisualsTape, Classes/RCVisuals
+
+DESCRIPTION::
+At HadronLake3's live performance (Oct 31 2026) Reaper plays the pieces' audio stems and owns the clock. This console, sclang without a server, receives Reaper's OSC control surface, applies one venue offset, sends the show clock to HomewareVisuals' effects page through the bridge (link::Classes/RCVisuals::), replays each cue's control tape chased to that clock (link::Classes/REShowChase::) and mixes the Roto-Control's knobs into the tapes' values (link::Classes/REShowRoto::, link::Classes/REKnobMix::). The page's side (chase mode: code::/fx/chase::, code::/fx/cue::, code::/fx/time::, code::/fx/transport::) is HomewareVisuals' effects page; HomewareSC's code::scripts/console.sh:: starts one from a show file.
+
+subsection:: The show file
+JSON (link::Classes/REJSON::), paths relative to its folder:
+code::
+{ "offset": 0.0, "port": 57150, "rate": 15,
+  "cues": [ { "name": "symbolic", "take": "Scores/<take>.json", "video": "symbolic.mp4",
+              "start": 0.0, "end": 123.4, "videoOffset": 0.0 }, ... ],
+  "roto": { "device": "Roto-Control", "glide": 1.0,
+            "knobs": [ { "cc": 0, "ctl": "symbolic_wave", "op": "add", "range": [-0.5, 0.5] },
+                       { "cc": 1, "set": ["colour", "mix"], "range": [0, 1] } ] } }
+::
+A cue's tape is its take's control tape, named code::ctl:: by the take's render sidecar (code::<take>.render.json::: code::<take>/<take>.ctl.json::, HomewareSC's code::take.sh render --viz::); without one the sidecar's code::tape:: (the code::.viz.json::) is read and kept to its code::/fx/:: entries. code::take:: is the take file (the sidecar next to it) or the sidecar itself (a path ending in code::.render.json::); a cue may name a code::tape:: itself instead. code::end:: defaults to code::start:: plus the sidecar's code::duration:: (else the cue's own code::duration::); a cue with neither is strong::open:: (end code::inf::, said): current from its start until a later cue starts, and sent to the page with link::#*openEnd:: (1e9 s) as its end. code::videoOffset:: defaults to 0; code::video:: is passed to the page as written (a URL it can load). code::start:: and code::end:: are on the show clock, Reaper's timeline plus the offset (a small venue latency: write Reaper positions). The tapes are read at start (link::Classes/REVisualsTape#*read::, synchronous: control tapes are small).
+
+subsection:: The protocol
+Reaper → console, UDP on the console's port (57150; Reaper's OSC control surface with its default patterns): code::/time <seconds>::, code::/play <0|1>::, code::/stop <0|1>::, code::/pause <0|1>::. The transport is also derived from code::/time:: alone: a time that has not advanced for link::#-staleAfter:: (0.3 s) is a pause; one more than link::#-jumpTolerance:: (0.5 s) off the extrapolation is a seek; one that starts advancing in step with real time while stopped is a start. Before any code::/time:: the clock is unknown: a transport message is passed on, nothing else is sent until the first time lands the page.
+
+Console → page (code::RCVisuals.sendArgs::, through the bridge): code::/fx/chase <0|1>:: at start and stop; code::/fx/cues:: (every cue removed) then code::/fx/cue <name> <video> <start> <end> <videoOffset>:: per cue, at start and at a reload; code::/fx/time <t>::, the show clock t = Reaper's time + offset, link::#-rate:: times a second while playing and once at a seek or a stop (the page lands where Reaper is); code::/fx/transport <0|1>::; and the control tape's entries as recorded, at their show time (the heartbeat advances the cue's chase from the previous tick's time; a seek, a start and a cue entered send the state); code::/fx/start::, code::/fx/stop:: and code::/fx/page:: never. A mapped code::/fx/ctl:: (a Roto knob's) carries the mix's value in place of the tape's. Every handler and every tick is guarded (link::Classes/RCGuard::): one bad entry never kills the console.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: show
+The show file's path, or an Event / dictionary already read (then code::dir:: in it is the folder its paths are relative to).
+
+METHOD:: openEnd
+The end an open cue (code::inf:: inside) is sent with in its code::/fx/cue:: line: 1e9 seconds, exact as a 32-bit float (an code::inf:: on the wire would reach the page as code::Infinity::).
+
+INSTANCEMETHODS::
+
+METHOD:: start
+The port opened and its handlers installed, the cues' tapes read, the roto started (its MIDI with link::#-startMidi::), the page told (code::/fx/chase 1::, code::/fx/cues::, the code::/fx/cue:: lines), the heartbeat on SystemClock (with link::#-heartbeat::). Nothing plays until Reaper speaks. With link::#-live:: the sends go to the user's bridge, 127.0.0.1:57300.
+METHOD:: stop
+The heartbeat, the handlers and the roto freed, code::/fx/transport 0:: when playing, code::/fx/chase 0::.
+METHOD:: reload
+The show file read again (when the console was given one), the cues rebuilt and sent again, the chase landed where the clock is.
+
+METHOD:: timeReceived
+Reaper's time, seconds: what the code::/time:: handler calls. A jump off the extrapolation while playing, or a change while stopped, lands the page there; a time advancing in step with real time while stopped starts the transport.
+argument:: secs
+METHOD:: transportReceived
+1 (or true): playing; 0: stopped or paused. What the code::/play::, code::/stop:: and code::/pause:: handlers call.
+argument:: flag
+METHOD:: tick
+One beat of the heartbeat at code::now::: playing, the show clock sent and the cue's chase advanced from the previous tick (a cue entered: its state); a stale time, the transport derived stopped; the roto's gliding mixes sent. Returns the show time sent, nil when stopped.
+argument:: now
+
+METHOD:: time
+The show clock now (nil before Reaper said anything).
+METHOD:: playing
+METHOD:: cueAt
+The cue at a show time: the last started among those holding it (code::start <= t < end::; an open cue holds everything after its start), nil between cues or for a nil time.
+argument:: t
+METHOD:: cueNamed
+argument:: name
+METHOD:: cues
+Sorted by start, each an Event: code::name::, code::video::, code::start::, code::end:: (code::inf:: when open), code::videoOffset::, code::tape:: (the path read), code::take::, code::sidecar::, code::chase:: (the link::Classes/REShowChase::).
+METHOD:: currentCue
+The cue whose chase the heartbeat advances.
+METHOD:: roto
+The link::Classes/REShowRoto::, nil without a code::"roto":: in the show.
+METHOD:: status
+One line posted and returned.
+
+METHOD:: port
+The UDP port Reaper sends to (57150; the show's code::port::). Set before start.
+METHOD:: offset
+The venue offset, seconds, live: the show clock is Reaper's time plus it (the show's code::offset::).
+METHOD:: rate
+Heartbeats a second (15; the show's code::rate::).
+METHOD:: live
+True: code::RCVisuals.setAddr("127.0.0.1", 57300)::, the user's bridge, whatever the environment says (HomewareSC's code::scripts/console.sh --live::); false (the default): RCVisuals as it stands (a headless run's own bridge or an unbound port).
+METHOD:: heartbeat
+The heartbeat Routine at start (true); a test ticks by hand.
+METHOD:: startMidi
+The roto's MIDI at start (true); a test leaves it.
+METHOD:: staleAfter
+METHOD:: jumpTolerance
+METHOD:: sendFunc
+code::{ |path, args| }::; code::RCVisuals.sendArgs:: by default. The chases and the roto send through it.
+METHOD:: timeFunc
+code::{ seconds }::; code::Main.elapsedTime:: by default.
+METHOD:: lastTime
+Reaper's last time.
+METHOD:: started
+METHOD:: ticks
+METHOD:: show
+METHOD:: path
+METHOD:: dir
+
+EXAMPLES::
+
+code::
+c = REShowConsole("~/Music/Supercollider/HomewareSC/Personal_SC/Biomusic_clone/260927_HadronLake3/Reaper/HadronLake3_Show_w0_261031.json");
+c.live = true;        // the user's bridge
+c.start;              // Reaper: Preferences > Control/OSC/web > OSC, send to 127.0.0.1:57150 with the default patterns
+c.offset = 0.08;      // the venue: the picture 80 ms later
+c.status;
+c.stop;
+::
