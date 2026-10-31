@@ -30,11 +30,19 @@ RCKeyboardState {
 	// Install the MIDIdefs (noteOn, noteOff, bend, touch, control) for the
 	// device: permanent (Cmd-Period keeps them) and guarded (a failing
 	// handler is reported, the MIDI dispatcher never sees the error).
+	// (Oct 31 2026) A device that is not connected gets none: a MIDIdef of no
+	// source hears every source, so another controller's messages were taken
+	// for the keyboard's and recorded as its events. listen again once it is
+	// connected (after MIDIClient.init, if it was not then). → isListening
 	listen {
-		var srcID = RCMidi.findSrcId(deviceName);
+		var srcID = (MIDIClient.sources ? []).detect { |e| e.name == deviceName.asString } !? (_.uid);
 		var prefix = "rc_kbd_" ++ (song !? (_.name) ? "x") ++ "_";
 		var guard = { |func| RCGuard.wrap(\keyboard, nil, func) };
 		this.stopListening;
+		if(srcID.isNil) {
+			RCLog.warn(\keyboard, "MIDI device \"%\" not connected: the keyboard listens to nothing (its .listen once it is)".format(deviceName));
+			^false
+		};
 		defs = [
 			MIDIdef.noteOn((prefix ++ "noteOn").asSymbol, guard.({ |vel, note, chan| this.noteOn(vel, note, chan) }), nil, nil, srcID),
 			MIDIdef.noteOff((prefix ++ "noteOff").asSymbol, guard.({ |vel, note, chan| this.noteOff(vel, note, chan) }), nil, nil, srcID),
@@ -42,7 +50,10 @@ RCKeyboardState {
 			MIDIdef.touch((prefix ++ "touch").asSymbol, guard.({ |val, chan| this.touch(val, chan) }), nil, srcID),
 			MIDIdef.cc((prefix ++ "control").asSymbol, guard.({ |val, num, chan| this.cc(val, num, chan) }), nil, nil, srcID)
 		].collect(_.permanent_(true));
+		^true
 	}
+
+	isListening { ^defs.notEmpty }
 
 	stopListening {
 		defs.do(_.free);

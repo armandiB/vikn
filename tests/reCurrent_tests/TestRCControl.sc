@@ -207,6 +207,20 @@ TestRCControl : UnitTest {
 		kb.free;
 	}
 
+	// (Oct 31 2026) A keyboard named after a device that is not connected listens to nothing: a controller's CCs (another
+	// source) were taken for its own and recorded as its events.
+	test_keyboard_of_a_device_not_connected {
+		var kb = RCKeyboardState(song, "No Such Keyboard " ++ UniqueID.next);
+		this.assert(kb.isListening.not and: { kb.defs.isEmpty }, "no MIDIdef installed");
+		this.assert(this.logHas("not connected"), "warned");
+		MIDIIn.doControlAction(1, 0, 7, 64);
+		MIDIIn.doNoteOnAction(1, 0, 60, 100);
+		this.assertEquals(kb.size, 0, "another source's note is not the keyboard's");
+		this.assertEquals(kb.state[0], nil, "nor its controller");
+		this.assertEquals(kb.listen, false, "listen again: still not connected");
+		kb.free;
+	}
+
 	test_song_makeKeyboard_and_free {
 		var kb = song.makeKeyboard(nil);
 		this.assert(song.keyboard === kb, "song holds the keyboard");
