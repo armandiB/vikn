@@ -48,7 +48,8 @@ Two small modules the songs hold by name (`~song.ambi`, `~song.recorder(\k)`):
   record-a-replay session); the score recorder and its players; the show
   console (REShowConsole: Reaper's clock to the effects page, the takes'
   control tapes chased to it by REShowChase, the Roto-Control's knobs mixed
-  in by REShowRoto and REKnobMix). Guide: `HelpSource/Guides/reCording.schelp`;
+  in by REShowRoto and REKnobMix, or the chain played from the device's pages
+  by REShowFxPages). Guide: `HelpSource/Guides/reCording.schelp`;
   tests in `tests/reCording_tests/`.
 
 ### Extensions of SuperCollider's classes

@@ -1,0 +1,122 @@
+TITLE:: REShowFxPages
+summary:: The effects page's fixed chain played from the Roto-Control's pages at the show console, with a panel
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REShowConsole, Classes/REShowRoto, Classes/RCMidi
+
+DESCRIPTION::
+HadronLake3's show console (link::Classes/REShowConsole::) builds one from the show file's code::"fx":: object (Oct 31 2026). Every effect of the chain is on, in one fixed order, at mix 0: the effects page bypasses an effect at mix 0 (its passes skipped), so the whole bank costs the input alone. link::#-start:: tells the page the whole state from a clean one (code::/fx/clear::, every layout parameter at its place, every mix, then code::/fx/chain::), and link::#-tick:: sends it again every code::refresh:: seconds (2), so a page opened or reloaded late heals.
+
+Each strong::page:: of the device has eight knobs (CCs code::cc:: .. code::cc + 7:: on code::knobChan::, 14-bit: the LSB on cc + 32, link::Classes/RCMidi::'s fine pairing) and eight buttons (the same CCs on code::buttonChan::). The first seven buttons choose the page's effect among its seven; the eighth resets the chosen effect's parameters to rest (its mix as it is). Any button message chooses (a trigger's press and release, a toggle's either state: the same choice twice). Knobs 1-7 drive the chosen effect's parameters by its strong::layout::; knob 8 is its strong::mix::: 0 up to code::mixDead:: (CC units, 0.5 of 127: a knob turned down is off for sure), then linear to 1 at 127.
+
+The state is every knob's strong::place:: (0..1, the 14-bit value over 16383) per effect. Choosing an effect sends its places to the device's strong::motors:: (the Roto-Control in MIDI mode follows the CCs it receives and sends nothing back: tried Oct 31 2026) and lights its button (127; the others 0), through link::#-midiFunc:: (a MIDIOut to the device's destination). link::#-tick:: also sends code::/fxpanel/state <json>:: when something changed and every second: HomewareVisuals' code::fxpanel/:: page draws both pages as the device lays them out.
+
+The spec: code::device:: ("Roto-Control"), code::knobChan:: (0), code::buttonChan:: (1), code::mixDead:: (0.5), code::refresh:: (2), code::chain:: (every effect, in order), code::pages:: (a list of code::(name:, cc:, effects: [up to 7])::), code::layouts:: (effect → up to seven knobs, each code::[param, lo, hi, rest]:: with an optional curve, code::"lin":: (the default), code::"exp":: (lo and hi above 0) or code::"int"::; or one knob over several parameters, code::(name: "warmth", lo: -1, hi: 1, rest: 0, set: [["tint_r", 0.5, 1.5], ["tint_b", 1.5, 0.5]])::). An effect on a page and not in the chain, an unknown curve, exp from 0: warned.
+
+MIDI as link::Classes/REShowRoto::: the device's source alone connected (never code::MIDIIn.connectAll::), the client brought up when nobody had and disposed by link::#-stop::. A teardown of CoreMIDI can stall (once at a console's quit, Oct 31 2026; HomewareSC's code::console.sh stop:: kills the console when it does not answer).
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: spec
+
+METHOD:: valueOf
+A place (0..1) as a value over lo..hi by the curve (int: rounded, an Integer).
+argument:: place
+argument:: lo
+argument:: hi
+argument:: curve
+
+METHOD:: placeOf
+A value as its place over lo..hi, clipped to 0..1.
+argument:: value
+argument:: lo
+argument:: hi
+argument:: curve
+
+METHOD:: positionOf
+A fine value (msb + lsb/128, RCMidi's) as a place: the 14-bit value over 16383.
+argument:: v
+
+INSTANCEMETHODS::
+
+METHOD:: start
+MIDI up (code::withMidi:: false: none), the whole state sent after a code::/fx/clear::, each page's chosen effect sent to the motors and lights.
+argument:: withMidi
+
+METHOD:: stop
+The mappings freed, the source disconnected, the client disposed when start brought it up.
+
+METHOD:: knobReceived
+Knob code::k:: (0..7) of a page at a place: the chosen effect's parameters (k 7: its mix) sent. Returns the value, nil for a knob the layout leaves free.
+argument:: page
+argument:: k
+argument:: place
+argument:: now
+
+METHOD:: buttonReceived
+Button code::b:: of a page: 0..6 choose its effect, 7 resets it. Returns the effect, nil for a button past the page's effects.
+argument:: page
+argument:: b
+argument:: v
+argument:: now
+
+METHOD:: select
+A page's effect chosen by its index: the motors and the lights.
+argument:: page
+argument:: i
+
+METHOD:: reset
+The page's effect's parameters to their rest, the motors with them.
+argument:: page
+
+METHOD:: sendState
+Every layout parameter and every mix as kept, then the chain (code::clear:: true: a code::/fx/clear:: first).
+argument:: clear
+
+METHOD:: tick
+The whole state every code::refresh:: seconds once started; the panel's state when something changed and every second.
+argument:: now
+
+METHOD:: panelState
+What the panel draws: per page its name, cc, effect, chosen index, eight knobs (label, value, pos; null when free) and eight buttons (effect and mix; the eighth the reset); the chain with every mix.
+
+METHOD:: effectOf
+The effect a page drives.
+argument:: page
+
+METHOD:: knobValue
+Knob k's value for an effect (k 7: its mix), nil when the layout leaves it free.
+argument:: effect
+argument:: k
+
+METHOD:: mix
+An effect's mix, 0..1.
+argument:: effect
+
+METHOD:: mixOf
+A mix knob's place as the mix (the dead zone, then linear).
+argument:: place
+
+METHOD:: installMappings
+The knobs' and buttons' mappings through link::Classes/RCMidi:: (code::rc_fxpages_knob_<page>_<k>::, code::rc_fxpages_button_<page>_<b>::).
+
+METHOD:: sendFunc
+code::{ |path, args| }::, link::Classes/RCVisuals::'s sendArgs by default.
+
+METHOD:: midiFunc
+code::{ |chan, cc, value| }::, the MIDIOut to the device by default.
+
+METHOD:: refresh
+Seconds between the whole state sent again (0: never).
+
+EXAMPLES::
+
+code::
+p = REShowFxPages((chain: ["warp", "colour"], pages: [(name: "a", cc: 0, effects: ["warp", "colour"])],
+	layouts: (warp: [["amount", 0, 0.2, 0.02]], colour: [["hue", -180, 180, 0]])));
+p.sendFunc = { |path, args| [path, args].postln };
+p.start(false);
+p.knobReceived(0, 7, 1.0);   // warp's mix to 1
+p.select(0, 1);              // colour chosen
+p.knobReceived(0, 0, 0.25);  // its hue to -90
+::
