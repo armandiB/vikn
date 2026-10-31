@@ -408,4 +408,37 @@ TestREShowConsole : UnitTest {
 		c.stop;
 		RCVisuals.sink = savedSink;
 	}
+
+	// a show's "fx" (REShowFxPages): the pages started with the console, the tapes' chain messages dropped,
+	// the state sent again by a reload with the knobs' places kept, the panel fed by the heartbeat
+	test_fx_pages {
+		var show = this.prShow, c, chains = { sent.count { |m| m[0] == "/fx/chain" } };
+		show[\fx] = (device: "No Such Device", chain: ["warp", "colour"],
+			pages: [(name: "a", cc: 0, effects: ["warp", "colour"])],
+			layouts: (warp: [["amount", 0, 0.2, 0.02]], colour: [["hue", -180, 180, 0]]));
+		c = this.prConsole(show);
+		protect {
+			c.start;
+			this.assert(c.fxPages.notNil and: { c.fxPages.started }, "the pages started with the console");
+			this.assertEquals(chains.value, 1, "the chain sent at start");
+			this.assert(sent.any { |m| m == ["/fx/set", "colour", "mix", 0.0] }, "every mix at 0");
+			this.assertEquals(c.prFilter([1, "/fx/chain", "blur"]), nil, "a tape's chain dropped");
+			this.assertEquals(c.prFilter([1, "/fx/on", "blur", 1]), nil);
+			this.assertEquals(c.prFilter([1, "/fx/clear"]), nil);
+			this.assertEquals(c.prFilter([1, "/fx/ctl", "wave", 0.5]), [1, "/fx/ctl", "wave", 0.5], "the rest as it is");
+			c.fxPages.knobReceived(0, 7, 1.0);
+			sent.clear;
+			c.reload;
+			this.assertFloatEquals(c.fxPages.mix("warp"), 1.0, "a reload keeps the knobs' places");
+			this.assertEquals(chains.value, 1, "and sends the state again");
+			this.assert(sent.any { |m| m == ["/fx/set", "warp", "mix", 1.0] });
+			sent.clear;
+			now = 5;
+			c.tick(now);
+			this.assert(sent.any { |m| m[0] == "/fxpanel/state" }, "the heartbeat feeds the panel");
+		} {
+			c.stop;
+		};
+		this.assertEquals(c.fxPages, nil, "stopped: no pages");
+	}
 }

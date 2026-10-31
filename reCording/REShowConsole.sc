@@ -39,6 +39,10 @@
 // as recorded, at their show time (the heartbeat advances the cue's chase from the previous tick; a
 // seek, a start and a cue entered send the state: REShowChase); /fx/start, /fx/stop, /fx/page never.
 // A mapped /fx/ctl (a Roto knob's) carries the mix's value in place of the tape's (the chase's filter).
+// A show with "fx" (REShowFxPages, Oct 31 2026: the chain fixed, every effect at mix 0, the Roto-Control's pages
+// choosing and driving them, the panel page fed by the heartbeat) owns the chain: the tapes' /fx/chain, /fx/clear
+// and /fx/on are dropped; start sends its whole state from a clean page, reload sends it again as it stands (a change
+// to the show's "fx" needs a stop and a start).
 // Every handler and every tick is guarded (RCGuard): one bad entry never kills the console.
 
 REShowConsole {
@@ -48,7 +52,7 @@ REShowConsole {
 	var <>sendFunc, <>timeFunc;
 	var <>heartbeat = true, <>startMidi = true;   // the heartbeat Routine; the roto's MIDI (tests: neither)
 	var <>staleAfter = 0.3, <>jumpTolerance = 0.5;
-	var <cues, <roto;
+	var <cues, <roto, <fxPages;
 	var oscFuncs, routine, <started = false;
 	var <playing = false, <lastTime, lastArrival, lastShowTime, <currentCue, <ticks = 0;
 
@@ -117,6 +121,8 @@ REShowConsole {
 		oscFuncs.do(_.free);
 		oscFuncs = nil;
 		roto !? (_.stop);
+		fxPages !? (_.stop);
+		fxPages = nil;
 		if(playing) { playing = false; this.prSend('/fx/transport', [0]) };
 		this.prSend('/fx/chase', [0]);
 		started = false;
@@ -135,6 +141,7 @@ REShowConsole {
 		roto !? (_.stop);
 		this.prBuild;
 		if(wasStarted) {
+			fxPages !? (_.sendState);
 			this.prSendCues;
 			lastTime !? { this.prSeek(this.prShowTime(timeFunc.value)) };
 		};
@@ -152,6 +159,16 @@ REShowConsole {
 			r.timeFunc = { timeFunc.value };
 			if(started and: { startMidi }) { RCGuard.call(\console, nil) { r.start } };
 			r
+		};
+		// kept through a reload: its state is the show's (the knobs' places, the effects chosen)
+		if(fxPages.isNil) {
+			fxPages = show[\fx] !? { |spec|
+				var p = REShowFxPages(spec);
+				p.sendFunc = { |path, args| this.prSend(path, args) };
+				p.timeFunc = { timeFunc.value };
+				if(started) { RCGuard.call(\console, nil) { p.start(startMidi) } };
+				p
+			};
 		};
 		currentCue = nil;
 	}
@@ -241,9 +258,11 @@ REShowConsole {
 		cues.do { |cue| this.prSend('/fx/cue', [cue[\name], cue[\video], cue[\start], if(cue[\end] == inf) { openEnd } { cue[\end] }, cue[\videoOffset]]) };
 	}
 
-	// a mapped /fx/ctl carries the mix's value; everything else goes as it is
+	// a mapped /fx/ctl carries the mix's value; with fx pages the chain is theirs (a tape's /fx/chain, /fx/clear and
+	// /fx/on dropped); everything else goes as it is
 	prFilter { |e|
 		var v;
+		if(fxPages.notNil and: { #["/fx/chain", "/fx/clear", "/fx/on"].includesEqual(e[1].asString) }) { ^nil };
 		if(roto.isNil or: { e[1].asString != "/fx/ctl" } or: { e.size < 4 }) { ^e };
 		v = roto.tapeValue(e[2], e[3], timeFunc.value);
 		if(v.isNil) { ^e };
@@ -367,6 +386,7 @@ REShowConsole {
 			};
 		};
 		roto !? { |r| RCGuard.call(\console, nil) { r.tick(now) } };
+		fxPages !? { |p| RCGuard.call(\console, nil) { p.tick(now) } };
 		^sentT
 	}
 
@@ -404,7 +424,9 @@ REShowConsole {
 		if(t.notNil and: { cue.isNil }) { s = s ++ ", between cues" };
 		s = s ++ "; offset % s, port %, % a second, % cues".format(offset, port, rate, cues.size);
 		roto !? { |r| s = s ++ ", roto % knobs".format(r.size) };
+		fxPages !? { |p| s = s ++ "; fx: " ++ p.pages.size.collect { |i| p.effectOf(i) ? "-" }.join(" | ") };
 		RCLog.post(\console, s, true);
+		fxPages !? { |p| p.status.do { |line| RCLog.post(\console, line, true) } };
 		^s
 	}
 
