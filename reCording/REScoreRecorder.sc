@@ -29,7 +29,7 @@ REScoreRecorder {
 	var <>voicesByLayer = false;   // a beat's default voice: its layer (true) or layer/name (false)
 	var <controls;                 // name → spec (min, max, warp, default, unit), written into every take
 	var controlGetters, controlSetters;   // name → { value } / { |value| }: snapshots and recalls of registered controls
-	var <score, <lastScore, <lastPath, <beat0, <time0, lastTempo;
+	var <score, <lastScore, <lastPath, <lastPassPath, <beat0, <time0, lastTempo;
 	var recordQuant, loopbackLine;
 	var <>level2 = false;   // record the program's work too (level 2, the companion file): off, it is only counted
 	var <>level3 = false;   // record the server's messages too (level 3, <take>.l3.json, the defs next to it): off, nothing is installed
@@ -254,9 +254,12 @@ REScoreRecorder {
 
 	// Ends the take: the REScore, written to <root>/<stamp>_<song> <version>.json
 	// when root is set. An overdub ends with the merged score instead (the
-	// original file stays, the merge is a new one).
+	// original file stays, the merge is a new one); (Oct 31 2026) the pass it
+	// merged is written alone too, <stamp>_<song> <version> pass.json (lastPassPath,
+	// named in the merge's overdubs), as merge: false writes it. A take written gets
+	// its own name as its events' origin when it has none (REScore, "origins").
 	stop {
-		var s = score, od = overdubbing, stopBeat;
+		var s = score, od = overdubbing, stopBeat, stamp = Date.localtime.stamp, path, pass;
 		if(state != \recording) { RCLog.warn(\score, "% is not recording".format(song.name)); ^nil };
 		stopBeat = this.clock.beats - beat0;
 		this.prRemoveServerTap;
@@ -266,16 +269,25 @@ REScoreRecorder {
 		state = \armed;
 		score = nil;
 		overdubbing = nil;
+		path = root !? { REScore.pathFor(root, song.name, version, stamp) };
+		lastPassPath = nil;
 		if(od.notNil) {
 			player.stop;
 			withPlayer !? (_.stop);
-			if(od[\merge] == false) {
-				// a take of its own on the old take's timeline: the old one named as its source (its basename
-				// when both live under the recorder's root)
-				od[\path] !? { |p| s.meta[\source] = if(root.notNil and: { p.dirname == root.asString }) { p.basename } { p } };
-				// (Oct 31 2026) the span it was recorded over, on the old take's timeline: [punch-in, punch-out or the stop]
-				s.meta[\punch] = [od[\from], od[\to] ? stopBeat];
-			} {
+			// the pass, a take of its own on the old take's timeline: the old one named as its source (its basename
+			// when both live under the recorder's root); (Oct 31 2026) the span it was recorded over, on the old take's
+			// timeline: [punch-in, punch-out or the stop]
+			od[\path] !? { |p| s.meta[\source] = if(root.notNil and: { p.dirname == root.asString }) { p.basename } { p } };
+			s.meta[\punch] = [od[\from], od[\to] ? stopBeat];
+			if(od[\merge] != false) {
+				// (Oct 31 2026) merged: the pass written alone as well, its name the merge's with " pass", its events'
+				// origin in the merge
+				root !? {
+					pass = (version ? "").asString;
+					pass = REScore.pathFor(root, song.name, if(pass.isEmpty) { "pass" } { pass ++ " pass" }, stamp);
+					s.meta[\origins] = s.meta[\origins] ?? { [REScore.originName(pass)] };
+					lastPassPath = RCGuard.call(\score, nil) { s.write(pass) };
+				};
 				s = RCGuard.call(\score, s) {
 					var punch = [od[\from], od[\to] ? stopBeat], base = od[\score];
 					od[\with] !? { |w|
@@ -286,6 +298,7 @@ REScoreRecorder {
 					};
 					REScore.merge(base, s, od[\voices], od[\mode], punch, if(od[\loop]) { punch } { nil })
 				};
+				lastPassPath !? { |p| s.meta[\overdubs] !? { |o| o.last !? { |d| d[\pass] = p.basename } } };
 			};
 		};
 		withPlayer = nil;
@@ -294,7 +307,8 @@ REScoreRecorder {
 		if(lastCheck.notEmpty) { s.meta[\check] = lastCheck } { s.meta.removeAt(\check) };
 		lastScore = s;
 		if(root.notNil) {
-			lastPath = RCGuard.call(\score, nil) { s.write(REScore.pathFor(root, song.name, version)) };
+			s.meta[\origins] = s.meta[\origins] ?? { [REScore.originName(path)] };
+			lastPath = RCGuard.call(\score, nil) { s.write(path) };
 			lastPath !? { |p| if(s.ofLevel(3).notEmpty) { RCGuard.call(\score, nil) { this.prWriteDefs(s, p) } } };
 		} {
 			RCLog.warn(\score, "no root folder: the score was not written (lastScore holds it: lastScore.write(path))");

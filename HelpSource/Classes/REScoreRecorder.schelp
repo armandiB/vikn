@@ -127,7 +127,7 @@ argument:: with
 A second take (an REScore or a path) played in sync through the program from the same start over the same span; its events within the span join the merge first, kept whole.
 argument:: merge
 false: the new take is written alone, on the old one's timeline (its beat 0 the old take's punch-in), with code::meta.source:: naming the old take (an effects program over a render, link::Guides/reCording#Reprocessing::).
-code::stop:: merges and writes the merge as a new file (with code::merge: false::, the new take alone).
+code::stop:: merges and writes the merge as a new file (with code::merge: false::, the new take alone). A merged overdub writes its pass alone too, with the same stamp: code::<stamp>_<song> <version> pass.json:: (code::lastPassPath::), with code::meta.source:: and code::meta.punch:: as with code::merge: false::, named as code::pass:: in the merge's code::meta.overdubs::; the merge's events name their takes (link::Classes/REScore#-origins::).
 
 METHOD:: player
 The link::Classes/REScorePlayer:: of the current overdub.

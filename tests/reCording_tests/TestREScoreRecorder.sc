@@ -763,6 +763,48 @@ TestREScoreRecorder : UnitTest {
 		rec.version = "";
 	}
 
+	// (Oct 31 2026) A merged overdub writes its pass alone too, <stamp>_<song> <version> pass.json, named in the
+	// merge's overdubs; the merge names each event's take: the old take's from it, the new ones from the pass.
+	test_overdub_writes_its_pass {
+		var b = this.restBeat(layer, \k, [amp: 0.1]);
+		var path, merged, pass, back, files;
+		File.mkdir(dir);
+		rec.root = dir;
+		rec.version = "w0";
+		rec.arm(inputs: #[\actions]);
+		rec.record(snapshotAtStart: false);
+		b.set(\amp, 0.2);
+		(0.5 / clock.tempo).wait;
+		rec.stop;
+		path = rec.lastPath;
+		this.assertEquals(REScore.read(path).origins, [REScore.originName(path)], "a take written names itself");
+		this.assertEquals(rec.lastPassPath, nil, "a plain take has no pass");
+		rec.version = "w1";   // the merge's own name: the old take may share its stamp's second
+		rec.overdub(path, mode: \keep);
+		(0.3 / clock.tempo).wait;
+		b.set(\amp, 0.9);
+		(0.2 / clock.tempo).wait;
+		merged = rec.stop;
+		pass = rec.lastPassPath;
+		this.assert(pass.notNil and: { pass.endsWith(" w1 pass.json") } and: { File.exists(pass) }, "the pass written: " ++ pass);
+		this.assertEquals(pass.basename.drop(-10), rec.lastPath.basename.drop(-5), "one stamp for the merge and its pass");
+		back = REScore.read(pass);
+		this.assertEquals(back.eventsOf('core/k').collect { |e| e[\args][1] }, [0.9], "the pass: the new event alone");
+		this.assertEquals(back.meta[\source], path.basename, "its source the old take");
+		this.assertEquals(back.meta[\punch].size, 2, "and its span");
+		this.assertEquals(back.origins, [REScore.originName(pass)]);
+		this.assertEquals(merged.meta[\overdubs].last[\pass], pass.basename, "the merge names its pass");
+		back = REScore.read(rec.lastPath);
+		this.assertEquals(back.origins, [REScore.originName(path), REScore.originName(pass)], "the merge's origins: the old take, the pass");
+		this.assertEquals(back.eventsOf('core/k').collect { |e| back.originOf(e) }, back.origins);
+		this.assertEquals(back.withoutOrigin(pass).eventsOf('core/k').collect { |e| e[\args][1] }, [0.2], "the pass undone");
+		files = (dir +/+ "*.json").pathMatch;
+		this.assertEquals(files.size, 3, "the old take, the merge, the pass");
+		files.do { |f| File.delete(f) };
+		File.delete(dir);
+		rec.version = "";
+	}
+
 	// The same scripted session with recording off and on: the same sources,
 	// seeds, beats and log lines; the score is the only difference.
 	runScript { |record|
