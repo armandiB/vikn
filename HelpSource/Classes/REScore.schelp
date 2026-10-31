@@ -85,7 +85,11 @@ argument:: punch
 code::[in, out]:: (out nil: b's duration).
 argument:: loopSpan
 code::[from, to]:: when b was recorded over a loop: its beats fold into the span and, unless keep, only the last pass of each voice (each control for touch and auto) remains.
-returns:: A copy of a with b merged in (ids renewed, causes following), the overdub noted in code::meta[\overdubs]::.
+returns:: A copy of a with b merged in (ids renewed, causes following), the overdub noted in code::meta[\overdubs]::. When either has code::meta.origins:: (link::#-origins::), a's events keep their indices and b's get their take's index in the merge's list, b's names appended as they come; a score without a list stands for its guessed name (code::<created>_<song> <wersion>::).
+
+METHOD:: originName
+argument:: path
+returns:: A take's name as code::meta.origins:: holds it: the file's name without code::.json::.
 
 METHOD:: controlKey
 argument:: e
@@ -123,6 +127,20 @@ argument:: level
 METHOD:: rootOf
 argument:: ev
 returns:: The source (a level 1 event with no cause) an event descends from through its causes (itself when it is one), nil for a program event with no cause.
+METHOD:: origins
+returns:: code::meta.origins::: the takes the events were first recorded in, by name (an event's code::o:: is its index, none: 0). A file read without the list gets its own name alone; a recorder's take, its file's at stop; a merge keeps the base's and appends the pass's (link::#*merge::), so through any chain of overdubs every event names the take it was played in. Empty for a score made in memory.
+METHOD:: originOf
+argument:: e
+returns:: The name of the take an event was first recorded in (nil without a list).
+METHOD:: originsCount
+returns:: A Dictionary: each origin's name and its number of events.
+METHOD:: withoutOrigin
+argument:: origin
+A take's name, its path, or its index in link::#-origins::.
+returns:: A copy without the events first recorded in that take (a pass undone, ids kept).
+METHOD:: onlyOrigin
+argument:: origin
+returns:: A copy with only those events.
 METHOD:: check
 returns:: Strings, one per problem that threatens an exact replay (lines not replayed, lines that raised, lines drawing random numbers or reading the clock, program actions seen but not recorded); empty for a clean take. The recorder writes them into the take as code::check::.
 METHOD:: between

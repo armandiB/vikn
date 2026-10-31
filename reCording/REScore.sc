@@ -26,15 +26,16 @@ REScore {
 	var index, nextId = 1;
 
 	*initClass {
-		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \source, \beat0, \time0, \tempo, \latency, \quant,
+		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \source, \origins, \beat0, \time0, \tempo, \latency, \quant,
 			\duration, \inputs, \randData, \levels, \level1, \unrecorded, \check, \tempoMap, \meter, \voices, \controls, \events,
-			\id, \beat, \secs, \kind, \level, \voice, \cause, \by, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
+			\id, \beat, \secs, \kind, \level, \o, \voice, \cause, \by, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
 			\value, \text, \latency, \msgs, \replay, \defer, \raised, \fallback, \loopback, \loopbackOf, \state];
 		// source: the take this one was played over (an effects program recorded over a render, a cue
 		// sheet's //@source): the path, its basename when both takes live in one folder; meter: a cue
-		// sheet's //@meter markers, [[beat, bar, signature], ...] (barOf)
+		// sheet's //@meter markers, [[beat, bar, signature], ...] (barOf); origins: the takes its events were first
+		// recorded in (an event's `o` its index; see "origins" below)
 		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \source, \beat0, \time0, \tempo, \latency, \quant, \duration, \overdubs,
-			\inputs, \randData, \levels, \unrecorded, \check, \meter, \punch];
+			\inputs, \randData, \levels, \unrecorded, \check, \meter, \punch, \origins];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
 		// classes whose compile string is the value itself (a Function needs its source, see prEncode)
 		scClasses = [Pattern, Ref, Env, Rest, Quant, ControlSpec, Association, Char, Class, Point, Rect, Interval, Tuning, Scale];
@@ -555,6 +556,29 @@ REScore {
 		)
 	}
 
+	//////// origins (Oct 31 2026): the take each event was first recorded in. meta.origins lists take names (a
+	// file's name without ".json"); an event's `o` is its index there (none: 0). A take read from a file without a
+	// list gets its own name as the only one; a recorder's take gets its file's at stop (REScoreRecorder); a merge
+	// keeps the base's indices and gives the new take's events theirs. So through any chain of overdubs every event
+	// names the take it was played in: withoutOrigin undoes a pass, onlyOrigin keeps one (by name, path or index).
+
+	*originName { |path| var b = path.asString.basename; ^if(b.endsWith(".json")) { b.drop(-5) } { b } }
+	origins { ^meta[\origins] ? [] }
+	originOf { |e| ^meta[\origins] !? { |t| t[e[\o] ? 0] !? (_.asString) } }
+	// a name for a score that has no list (made in memory, never written): <created>_<song> <wersion>
+	originGuess {
+		var w = meta[\wersion] !? (_.asString) ? "";
+		^"%_%%".format(meta[\created] ? "?", meta[\song] ? "?", if(w.isEmpty) { "" } { " " ++ w })
+	}
+	originsCount { var d = Dictionary.new; events.do { |e| var n = this.originOf(e); d[n] = (d[n] ? 0) + 1 }; ^d }
+	withoutOrigin { |origin| ^this.prOriginSelect(origin, false) }
+	onlyOrigin { |origin| ^this.prOriginSelect(origin, true) }
+	prOriginSelect { |origin, keep|
+		var res = this.copy, name = if(origin.isInteger) { this.origins[origin] !? (_.asString) } { this.class.originName(origin) };
+		res.events.copy.do { |e| if((res.originOf(e) == name) != keep) { res.remove(e[\id]) } };
+		^res
+	}
+
 	//////// overdub: merging a new take into a score
 
 	// A copy of `a` with the events of `b` merged in. voices: the overdubbed
@@ -566,13 +590,23 @@ REScore {
 	// added. loopSpan [from, to]: b was recorded over a loop, its beats fold
 	// into the span and, unless \keep, only the last pass of each voice (each
 	// control for touch and auto) remains. Ids are renewed, causes follow.
+	// (Oct 31 2026) When either has origins, a's events keep theirs (indices into a's list) and b's get the index of
+	// their take in the merge's list (b's names appended as they come); a score without a list is its guessed name.
 	*merge { |a, b, voices, mode, punch, loopSpan|
 		var res = a.copy;
 		var idMap = IdentityDictionary.new;
 		var bEvents = b.events.asArray;
 		var pin = punch !? (_[0]) ? 0;
 		var pout = punch !? (_[1]) ?? { b.duration };
-		var voiceSet;
+		var voiceSet, table, bIdx;
+		if(a.meta[\origins].notNil or: { b.meta[\origins].notNil }) {
+			table = (a.meta[\origins] ?? { [a.originGuess] }).collect(_.asString);
+			bIdx = (b.meta[\origins] ?? { [b.originGuess] }).collect { |n|
+				var i = table.indexOfEqual(n.asString);
+				if(i.isNil) { table = table.add(n.asString); i = table.size - 1 };
+				i
+			};
+		};
 		if(loopSpan.notNil) { bEvents = this.prFold(bEvents, loopSpan, mode) };
 		voiceSet = IdentitySet.newFrom((voices ?? { b.voiceNames }).asArray.collect(_.asSymbol));
 		voiceSet.do { |v|
@@ -589,9 +623,11 @@ REScore {
 			e.keysValuesDo { |k, val| ev[k] = val };
 			ev.removeAt(\id);
 			ev[\cause] !? { |c| if(idMap[c].notNil) { ev[\cause] = idMap[c] } { ev.removeAt(\cause) } };
+			bIdx !? { var o = bIdx[e[\o] ? 0] ? 0; if(o == 0) { ev.removeAt(\o) } { ev[\o] = o } };
 			idMap[e[\id]] = res.add(ev);
 		};
 		res.sort;
+		table !? { res.meta[\origins] = table };
 		res.meta[\overdubs] = (res.meta[\overdubs] ? []) ++ [IdentityDictionary[
 			\created -> b.meta[\created], \voices -> voiceSet.asArray.collect(_.asString).sort,
 			\mode -> (mode ? \auto).asString, \punch -> [pin, pout]]];
@@ -815,6 +851,7 @@ REScore {
 	// levels: 2 loads the program's companion when there is one, 3 the server's too, 1 the take alone.
 	*read { |path, levels = 2|
 		var s = this.fromDict(REJSON.read(path));
+		s !? { s.meta[\origins] = s.meta[\origins] ?? { [this.originName(path)] } };   // (Oct 31 2026) an older take: its events its own
 		if(s.isNil or: { levels < 2 }) { ^s };
 		(2..levels.min(3)).do { |level| this.prReadCompanion(s, path, level) };
 		^s

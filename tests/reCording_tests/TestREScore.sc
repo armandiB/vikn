@@ -199,7 +199,10 @@ TestREScore : UnitTest {
 		this.assertEquals(back.controls[\knob][\warp], "lin");
 		this.assertEquals(s.write(path), path, "write returns the path");
 		this.assert(File.exists(path), "file written");
-		this.assertEquals(REScore.read(path).asJSONString, text, "read: the same text again");
+		back = REScore.read(path);
+		this.assertEquals(back.origins, ["260101_000000_demo w0"], "read: a file without origins names itself (Oct 31 2026)");
+		back.meta.removeAt(\origins);
+		this.assertEquals(back.asJSONString, text, "read: the same text again, but for that");
 		this.assertEquals(s.copy.asJSONString, text, "copy: equal");
 		this.assertEquals(REScore.fromDict(IdentityDictionary[\format -> "nope"]), nil, "another format is refused");
 		this.assert(this.logHas("not a re-score file"), "and reported");

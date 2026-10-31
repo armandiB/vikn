@@ -138,4 +138,59 @@ TestREScoreMerge : UnitTest {
 		this.assertEquals(m.eventsOf(\knob).collect(_[\value]), [2.5, 3.5], "auto: the last pass of the control");
 		this.assertEquals(m.eventsOf(\kb).collect(_[\note]), [62], "auto: the last pass of the notes");
 	}
+
+	// (Oct 31 2026) origins: the take each event was first recorded in, kept through a chain of overdubs.
+	test_origins_through_merges {
+		var a = this.scoreA, b = REScore(\m), c = REScore(\m), d = REScore(\m), g = REScore(\m, nil, "w0");
+		var m, m2, m3, counts;
+		a.meta[\origins] = ["take_a"];
+		b.add(this.midi(2.5, \knob, 0.9));
+		b.meta[\origins] = ["pass_b"];
+		m = REScore.merge(a, b, nil, \keep, nil);
+		this.assertEquals(m.origins, ["take_a", "pass_b"], "the pass appended to the take's list");
+		this.assertEquals(m.eventsOf(\knob).collect { |e| m.originOf(e) }, ["take_a", "take_a", "pass_b", "take_a", "take_a"]);
+		this.assert(m.events.every { |e| e[\o].isNil or: { e[\o] == 1 } }, "index 0 left out of the events");
+		this.assertEquals(a.meta[\origins], ["take_a"], "the base untouched");
+		c.add(this.midi(5, \knob, 0.1));
+		c.add(this.note(6, \kb, 67));
+		c.meta[\origins] = ["pass_c"];
+		m2 = REScore.merge(m, c, nil, \keep, nil);
+		this.assertEquals(m2.origins, ["take_a", "pass_b", "pass_c"], "a chain: each pass appended");
+		counts = m2.originsCount;
+		this.assertEquals([counts["take_a"], counts["pass_b"], counts["pass_c"]], [8, 1, 2]);
+		this.assertEquals(m2.withoutOrigin("pass_b").size, m2.size - 1, "a pass undone by name");
+		this.assertEquals(m2.withoutOrigin("some/dir/pass_c.json").eventsOf(\kb).size, 2, "by path: the pass's note gone, the take's kept");
+		this.assertEquals(m2.onlyOrigin(2).events.collect(_[\beat]), [5, 6], "a pass alone, by index");
+		this.assertEquals(m2.onlyOrigin("take_a").size, a.size, "the first take back");
+		this.assertEquals(REScore.merge(m, b, nil, \keep, nil).origins, ["take_a", "pass_b"], "a name already listed is reused");
+		d.add(this.midi(7, \knob, 1));
+		d.meta[\origins] = ["take_d"];
+		m3 = REScore.merge(d, m, nil, \keep, nil);
+		this.assertEquals(m3.origins, ["take_d", "take_a", "pass_b"], "a merge merged in: its own list remapped");
+		this.assertEquals([m3.onlyOrigin("take_d").size, m3.onlyOrigin("take_a").size, m3.onlyOrigin("pass_b").size], [1, a.size, 1]);
+		this.assertEquals(REScore.merge(this.scoreA, REScore(\m), nil, \keep, nil).meta[\origins], nil, "neither has a list: none made");
+		g.add(this.midi(1, \knob, 0.3));
+		g.meta[\created] = "261031_120000";
+		this.assertEquals(REScore.merge(m, g, nil, \keep, nil).origins, ["take_a", "pass_b", "261031_120000_m w0"], "a pass made in memory: its name guessed as its file's");
+	}
+
+	// (Oct 31 2026) A take read without a list names itself; a list and the indices read back as written.
+	test_origins_read_and_write {
+		var path = PathName.tmp +/+ "re_origins_" ++ UniqueID.next ++ ".json";
+		var a = this.scoreA, b = REScore(\m), m, back;
+		a.write(path);
+		back = REScore.read(path);
+		this.assertEquals(back.origins, [REScore.originName(path)], "an older take: its own name");
+		this.assert(back.events.every { |e| back.originOf(e) == REScore.originName(path) }, "every event its own");
+		a.meta[\origins] = ["take_a"];
+		b.add(this.midi(2.5, \knob, 0.9));
+		b.meta[\origins] = ["pass_b"];
+		m = REScore.merge(a, b, nil, \keep, nil);
+		m.write(path);
+		back = REScore.read(path);
+		this.assertEquals(back.origins, ["take_a", "pass_b"], "a list read back as it was");
+		this.assertEquals(back.events.collect(_[\o]), m.events.collect(_[\o]), "and the indices");
+		this.assertEquals(back.onlyOrigin("pass_b").events.collect(_[\value]), [0.9]);
+		File.delete(path);
+	}
 }
