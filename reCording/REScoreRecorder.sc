@@ -273,6 +273,8 @@ REScoreRecorder {
 				// a take of its own on the old take's timeline: the old one named as its source (its basename
 				// when both live under the recorder's root)
 				od[\path] !? { |p| s.meta[\source] = if(root.notNil and: { p.dirname == root.asString }) { p.basename } { p } };
+				// (Oct 31 2026) the span it was recorded over, on the old take's timeline: [punch-in, punch-out or the stop]
+				s.meta[\punch] = [od[\from], od[\to] ? stopBeat];
 			} {
 				s = RCGuard.call(\score, s) {
 					var punch = [od[\from], od[\to] ? stopBeat], base = od[\score];

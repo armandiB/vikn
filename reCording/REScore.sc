@@ -34,7 +34,7 @@ REScore {
 		// sheet's //@source): the path, its basename when both takes live in one folder; meter: a cue
 		// sheet's //@meter markers, [[beat, bar, signature], ...] (barOf)
 		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \source, \beat0, \time0, \tempo, \latency, \quant, \duration, \overdubs,
-			\inputs, \randData, \levels, \unrecorded, \check, \meter];
+			\inputs, \randData, \levels, \unrecorded, \check, \meter, \punch];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
 		// classes whose compile string is the value itself (a Function needs its source, see prEncode)
 		scClasses = [Pattern, Ref, Env, Rest, Quant, ControlSpec, Association, Char, Class, Point, Rect, Interval, Tuning, Scale];
