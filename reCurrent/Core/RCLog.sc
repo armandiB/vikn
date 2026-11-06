@@ -17,6 +17,10 @@
 // through, so a per-event call site pays nothing while rate-limited.
 // The limiter is keyed by tag then level (no Symbol is interned per call)
 // and forgets tags silent for more than a minute once it holds maxTags.
+//
+// (Nov 6 2026) `alerts` keeps the warnings and errors alone (as many as historySize), so that a flood of info
+// lines (a knob's values) never pushes them out of memory; with `logPath` set every emitted line is appended to
+// that file too, with the wall clock (the IDE's startup sets it: a session's log outlives the post window).
 
 RCLog {
 	classvar <>verbose = true;        // RCLog.info is silent when false
@@ -24,12 +28,14 @@ RCLog {
 	classvar <>historySize = 200;     // number of emitted lines kept in `history`
 	classvar <>maxTags = 512;         // limiter entries kept before pruning
 	classvar <>timeFunc;              // { seconds } — replaceable for tests
-	classvar <lastTimes, <suppressedCounts, <history;
+	classvar <lastTimes, <suppressedCounts, <history, <alerts;
+	classvar <>logPath;               // (Nov 6 2026) nil, or a file every emitted line is appended to
 
 	*initClass {
 		lastTimes = IdentityDictionary.new;
 		suppressedCounts = IdentityDictionary.new;
 		history = List.new;
+		alerts = List.new;
 		timeFunc = { Main.elapsedTime };
 	}
 
@@ -37,6 +43,24 @@ RCLog {
 		lastTimes.clear;
 		suppressedCounts.clear;
 		history.clear;
+		alerts.clear;
+	}
+
+	// a dated log beside a folder's others: <dir>/sclang_<stamp>.log, set as logPath; the path
+	*logTo { |dir|
+		var p = dir.asString.standardizePath;
+		File.mkdir(p);
+		logPath = p +/+ "sclang_" ++ Date.localtime.stamp ++ ".log";
+		this.prAppend(\post, "RC[log]: this session's log (% %)".format(Main.version, Date.localtime.asString));
+		^logPath
+	}
+
+	*prAppend { |level, text|
+		logPath !? { |p|
+			try {
+				File.use(p, "a", { |f| f.write(Date.localtime.stamp ++ " " ++ level ++ " " ++ text ++ "\n") });
+			} { logPath = nil; "RCLog: the log file could not be written: logging to it stopped".warn };
+		};
 	}
 
 	// force: bypass the rate limit (for bounded lifecycle messages such as
@@ -86,6 +110,11 @@ RCLog {
 		// trimmed by a copy, never removeAt(0): in SC 3.14.1 removeAt on an array the garbage collector is part-way
 		// through scanning loses the entry that slides back over the scan's position (freed while still held)
 		if(history.size > historySize) { history.array = history.array.copyToEnd(history.size - historySize.max(0)) };
+		if(level != \post) {
+			alerts.add([now, level, text]);
+			if(alerts.size > historySize) { alerts.array = alerts.array.copyToEnd(alerts.size - historySize.max(0)) };
+		};
+		logPath !? { this.prAppend(level, text) };
 		switch(level,
 			\warn, { text.warn },
 			\error, { text.error },
