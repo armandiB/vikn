@@ -24,16 +24,24 @@
 // the render ends at, set by the render) and the clock's seconds at creation.
 // A tap's creation time is read back from the collected bundles (its /s_new, by node id): the
 // rigs write no sidecar. Nothing here touches a live server: new refuses one.
+//
+// Counted events (`events`, an Integer stride): the tap's values are groups of `events` values whose
+// first is a counter (a PulseCount of the event's trigger) and the rest the values latched at it
+// (Latch.kr(values, trig)); the merge then writes one tape entry per increment of a counter, with
+// that group's other values at that frame's time, in place of the frames: a crackle, a hit, as the
+// live SendReply sent it (two events within a frame give one entry, the last one's values).
+//   t = REOfflineTap(server, \Frisson_TapBuf_15, \frisson, '/frisson/contact', [], 60, 15, events: 5);
 
 REOfflineTap {
 	classvar <all;                            // server name → List of taps (the render reads it at its end)
 	classvar <>endSecs;                       // the clock seconds the render ends at; nil: defaultSecs, warned
 	classvar <>defaultSecs = 600;
 	classvar <>maxRate;                       // a cap on the taps' rate (frames per second); nil: none
-	var <server, <defName, <key, <path, <head, <rate, <numValues, <synth, <buffer, <frames, <createdAt;
+	var <server, <defName, <key, <path, <head, <rate, <numValues, <events, <synth, <buffer, <frames, <createdAt;
 
-	*new { |server, defName, key, path, head, rate = 20, numValues|
-		^super.new.initREOfflineTap(server, defName, key, path, head, rate, numValues)
+	// events: nil (frames), or the stride of counted events (above)
+	*new { |server, defName, key, path, head, rate = 20, numValues, events|
+		^super.new.initREOfflineTap(server, defName, key, path, head, rate, numValues, events)
 	}
 
 	//////// the UGen graph of a tap's offline variant
@@ -54,7 +62,7 @@ REOfflineTap {
 
 	*isOffline { |server| ^this.collector(server).notNil }
 
-	initREOfflineTap { |s, d, k, p, h, r, n|
+	initREOfflineTap { |s, d, k, p, h, r, n, e|
 		var addr = this.class.collector(s), now, secs, list;
 		if(addr.isNil) { Error("REOfflineTap: % is not an offline server (no RECollectAddr behind its address)".format(s)).throw };
 		server = s;
@@ -63,6 +71,12 @@ REOfflineTap {
 		path = p.asSymbol;
 		head = h.asArray;
 		numValues = n.asInteger;
+		events = e !? (_.asInteger);
+		events !? { |st|
+			if(st < 2 or: { (numValues % st) != 0 }) {
+				Error("REOfflineTap: events % must be at least 2 and divide the % values (a counter and its values a group)".format(st, numValues)).throw
+			}
+		};
 		rate = maxRate !? { |m| r.min(m) } ? r;
 		now = addr.now;
 		createdAt = now;
@@ -105,19 +119,22 @@ REOfflineTap {
 
 	// The Score lines writing every tap of the server at atTime (float WAVs in folder) and the
 	// index the merge reads: (format:, version:, taps: [(key:, path:, head:, file:, rate:,
-	// values:, t0:, frames:, nodeID:, createdAt:)]), t0 the tap's start in tape time (its /s_new's
-	// seconds minus startSecs). A tap never sent is left out, with a warning.
+	// values:, t0:, frames:, nodeID:, createdAt:, events: (the stride, counted events only))]), t0 the
+	// tap's start in tape time (its /s_new's seconds minus startSecs). A tap never sent is left out,
+	// with a warning.
 	*writeLines { |server, bundles, folder, atTime = 0, startSecs = 0|
 		var taps = (all !? (_[server.name])) ? [];
 		var lines = List.new, index = List.new;
 		taps.do { |t|
-			var t0 = t.startSecsIn(bundles);
+			var t0 = t.startSecsIn(bundles), entry;
 			if(t0.isNil) {
 				RCLog.warn(\offline, "REOfflineTap: % was never sent to the server: no state file".format(t.fileName));
 			} {
 				lines.add([atTime, ['/b_write', t.bufnum, folder.asString +/+ t.fileName, "wav", "float", -1, 0, 0]]);
-				index.add((key: t.key, path: t.path.asString, head: t.head, file: t.fileName, rate: t.rate, values: t.numValues,
-					t0: t0 - startSecs, frames: t.frames, nodeID: t.synth.nodeID, createdAt: t.createdAt - startSecs));
+				entry = (key: t.key, path: t.path.asString, head: t.head, file: t.fileName, rate: t.rate, values: t.numValues,
+					t0: t0 - startSecs, frames: t.frames, nodeID: t.synth.nodeID, createdAt: t.createdAt - startSecs);
+				t.events !? { |st| entry[\events] = st };
+				index.add(entry);
 			};
 		};
 		^(format: "re-state", version: 1, lines: lines.asArray, index: index.asArray)
@@ -129,5 +146,9 @@ REOfflineTap {
 		all !? { |d| if(server.isNil) { d.clear } { d.removeAt(server.name) } };
 	}
 
-	printOn { |stream| stream << "REOfflineTap(" << key << " " << path << " " << head << ", " << rate << " Hz, " << numValues << " values)" }
+	printOn { |stream|
+		stream << "REOfflineTap(" << key << " " << path << " " << head << ", " << rate << " Hz, " << numValues << " values";
+		events !? { |st| stream << ", events of " << st };
+		stream << ")"
+	}
 }
