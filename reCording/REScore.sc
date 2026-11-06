@@ -27,15 +27,16 @@ REScore {
 
 	*initClass {
 		keyOrder = #[\format, \version, \song, \piece, \wersion, \created, \sc, \commits, \source, \origins, \beat0, \time0, \tempo, \latency, \quant,
-			\duration, \inputs, \randData, \levels, \level1, \unrecorded, \check, \tempoMap, \meter, \voices, \controls, \events,
+			\duration, \interrupted, \serverQuit, \inputs, \randData, \levels, \level1, \unrecorded, \check, \tempoMap, \meter, \voices, \controls, \events,
 			\id, \beat, \secs, \kind, \level, \o, \voice, \cause, \by, \rc, \method, \args, \name, \key, \path, \device, \msg, \chan, \note, \num, \raw,
-			\value, \text, \latency, \msgs, \replay, \defer, \raised, \fallback, \loopback, \loopbackOf, \state];
+			\value, \text, \latency, \msgs, \replay, \recorder, \defer, \raised, \fallback, \loopback, \loopbackOf, \state];
 		// source: the take this one was played over (an effects program recorded over a render, a cue
 		// sheet's //@source): the path, its basename when both takes live in one folder; meter: a cue
 		// sheet's //@meter markers, [[beat, bar, signature], ...] (barOf); origins: the takes its events were first
-		// recorded in (an event's `o` its index; see "origins" below)
+		// recorded in (an event's `o` its index; see "origins" below); (Nov 6 2026) interrupted: why the take was
+		// stopped by no hand ("cmdPeriod"); serverQuit: the beat the server stopped at while it recorded
 		metaKeys = #[\song, \piece, \wersion, \created, \sc, \commits, \root, \source, \beat0, \time0, \tempo, \latency, \quant, \duration, \overdubs,
-			\inputs, \randData, \levels, \unrecorded, \check, \meter, \punch, \origins];
+			\inputs, \randData, \levels, \unrecorded, \check, \meter, \punch, \origins, \interrupted, \serverQuit];
 		symbolFields = #[\kind, \voice, \method, \name, \key, \msg];
 		// classes whose compile string is the value itself (a Function needs its source, see prEncode)
 		scClasses = [Pattern, Ref, Env, Rest, Quant, ControlSpec, Association, Char, Class, Point, Rect, Interval, Tuning, Scale];
@@ -883,7 +884,8 @@ REScore {
 		var randoms = #["rand", "coin", "choose", "scramble", "wchoose", "Date.", "elapsedTime", "SystemClock.seconds", "thisThread.seconds"];
 		var untagged = #["Routine {", "Routine(", "Routine.new", "Task {", "Task(", "Task.new", "fork {", ".fork"];
 		var patterns = #["Pbind", "Pmono", "Ppar", "Ptpar", "Pseq", "Pdef", "Pfindur", "Pn("];
-		var unsafe = code.select { |e| e[\replay] == false and: { e[\loopback].isNil } };
+		// (Nov 6 2026) a line marked `recorder` (the one that stopped the take) is the recorder's, not the music's
+		var unsafe = code.select { |e| e[\replay] == false and: { e[\loopback].isNil } and: { e[\recorder].isNil } };
 		var loops = code.select { |e| e[\loopback].notNil };
 		var raised = code.select { |e| e[\raised] == true };
 		var bare = { |e| this.class.codeOnly(e[\text]) };
