@@ -42,6 +42,8 @@ REScoreRecorder {
 	var rateCounts, rateKept, rateWarned;
 	var <>startSnapshot = true;
 	var <player, <withPlayer, overdubbing;   // an overdub's player of the old take (a render's: RERenderedPlayer) and of the second take played with it
+	var pending;            // (Nov 6 2026) the token of a start scheduled and not come yet (a quantized record, an overdub)
+	var watching = false;   // (Nov 6 2026) registered with CmdPeriod and ServerQuit while a take records or waits for its start
 	var <>onEvent;   // { |recorder, event| } after each recorded event (a view's live feed)
 	var <>onStart, <>onStop;   // { |recorder| } as a take starts, { |recorder, score, path| } as it stops (written or not)
 
@@ -88,6 +90,7 @@ REScoreRecorder {
 	// messages too (an RETapAddr stands in for the server's address while a
 	// take records, the defs it names are written next to the take).
 	arm { |scope, inputs, voices, voicesByLayer, level2, level3|
+		if(this.prRefusedInReplay("arm")) { ^nil };
 		this.prSetScope(scope);
 		this.prSetInputs(inputs);
 		voices !? { this.prSetVoices(voices) };
@@ -102,7 +105,8 @@ REScoreRecorder {
 	}
 
 	disarm {
-		if(state == \recording) { this.stop };
+		if(this.prRefusedInReplay("disarm")) { ^nil };
+		if(state == \recording or: { pending.notNil }) { this.stop };
 		this.prRemoveServerTap;
 		RETap.disableCode(this);
 		RETap.disableRawMidi(this);
@@ -189,22 +193,128 @@ REScoreRecorder {
 	// scheduled); atBeat: an absolute clock beat instead. offsetBeat: the
 	// score beat of the start (an overdub from the middle of a score).
 	record { |quant, snapshotAtStart, atBeat, offsetBeat = 0|
+		var token;
+		if(this.prRefusedInReplay("record")) { ^nil };
+		if(this.prRefusedBusy("record")) { ^nil };
 		if(state == \off) { this.arm };
-		if(state == \recording) { RCLog.warn(\score, "% already recording".format(song.name)); ^this };
 		snapshotAtStart !? { |b| startSnapshot = b };
 		score = REScore(song, piece, version);
+		// (Nov 6 2026) they name this take once it is written, never an older one meanwhile
+		lastPath = nil;
+		lastPassPath = nil;
+		this.prWatch;
 		recordQuant = quant;
 		loopbackLine = nil;
 		unrecorded = 0;
 		rateCounts = IdentityDictionary.new;
 		rateKept = IdentityDictionary.new;
 		rateWarned = IdentitySet.new;
+		// (Nov 6 2026) a scheduled start carries a token: a stop before it cancels it (stop, disarm, Cmd-period), and
+		// no second start is taken while it waits
+		token = Object.new;
 		case
-		{ atBeat.notNil } { this.clock.schedAbs(atBeat, { this.prStart(offsetBeat); nil }) }
+		{ atBeat.notNil } { pending = token; this.clock.schedAbs(atBeat, { this.prStartIf(token, offsetBeat); nil }) }
 		{ quant.isNil } { this.prStart(offsetBeat) }
 		{
-			this.clock.schedAbs(quant.asQuant.nextTimeOnGrid(this.clock), { this.prStart(offsetBeat); nil });
+			pending = token;
+			this.clock.schedAbs(quant.asQuant.nextTimeOnGrid(this.clock), { this.prStartIf(token, offsetBeat); nil });
 			RCLog.post(\score, "% recording at the next %".format(song.name, quant));
+		};
+	}
+
+	prStartIf { |token, offsetBeat|
+		if(pending !== token) { ^this };
+		pending = nil;
+		this.prStart(offsetBeat);
+	}
+
+	isPending { ^pending.notNil }
+
+	// (Nov 6 2026) Recording is controlled by hand: a line a take replays (the `~rec.stop` typed at the end of a
+	// pass is in that pass, and in every combination of it) never stops, starts or arms a take. Posted, unthrottled.
+	prRefusedInReplay { |what|
+		if(REScorePlayer.replaying.not) { ^false };
+		RCLog.error(\score, "% %: asked by a replayed line (a line typed into a take), ignored: recording is controlled by hand".format(song.name, what), true);
+		^true
+	}
+
+	// a take that records, or one waiting for its start: no second one (posted, unthrottled)
+	prRefusedBusy { |what|
+		case
+		{ state == \recording } { RCLog.error(\score, "% %: already recording, nothing started (~rec.stop first)".format(song.name, what), true); ^true }
+		{ pending.notNil } { RCLog.error(\score, "% %: a take already waits for its start, nothing started (~rec.stop cancels it)".format(song.name, what), true); ^true };
+		^false
+	}
+
+	// a few lines that stand out in the post window
+	prLoud { |level, text|
+		var bar = ("!" ! 100).join;
+		bar.postln;
+		if(level == \error) { RCLog.error(\score, text, true) } { RCLog.warn(\score, text, true) };
+		bar.postln;
+	}
+
+	// (Nov 6 2026) while a take records or waits for its start: Cmd-period and the server's quit are watched
+	prWatch {
+		if(watching) { ^this };
+		watching = true;
+		CmdPeriod.add(this);
+		song.server !? { |s| ServerQuit.add(this, s) };
+	}
+
+	prUnwatch {
+		if(watching.not) { ^this };
+		watching = false;
+		CmdPeriod.remove(this);
+		song.server !? { |s| ServerQuit.remove(this, s) };
+	}
+
+	// (Nov 6 2026) Cmd-period clears every clock's queue (permanent clocks too) and frees every node: the take
+	// stopped and written, marked interrupted (meta.interrupted); a start not come yet cancelled
+	doOnCmdPeriod {
+		if(state == \recording) {
+			score !? { |s| s.meta[\interrupted] = "cmdPeriod" };
+			this.prLoud(\error, "% CMD-PERIOD DURING THE TAKE: the clocks cleared and the nodes freed; the take is stopped and written, marked interrupted".format(song.name));
+			this.stop;
+			^this
+		};
+		if(pending.notNil) {
+			this.prLoud(\warn, "% Cmd-period before the take's start: the start cancelled".format(song.name));
+			this.prCancelStart(false);
+		};
+	}
+
+	// (Nov 6 2026) The server stopped while the take records (a crash, a quit): nothing sounds any more; the take
+	// records on, the beat noted (meta.serverQuit)
+	doOnServerQuit { |server|
+		var b;
+		if(state != \recording) { ^this };
+		b = (this.clock.beats - beat0).round(0.001);
+		score !? { |s| s.meta[\serverQuit] = b };
+		this.prLoud(\error, "% THE SERVER STOPPED DURING THE TAKE (beat %): nothing sounds from now on; the take records on (~rec.stop writes it, marked)".format(song.name, b));
+	}
+
+	// (Nov 6 2026) A stop before the start: the start cancelled, an overdub's players stopped, nothing written
+	prCancelStart { |post = true|
+		var od = overdubbing;
+		pending = nil;
+		score = nil;
+		overdubbing = nil;
+		if(od.notNil) {
+			RCGuard.call(\score, nil) { player !? (_.stop) };
+			RCGuard.call(\score, nil) { withPlayer !? (_.stop) };
+		};
+		withPlayer = nil;
+		this.prUnwatch;
+		if(post) { RCLog.warn(\score, "% stopped before its start: the start cancelled, nothing recorded".format(song.name), true) };
+		^nil
+	}
+
+	// (Nov 6 2026) The base of an overdub played to its end while the pass records: said loudly, nothing sounds from
+	// now on but what is played by hand
+	prBaseEnded { |p|
+		if(state == \recording and: { p === player }) {
+			this.prLoud(\warn, "% THE BASE HAS ENDED (beat %): the pass still records; ~rec.stop when you are done".format(song.name, (this.clock.beats - beat0).round(0.01)));
 		};
 	}
 
@@ -259,21 +369,29 @@ REScoreRecorder {
 	// named in the merge's overdubs), as merge: false writes it. A take written gets
 	// its own name as its events' origin when it has none (REScore, "origins").
 	stop {
-		var s = score, od = overdubbing, stopBeat, stamp = Date.localtime.stamp, path, pass;
-		if(state != \recording) { RCLog.warn(\score, "% is not recording".format(song.name)); ^nil };
+		var s = score, od = overdubbing, stopBeat, stamp = Date.localtime.stamp, path, pass, frame;
+		if(this.prRefusedInReplay("stop")) { ^nil };
+		if(state != \recording and: { pending.notNil }) { ^this.prCancelStart };
+		if(state != \recording) { RCLog.warn(\score, "% is not recording".format(song.name), true); ^nil };
+		// (Nov 6 2026) the line that stops the take, typed while it records, is in it: never replayed (the base of a
+		// later pass would stop that pass)
+		frame = RETap.frame;
+		if(frame.notNil and: { frame[\kind] == \code }) { frame[\ids][this] !? { |id| s.at(id) !? { |ev| ev[\replay] = false; ev[\recorder] = "stop" } } };
 		stopBeat = this.clock.beats - beat0;
-		this.prRemoveServerTap;
+		RCGuard.call(\score, nil) { this.prRemoveServerTap };
 		s.meta[\duration] = stopBeat;
-		s.meta[\commits] = this.prCommits;
+		s.meta[\commits] = RCGuard.call(\score, nil) { this.prCommits };
 		root !? { s.meta[\root] = root };
 		state = \armed;
 		score = nil;
 		overdubbing = nil;
+		this.prUnwatch;
 		path = root !? { REScore.pathFor(root, song.name, version, stamp) };
 		lastPassPath = nil;
 		if(od.notNil) {
-			player.stop;
-			withPlayer !? (_.stop);
+			// (Nov 6 2026) guarded: a raise here (a player's onStop) never loses the take
+			RCGuard.call(\score, nil) { player.stop };
+			RCGuard.call(\score, nil) { withPlayer !? (_.stop) };
 			// the pass, a take of its own on the old take's timeline: the old one named as its source (its basename
 			// when both live under the recorder's root); (Oct 31 2026) the span it was recorded over, on the old take's
 			// timeline: [punch-in, punch-out or the stop]
@@ -303,7 +421,7 @@ REScoreRecorder {
 		};
 		withPlayer = nil;
 		if(unrecorded > 0) { s.meta[\unrecorded] = unrecorded };
-		lastCheck = s.check;
+		lastCheck = RCGuard.call(\score, []) { s.check };
 		if(lastCheck.notEmpty) { s.meta[\check] = lastCheck } { s.meta.removeAt(\check) };
 		lastScore = s;
 		if(root.notNil) {
@@ -313,7 +431,8 @@ REScoreRecorder {
 		} {
 			RCLog.warn(\score, "no root folder: the score was not written (lastScore holds it: lastScore.write(path))");
 		};
-		RCLog.post(\score, "% stopped: % events over % beats".format(song.name, s.size, s.duration.round(0.01)));
+		RCLog.post(\score, "% stopped: % events over % beats%".format(song.name, s.size, s.duration.round(0.01),
+			if(s.meta[\interrupted].notNil) { ", interrupted (" ++ s.meta[\interrupted] ++ ")" } { "" }), true);
 		lastCheck.do { |text| RCLog.warn(\score, "check: " ++ text) };
 		onStop !? { |f| RCGuard.call(\score, nil) { f.value(this, s, lastPath) } };
 		^s
@@ -345,23 +464,25 @@ REScoreRecorder {
 	// program played over a render, recorded apart from it).
 	overdub { |scorearg, voices, mode, punch, loop = false, quant, rendered = false, with, merge = true|
 		var from, to, at, render, path, grid, lead, takeTempo;
-		if(state == \recording) { RCLog.warn(\score, "% already recording".format(song.name)); ^this };
+		if(this.prRefusedInReplay("overdub")) { ^nil };
+		if(this.prRefusedBusy("overdub")) { ^nil };
 		if(scorearg.isString or: { scorearg.isKindOf(Symbol) }) {
 			path = scorearg.asString;
 			scorearg = REScore.read(path);
-			if(scorearg.isNil) { ^RCLog.error(\score, "overdub: no take at " ++ path) };
+			if(scorearg.isNil) { RCLog.error(\score, "overdub: no take at " ++ path, true); ^nil };
 		};
-		if(scorearg.isKindOf(REScore).not) { ^RCLog.error(\score, "overdub: a take (an REScore or its path), not " ++ scorearg.class) };
+		if(scorearg.isKindOf(REScore).not) { RCLog.error(\score, "overdub: a take (an REScore or its path), not " ++ scorearg.class, true); ^nil };
 		if(with.notNil) {
 			if(with.isString or: { with.isKindOf(Symbol) }) { with = REScore.read(with.asString) };
-			if(with.isKindOf(REScore).not) { ^RCLog.error(\score, "overdub: with: a take (an REScore or its path)") };
+			if(with.isKindOf(REScore).not) { RCLog.error(\score, "overdub: with: a take (an REScore or its path)", true); ^nil };
 		};
 		if(rendered == true or: { rendered == \auto }) {
 			render = path !? { REScore.readRender(path) };
 			if(render.isNil and: { rendered == true }) {
-				^RCLog.error(\score, "overdub: no render % (scripts/take.sh render <take> --viz, then overdub the take's path)".format(path !? { "next to " ++ path } ? "for a score given without its path"))
+				RCLog.error(\score, "overdub: no render % (scripts/take.sh render <take> --viz, then overdub the take's path)".format(path !? { "next to " ++ path } ? "for a score given without its path"), true);
+				^nil
 			};
-			if(render.notNil and: { song.server.serverRunning.not }) { ^RCLog.error(\score, "overdub: the render's WAV needs the server, which is not running") };
+			if(render.notNil and: { song.server.serverRunning.not }) { RCLog.error(\score, "overdub: the render's WAV needs the server, which is not running", true); ^nil };
 		};
 		if(state == \off) { this.arm };
 		from = punch !? (_[0]) ? 0;
@@ -390,10 +511,12 @@ REScoreRecorder {
 		overdubbing = IdentityDictionary[\score -> scorearg, \voices -> voices, \mode -> mode, \from -> from, \to -> to, \loop -> loop, \with -> with, \rendered -> render.notNil,
 			\merge -> (merge != false), \path -> path];
 		this.record(nil, false, atBeat: at, offsetBeat: from);
+		// (Nov 6 2026) the base's end said loudly while the pass records
+		player.onDone = player.onDone.addFunc({ |p| this.prBaseEnded(p) });
 		player.play(nil, from, to, loop, atBeat: at);
 		withPlayer !? (_.play(nil, from, to, loop, atBeat: at));
 		RCLog.post(\score, "% overdubbing % from beat %%%".format(song.name, voices ? "every voice", from,
-			if(render.notNil) { " on the render" } { "" }, if(with.notNil) { " with a second take" } { "" }));
+			if(render.notNil) { " on the render" } { "" }, if(with.notNil) { " with a second take" } { "" }), true);
 	}
 
 	// Sets the state of a snapshot (by name, the latest one of the current
