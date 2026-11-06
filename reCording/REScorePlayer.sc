@@ -45,9 +45,15 @@
 // take's), \beat ("beat 16") or \both. postEvery (nil: off) posts it every so
 // many beats too, on the take's grid from its beat 0, never twice at one beat
 // (a cue there posts it, as a cue).
+//
+// (Nov 6 2026) Stopped from inside its own routine (a replayed line that stops it, or stops the recorder it
+// plays for) the player only marks itself stopped and its run loop returns after the event: Routine:stop on
+// thisThread is nil.alwaysYield, which froze the routine mid-event for good, inside server.bind and
+// RETap.silently. `REScorePlayer.replaying` says whether the calling code runs inside a replay (a recorder
+// refuses to be controlled from one). Cmd-period stops it (its routine is gone with the clocks' queues).
 
 REScorePlayer {
-	classvar <orgnsmIdentityKeys;
+	classvar <orgnsmIdentityKeys, running;
 
 	var <score, <song, <>clock;
 	var <state = \stopped, routine, <startBeat, <from = 0, <to, <loop = false, <passes = 0;
@@ -69,6 +75,28 @@ REScorePlayer {
 
 	*initClass {
 		orgnsmIdentityKeys = #[\orgnsm, \tribe, \o_species, \orgnsm_name, \tribe_name, \seed];
+		running = IdentitySet.new;
+	}
+
+	// (Nov 6 2026) True when the calling code runs inside a replay: thisThread is the routine of a playing
+	// REScorePlayer, or a thread such a routine resumed.
+	*replaying {
+		var t = thisThread, main = thisProcess.mainThread;
+		while { t.notNil and: { t !== main } } {
+			if(running.includes(t)) { ^true };
+			t = t.parent;
+		};
+		^false
+	}
+
+	// whether thisThread is r or runs inside it (a thread r resumed)
+	*prInside { |r|
+		var t = thisThread, main = thisProcess.mainThread;
+		while { t.notNil and: { t !== main } } {
+			if(t === r) { ^true };
+			t = t.parent;
+		};
+		^false
 	}
 
 	*new { |score, song| ^super.new.initREScorePlayer(score, song) }
@@ -116,6 +144,9 @@ REScorePlayer {
 		// draws what it drew, as long as the same lines and inputs run in the same order
 		score.meta[\randData] !? { |d| RCGuard.call(\player, nil) { routine.randData = Int32Array.newFrom(d) } };
 		state = \playing;
+		running.add(routine);
+		CmdPeriod.add(this);
+		REBundleWatch.watch(song.server);
 		this.prSchedule(routine, quant, atBeat);
 		onPlay.value(this);
 	}
@@ -182,12 +213,26 @@ REScorePlayer {
 	}
 
 	stop {
+		var r = routine;
 		if(state != \playing) { ^this };
-		routine !? (_.stop);
-		routine = nil;
 		state = \stopped;
+		routine = nil;
+		running.remove(r);
+		CmdPeriod.remove(this);
+		// (Nov 6 2026) from inside its own routine the run loop sees the state and returns after this event;
+		// r.stop there would be nil.alwaysYield: the routine frozen mid-event for good
+		if(r.notNil and: { this.class.prInside(r).not }) { r.stop };
 		this.prRestoreTempo;
 		onStop.value(this);
+	}
+
+	// (Nov 6 2026) Cmd-period cleared the clocks' queues (permanent clocks too) and freed every node: the
+	// routine is gone, so the player says it stopped instead of claiming to play
+	doOnCmdPeriod {
+		if(state == \playing) {
+			RCLog.warn(\player, "Cmd-period: the replay of % stopped (the clocks cleared, the nodes freed)".format(score.meta[\wersion] ? "a take"), true);
+			this.stop;
+		};
 	}
 
 	isPlaying { ^state == \playing }
@@ -244,6 +289,8 @@ REScorePlayer {
 	// The last event played and the take not looping: the end.
 	prEnded {
 		state = \stopped;
+		running.remove(routine);
+		CmdPeriod.remove(this);
 		routine = nil;
 		this.prRestoreTempo;
 		onDone.value(this);
@@ -360,6 +407,7 @@ REScorePlayer {
 		var voice = ev[\voice];
 		var ok, next;
 		if((ev[\level] ? 1) >= 3) { ^this };   // the server's messages: the program makes the sound (a render sends them, scripts/take.sh)
+		if(ev[\recorder].notNil) { ^this };   // (Nov 6 2026) the line that stopped its take: the recorder's, not the music's
 		if(voice.notNil and: { muted.includes(voice) or: { soloed.notEmpty and: { soloed.includes(voice).not } } }) { ^this };
 		if((ev[\level] ? 1) >= 2) {
 			if(this.prProgramPlays(ev).not) { ^this };
@@ -456,6 +504,9 @@ REScorePlayer {
 
 	// Replays one event now. Returns true when it was fired.
 	fire { |ev|
+		// (Nov 6 2026) the line that stopped its take (REScoreRecorder marks it): the recorder's, never fired (the run
+		// loop passes over it uncounted)
+		if(ev[\recorder].notNil) { ^false };
 		if(ev[\replay] == false) { ^this.prSkip(ev, "marked replay: false") };
 		if(silent) { ^RETap.silently { this.prFire(ev) } };
 		^this.prFire(ev)
