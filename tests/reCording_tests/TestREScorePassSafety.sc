@@ -239,6 +239,26 @@ TestREScorePassSafety : UnitTest {
 		this.assert(written.meta[\serverQuit].notNil, "the beat noted, read back");
 	}
 
+	// (Nov 6 2026) A player stopped while its routine waits inside an event (here a line that waits, as a sync for the
+	// server's answer does inside the event's bundle): the bundle would never close; the server's address given back.
+	test_a_player_stopped_inside_an_event_gives_the_server_back {
+		var take = REScore(song), player;
+		take.add(IdentityDictionary[\kind -> \code, \beat -> 1, \text -> "Server.named[\\re_pass_safety_test].sendMsg('/rePassSafetyInside'); 10.wait;"]);
+		take.meta[\duration] = 4;
+		player = REScorePlayer(take, song);
+		player.play(nil);
+		this.beats(2);
+		this.assert(server.addr.hasBundle, "the event waits inside its bundle (the case)");
+		this.assert(RETap.silentLevel > 0, "the event's RETap.silently is open");
+		player.stop;
+		this.assertEquals(RETap.silentLevel, 0, "the tap not left silent by the stopped event");
+		this.assert(server.addr === addr, "the server's own address back at the stop");
+		this.assert(this.logHas("the address given back"), "said loudly");
+		server.sendMsg("/rePassSafetyAfterStop");
+		this.assert(addr.bundles.any { |b| b.drop(1).any { |m| m.asArray.first.asString == "/rePassSafetyAfterStop" } },
+			"messages reach the server again");
+	}
+
 	// A bundle left open: seen once, then recovered at the next look (the status watcher's \bundling notices).
 	test_a_bundle_left_open_is_recovered {
 		server.openBundle;

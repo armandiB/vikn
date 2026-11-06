@@ -71,6 +71,7 @@ REScorePlayer {
 	var <>postCues = true, <>cueKinds;   // the position posted at each new cue (a level 1 event of these kinds), once a beat
 	var <>postEvery, <>postAs = \both, <>beatsPerBar;   // the position every so many beats too (nil: off); \bar, \beat or \both; the bars' beats (nil: the take's meter, else the clock's)
 	var lastPost, headBeat;   // the score beat last posted; the one the routine stands at
+	var firing = false;       // (Nov 6 2026) true while the routine is inside an event (its bundle open)
 	var <fired = 0, <skipped = 0, <interpolated = 0, <deferredCount = 0, warned, failedRoots, ranBeforeFail, ramps, nextOf, commitsChecked = false;
 
 	*initClass {
@@ -221,9 +222,25 @@ REScorePlayer {
 		CmdPeriod.remove(this);
 		// (Nov 6 2026) from inside its own routine the run loop sees the state and returns after this event;
 		// r.stop there would be nil.alwaysYield: the routine frozen mid-event for good
-		if(r.notNil and: { this.class.prInside(r).not }) { r.stop };
+		if(r.notNil and: { this.class.prInside(r).not }) {
+			r.stop;
+			// (Nov 6 2026) stopped while its routine was inside an event (a line that waits, a sync for the server's
+			// answer inside the event's bundle): the bundle will never close, the server's address would keep every
+			// later message (Oct 31: a pass stopped soon after its start, the next one silent). Given back at once.
+			if(firing) { RETap.prAbandon(r); this.prGiveServerBack };
+		};
+		firing = false;
 		this.prRestoreTempo;
 		onStop.value(this);
+	}
+
+	prGiveServerBack {
+		var srv = song.server, a;
+		a = srv !? (_.addr);
+		if(a.notNil and: { a.hasBundle }) {
+			RCLog.error(\player, "stopped in the middle of an event with the server's address inside its bundle (% message(s) held, dropped): the address given back".format(a.bundle.size), true);
+			srv.addr = a.recover;
+		};
 	}
 
 	// (Nov 6 2026) Cmd-period cleared the clocks' queues (permanent clocks too) and freed every node: the
@@ -426,7 +443,9 @@ REScorePlayer {
 			};
 		};
 		ramps.copy.do { |r| if(r[\to] === ev) { ramps.remove(r) } };
+		firing = true;
 		ok = this.fire(ev);
+		firing = false;
 		if(ok) {
 			fired = fired + 1;
 			onEvent.value(this, ev);
