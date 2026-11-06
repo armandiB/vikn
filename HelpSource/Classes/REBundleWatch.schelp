@@ -1,0 +1,33 @@
+TITLE:: REBundleWatch
+summary:: A server's address left inside a bundle, found and recovered
+categories:: Libraries>reCording
+related:: Guides/reCording, Classes/REScorePlayer, Classes/BundleNetAddr
+
+DESCRIPTION::
+(Nov 6 2026) code::server.bind:: swaps the server's address for a link::Classes/BundleNetAddr:: until the bundle closes. A Routine that waits or stops itself inside it never closes it: from then on every message sclang sends to that server is kept and never sent (silence), and the status watcher stops updating the server's numbers while the address has a bundle. A replayed code::~rec.stop:: did that to FrissonFixed's passes on Nov 6 (133286 messages held; the reCording guide, "Recording safely").
+
+The status watcher says so every 0.7 s while it lasts (code::server.changed(\bundling)::). sclang runs one thread at a time, so the same bundle still open at the next of those notices belongs to a Routine suspended inside it, which will not close it: its messages are dropped (sent late they would all sound at once) and the address recovered, with an error. link::Classes/REScorePlayer#-play:: watches its song's server.
+
+CLASSMETHODS::
+
+METHOD:: watch
+argument:: server
+Makes the watch a dependant of the server (once).
+
+METHOD:: unwatch
+argument:: server
+
+METHOD:: check
+argument:: server
+One look, what each code::\bundling:: notice runs.
+returns:: True when it recovered the address (the same bundle seen at the look before).
+
+METHOD:: recovers
+False: only posted, the address left as it is.
+
+METHOD:: watched
+The servers watched.
+
+METHOD:: update
+argument:: server
+argument:: what
