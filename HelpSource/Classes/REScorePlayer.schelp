@@ -25,6 +25,9 @@ argument:: clock
 argument:: quant
 returns:: The next beat on the grid (quant's, else the score's code::quant::, else 1) that is, modulo the grid, where the score's code::beat0:: was.
 
+METHOD:: replaying
+(Nov 6 2026) True when the calling code runs inside a replay: thisThread is the Routine of a playing player, or a thread it resumed. link::Classes/REScoreRecorder:: refuses to be controlled from one. A player stopped from its own Routine marks itself stopped (its run loop returns after the event) instead of stopping the running Routine, which SuperCollider does as code::nil.alwaysYield::: the Routine would stand still for good, inside code::server.bind::. Cmd-period stops a playing player: its Routine is gone with the clocks' queues.
+
 METHOD:: ramp
 argument:: fromValue
 argument:: toValue

@@ -82,16 +82,33 @@ METHOD:: controlNames
 The controls with a getter.
 
 METHOD:: disarm
-Stops a recording, removes the hooks.
+Stops a recording (or cancels a start not come yet), removes the hooks.
 
 METHOD:: record
 argument:: quant
 nil: now; else the take starts on that grid of the song's clock, written as the take's code::quant:: so that a replay starts on the same phase of it.
 argument:: snapshotAtStart
 Sets link::#-startSnapshot::.
+returns:: The recorder; (Nov 6 2026) nil, with an error, while a take records or waits for its start, and from a replayed line (the reCording guide, "Recording safely"). link::#-lastPath:: and link::#-lastPassPath:: are nil from here until the take is written.
 
 METHOD:: stop
-returns:: The link::Classes/REScore::, written to code::<root>/<stamp>_<song> <version>.json:: when root is set.
+returns:: The link::Classes/REScore::, written to code::<root>/<stamp>_<song> <version>.json:: when root is set. (Nov 6 2026) Before the start: the start cancelled (and an overdub's base player), nil. From a replayed line: refused, nil. The line that called it, typed while the take recorded, is marked code::replay: false, recorder: "stop"::. The take is written even when stopping a player raises.
+
+METHOD:: isPending
+(Nov 6 2026) True while a start is scheduled and not come yet (a quantized record, an overdub before its bar).
+
+METHOD:: lastPath
+The file the last take was written to; nil while a take records.
+
+METHOD:: lastPassPath
+A merged overdub's pass written alone; nil while a take records.
+
+METHOD:: doOnCmdPeriod
+(Nov 6 2026) Registered while a take records or waits for its start: Cmd-period stops the take and writes it, marked code::interrupted: "cmdPeriod"::, or cancels the start; said loudly.
+
+METHOD:: doOnServerQuit
+argument:: server
+(Nov 6 2026) The server stopped while the take records: said loudly, the beat noted as code::serverQuit::; the take records on.
 
 METHOD:: snapshot
 argument:: name

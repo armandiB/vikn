@@ -76,4 +76,32 @@ TestRCLog : UnitTest {
 		this.assert(RCLog.info(\v, "shown"), "info emitted when verbose");
 		RCLog.verbose = saved;
 	}
+
+	// (Nov 6 2026) a flood of info lines (a knob's values) never pushes the warnings and errors out of `alerts`
+	test_alerts_survive_a_flood_of_info {
+		var saved = RCLog.historySize;
+		RCLog.historySize = 10;
+		RCLog.warn(\score, "a pass refused");
+		30.do { |i| now = now + 2; RCLog.info(\knob, "= " ++ i) };
+		this.assert(RCLog.history.any { |e| e[2].contains("a pass refused") }.not, "the history lost it to the flood (the case)");
+		this.assert(RCLog.alerts.any { |e| e[2].contains("a pass refused") }, "the alerts keep it");
+		this.assertEquals(RCLog.alerts.size, 1, "the alerts hold warnings and errors only");
+		RCLog.historySize = saved;
+	}
+
+	// (Nov 6 2026) logTo: every emitted line appended to a dated file in a folder
+	test_log_file {
+		var dir = PathName.tmp +/+ "rclog_test_" ++ UniqueID.next, path, text;
+		path = RCLog.logTo(dir);
+		RCLog.warn(\score, "into the file");
+		now = now + 2;
+		RCLog.post(\score, "and this");
+		RCLog.logPath = nil;
+		RCLog.post(\other, "not this");
+		text = File.readAllString(path);
+		this.assert(text.contains("warn RC[score]: into the file") and: { text.contains("post RC[score]: and this") }, "the lines in the file, with their level");
+		this.assert(text.contains("not this").not, "nothing after logPath is nil");
+		File.delete(path);
+		File.delete(dir);
+	}
 }

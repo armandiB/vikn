@@ -143,6 +143,23 @@ On a render (strong::rendered:: true, or code::\auto:: when the take has one: th
 
 A snapshot recalls instantly (code::~rec.recall(\intro)::) or morphs over beats (code::~rec.morph(\intro, beats: 8)::): numeric sources ramp (link::Classes/REScorePlayer#*ramp::), the registered controls ramp through their setter along their spec's warp (link::Classes/REScorePlayer#*rampControl::), the rest switch at once; both are recorded as one strong::morph:: event pointing at the snapshot. A registered control is in a snapshot when it was given a getter: code::~rec.addControl(\knob_mix, spec, get: { ~mix }, set: { |v| ~mix = v; ~reverb.set(\mix, v) })::.
 
+subsection:: Recording safely
+
+(Nov 6 2026) A pass over a take lives beside everything that take replays, and beside the hand. The rules:
+
+list::
+## strong::Recording is controlled by hand.:: A line a take replays never stops, starts, arms or disarms a take (link::Classes/REScorePlayer#*replaying::: the calling code runs in a playing replay's Routine): refused, with an error. The line that stopped a take was typed while it recorded and is in it: the recorder marks it code::replay: false, recorder: "stop"::, the player passes over it uncounted and the take's check leaves it out. A take written before the mark keeps its stop lines as they are; replayed, they are refused. Before this, the base of a later pass replayed the code::~rec.stop:: typed at the end of an earlier one: the recorder stopped the player from inside the player's own Routine, and SuperCollider's Routine:stop on the running Routine is code::nil.alwaysYield::: the Routine stood still for good in the middle of the stop, the pass lost unwritten, the server's address left inside the player's code::server.bind:: (every later message to the server kept, never sent: silence) and the tap left silent (no input recorded until a recompile).
+## strong::A player stopped from its own Routine:: marks itself stopped; its run loop returns after the event.
+## strong::A player stopped in the middle of an event:: (its Routine waiting inside it: a line that waits, a sync for the server's answer inside the event's bundle) gives the server's address back at once and undoes what the Routine had entered in link::Classes/RETap:: (code::prAbandon::): a stopped Routine never runs its cleanups. Oct 31: a pass stopped seconds after its start, the next pass silent; probably this.
+## strong::One take at a time.:: code::record:: and code::overdub:: return nil, with an error that the log's rate limit never swallows, while a take records or waits for its start (a quantized start, an overdub before its bar). A code::stop:: before the start cancels it, and the overdub's base player: nothing is recorded later.
+## strong::The last path:: (code::lastPath::, code::lastPassPath::) is nil from a take's start until it is written: it never names an older take meanwhile.
+## strong::A stop always writes the take:: (every step after the take leaves the recorder is guarded: a base player whose code::onStop:: raises loses nothing).
+## strong::The base's end:: is posted loudly while the pass records: nothing sounds from then on but what is played by hand.
+## strong::Cmd-period:: clears every clock's queue, permanent clocks too, and frees every node. During a take the take is stopped, written and marked code::interrupted: "cmdPeriod"::, said loudly; a start not come yet is cancelled; a player says it stopped.
+## strong::The server's quit:: during a take is said loudly and its beat noted (code::serverQuit::); the take records on until stopped.
+## strong::A bundle left open:: (a Routine that waited or stopped itself inside code::server.bind::) is found by link::Classes/REBundleWatch:: from SC's status watcher's notices: the same bundle still open at the next notice is dropped and the server's address recovered, loudly.
+::
+
 subsection:: Editing
 
 Every operation answers a new score; code::edited(op):: applies one named by a dictionary (what a page sends): code::replacedSegment:: (an event of the control, a span, points), code::moved:: (an event, a beat), code::removed:: (ids, with what descends from them), code::changed:: (an event, a value), code::shifted::. The rig's lanes view edits that way (HomewareSC's code::view.html::: draw over a lane, drag, delete; undo, save in place or as a new file). Its live side is an link::Classes/REScoreEditor::: OSCdefs under code::<prefix>/rec/:: (play, stopPlay, edit, undo, save, revert) on a folder of takes, the take being edited kept as a working copy next to it (code::<take>.edit.json::, what the page shows and Play plays), the feed back to the page's server. The remote rig makes one with the prefix code::/rig::; a piece makes one in the IDE, code::~ed = REScoreEditor(~song, ~rec):: (the prefix code::/<song>::, the recorder's folder), and HomewareSC's code::scripts/take.sh view <piece>/Scores:: serves the page on that folder.
@@ -234,6 +251,7 @@ table::
 ## code::voice:: || see link::#Voices::
 ## code::rc:: || an object reference: code::{"rc": "beat"|"layer"|"song"|"batch"|"orgnsm"|"fobject"|"crawler", "name": ..., "layer": ...}::, resolved at replay through the song (beats, layers, orgnsms, fobjects) or the current environment (batches, crawlers, by the variable that holds them)
 ## code::replay:: || code::false:: marks an event that must not be fired (an unsafe code line, an argument that could not be serialized, a line whose message came back as an input); absent means true
+## code::recorder:: || code::"stop":: on the line that stopped the take (link::#Recording safely::): the recorder's, never fired nor counted
 ## code::raised:: || code::true:: on a code line that raised in the take: its effects are what it did before
 ## code::fallback:: || on a root event, what plays when it fails at replay: absent, the effects it did not reach again; code::false::, none; code::true::, all
 ## code::loopback::, code::loopbackOf:: || a line that sent a message to this song and the input it came back as, each naming the other
@@ -244,6 +262,7 @@ table::
 ## code::levels::, code::unrecorded::, code::check:: (in the metadata) || the levels written ([1, 2] when a companion exists), the program actions seen while level 2 was off, what threatens an exact replay
 ## code::origins:: (in the metadata), code::o:: || the takes the events were first recorded in, by file name without code::.json::, and an event's index there (absent: 0, the first); a file without the list is its own origin (link::Classes/REScore#-origins::)
 ## code::source::, code::punch:: (in the metadata) || an overdub's pass: the take it was played over and the span, on that take's timeline
+## code::interrupted::, code::serverQuit:: (in the metadata) || why the take was stopped by no hand (code::"cmdPeriod"::); the beat at which the server stopped while it recorded
 ## code::inputs::, code::randData:: (in the metadata) || the kinds of input recorded; the main thread's random state at the start (three integers), given to the player's Routine
 ::
 

@@ -21,6 +21,7 @@ RETap {
 	classvar <>mainThreadOnly = true;   // false lets tests drive actions from a Routine
 	classvar <frames;                   // open causes, innermost last: (kind:, ids: recorder → event id)
 	classvar silent = 0;
+	classvar silentBy, observerBy;      // (Nov 6 2026) the thread that entered each silently, that added each observer (prAbandon)
 	classvar observers;                 // { |obj, method, args| } seeing every action, silent or not (a replay watching a line)
 	classvar codeUsers, preHook, dumpHook, savedPreProcessor;
 	classvar rawUsers, rawFuncs;
@@ -29,6 +30,8 @@ RETap {
 		recorders = [];
 		frames = [];
 		observers = [];
+		silentBy = [];
+		observerBy = IdentityDictionary.new;
 		codeUsers = IdentitySet.new;
 		rawUsers = IdentitySet.new;
 	}
@@ -92,9 +95,11 @@ RETap {
 	// what a code line did before raising, to play only the effects it did not reach.
 	*observe { |observer, func|
 		observers = observers.add(observer);
+		observerBy[observer] = thisThread;
 		active = true;
 		^protect { func.value } {
 			observers = observers.reject { |o| o === observer };
+			observerBy.removeAt(observer);
 			active = recorders.notEmpty or: { observers.notEmpty };
 		}
 	}
@@ -112,9 +117,30 @@ RETap {
 	}
 
 	*silently { |func|
+		var t = thisThread;
 		silent = silent + 1;
-		^protect { func.value } { silent = silent - 1 }
+		silentBy = silentBy.add(t);
+		^protect { func.value } {
+			silent = silent - 1;
+			silentBy.indexOf(t) !? { |i| silentBy = silentBy.copy.reject { |x, k| k == i } };
+		}
 	}
+
+	// (Nov 6 2026) A Routine stopped from outside in the middle of silently or observe never runs their cleanup (a
+	// protect's cleanup runs on return or error, not when the Routine is dropped): what that thread entered is undone
+	// here, so the tap is not left silent for good (REScorePlayer calls it when it stops in the middle of an event).
+	*prAbandon { |thread|
+		var n = silentBy.count { |x| x === thread };
+		if(n > 0) {
+			silent = (silent - n).max(0);
+			silentBy = silentBy.reject { |x| x === thread };
+		};
+		observers.copy.do { |o| if(observerBy[o] === thread) { observers = observers.reject { |x| x === o }; observerBy.removeAt(o) } };
+		active = recorders.notEmpty or: { observers.notEmpty };
+		^n
+	}
+
+	*silentLevel { ^silent }
 
 	//////// code lines: the interpreter's preProcessor (a line is about to run) and codeDump (it ran)
 
