@@ -83,6 +83,27 @@ TestRERenderedPlayer : UnitTest {
 		this.assert(REScore.readRender(path).isNil and: { this.logHas("not a render sidecar") }, "another format is ignored, said");
 	}
 
+	// take.sh render (SC-T1) copies the take and the sidecar into the render's folder, the copy's paths
+	// relative to that folder: the folder plays wherever it is, by the copied take or the sidecar's path
+	test_render_folder_copy_plays_on_its_own {
+		var s = this.prTake, dir = REScore.renderDir(path), copy, side, d, p;
+		copy = dir +/+ path.basename;
+		s.write(copy);
+		side = REScore.renderPath(copy);
+		this.assertEquals(side, dir +/+ sidecar.basename, "the copy's sidecar in the render's folder");
+		REJSON.write((format: "re-render", version: 1, take: path.basename, wav: wav.basename, channels: 16, hoa: "acn-n3d", latency: 0.2,
+			duration: 3.15, tape: "260101_120000_rendered w0.viz.json", ctl: "260101_120000_rendered w0.ctl.json", state: "/elsewhere/x.state"), side, 2, 2);
+		d = REScore.readRender(copy);
+		this.assertEquals(d[\wav], wav, "the wav against the copy's folder");
+		this.assertEquals(d[\tape], REScore.tapePath(path));
+		this.assertEquals(d[\ctl], dir +/+ "260101_120000_rendered w0.ctl.json", "the control tape too");
+		this.assertEquals(d[\state], "/elsewhere/x.state", "an absolute path as it is");
+		p = RERenderedPlayer(s, song, side);
+		this.assertEquals(p.wav, wav, "a player given the sidecar's path reads it the same way");
+		this.assertEquals(p.render[\ctl], d[\ctl]);
+		this.assert(REScore.isCompanion(wav ++ ".how.json"), "a render's record is a companion, no take");
+	}
+
 	test_from_take_fires_nothing_but_tempo {
 		var s = this.prTake, p;
 		this.prSidecar;

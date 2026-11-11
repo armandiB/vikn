@@ -54,7 +54,7 @@ RERenderedPlayer : REScorePlayer {
 	}
 
 	initRERenderedPlayer { |r|
-		render = if(r.isString) { REJSON.read(r) } { r };
+		render = if(r.isString) { REScore.readSidecar(r) } { r };   // a sidecar's path: its relative paths against its folder
 		followTempo = true;
 		tapeClock = SystemClock;
 	}
