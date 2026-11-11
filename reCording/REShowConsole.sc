@@ -234,16 +234,9 @@ REShowConsole {
 		^cue
 	}
 
-	// A render sidecar read by its own path (REScore.readRender reads it next to a take): nil when
-	// missing or not one; its wav, tape and state made absolute against its folder.
-	prReadSidecar { |p|
-		var d, dir = p.dirname;
-		if(File.exists(p).not) { ^nil };
-		d = REJSON.read(p);
-		if(d.isNil or: { d[\format] != "re-render" }) { RCLog.warn(\console, "% is not a render sidecar: ignored".format(p.basename)); ^nil };
-		[\wav, \tape, \state].do { |k| d[k] !? { |v| if(v.asString.beginsWith("/").not) { d[k] = dir +/+ v.asString } } };
-		^d
-	}
+	// A render sidecar read by its own path (REScore.readSidecar; readRender reads it next to a take): nil
+	// when missing or not one; its wav, tape, state and ctl made absolute against its folder.
+	prReadSidecar { |p| ^REScore.readSidecar(p) }
 
 	// a path of the show file: relative to its folder
 	prPath { |p|

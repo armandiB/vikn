@@ -832,17 +832,24 @@ REScore {
 	// a take's companion files, never takes themselves (the folder listings skip them)
 	*isCompanion { |path|
 		path = path.asString;
-		^#[".l2.json", ".l3.json", ".edit.json", ".render.json", ".viz.json", ".tape.json", ".ctl.json", ".video.json"].any { |s| path.endsWith(s) }
+		^#[".l2.json", ".l3.json", ".edit.json", ".render.json", ".viz.json", ".tape.json", ".ctl.json", ".video.json", ".how.json"].any { |s| path.endsWith(s) }
 	}
 
-	// The render's sidecar as a dictionary (its wav, tape and state paths made absolute against
-	// the take's folder), nil when the take has none or the file is not one.
-	*readRender { |path|
-		var p = this.renderPath(path), d, dir = path.asString.dirname;
+	// The render's sidecar as a dictionary (readSidecar), nil when the take has none or the file is not one.
+	*readRender { |path| ^this.readSidecar(this.renderPath(path)) }
+
+	// A render sidecar read by its own path, its wav, tape, state and ctl made absolute against its
+	// folder: take.sh render writes the files under that folder as relative paths (since Nov 11 2026,
+	// HomewareSC's SC-T1), the sidecar next to the take and its copy in the render's folder each
+	// relative to its own, so a render folder moved anywhere still plays; nil when missing or not one.
+	*readSidecar { |p|
+		var d, dir;
+		p = p.asString;
 		if(File.exists(p).not) { ^nil };
+		dir = p.dirname;
 		d = REJSON.read(p);
 		if(d.isNil or: { d[\format] != "re-render" }) { RCLog.warn(\score, "% is not a render sidecar: ignored".format(p.basename)); ^nil };
-		[\wav, \tape, \state].do { |k| d[k] !? { |v| if(v.asString.beginsWith("/").not) { d[k] = dir +/+ v.asString } } };
+		[\wav, \tape, \state, \ctl].do { |k| d[k] !? { |v| if(v.asString.beginsWith("/").not) { d[k] = dir +/+ v.asString } } };
 		^d
 	}
 
