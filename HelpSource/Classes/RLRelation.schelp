@@ -1,0 +1,144 @@
+TITLE:: RLRelation
+summary:: A relation between two finite lists of objects, with values in a quantale
+categories:: Libraries>reLation
+related:: Classes/RLQuantale, Classes/RLCategory, Classes/RLRelationContext, Classes/RLGraph, Classes/RLTransform, Guides/reLation
+
+DESCRIPTION::
+Many musical relations are not functions: an augmented triad is one semitone from six triads, a triad shares two tones with three others. A relation says, for each object of a strong::source:: list and each object of a strong::target:: list, whether the first is related to the second, and with which value.
+
+The two lists are Arrays of objects (chords, pitch classes, anything with code::==:: and code::hash::). code::rows[i][j]:: is the value for code::source[i]:: and code::target[j]::, the quantale's zero when they are not related; a boolean relation, the default, holds 0 and 1 (link::Classes/RLQuantale::).
+
+Relations compose with code::<>::, strong::right to left::: code::(s <> r):: relates x to z when r relates x to some y and s relates that y to z, with the value "join over y of s(y, z) * r(x, y)" in the quantale. The k-th power of a relation relates x to y exactly when a walk of k steps joins them.
+
+A relation is a value: equal to another with the same lists, quantale and values, whatever its label.
+
+code::
+~space = RLChordSpace.triads(RLEDO(12));
+~c = ~space.major(0);
+~near = RLRelation.voiceMoves(~space.all, [1]);     // one voice moves by one step
+~near.images(~c);                                   // [C minor, E minor]
+(~near <> ~near).images(~c);                        // [C major, E major, Ab major]
+~near.repeated(3).relates(~c, ~space.minor(8));     // true: three steps to the hexatonic pole
+~near.isFunction;                                   // false
+
+// a relation between two lists: the tones of the chords
+~in = RLRelation.between(RLEDO(12).pcs, ~space.all, { |pc, chord| chord.pcs.includes(pc) });
+~in.images(0).size;                                 // 6: C belongs to six triads
+(~in <> ~in.converse).relates(~c, ~space.major(7)); // true: C major and G major share a tone
+
+// costs: the closure of a relation of lawvere costs is a distance
+~cost = RLRelation.commonTones(~space.all, 2).valued(RLQuantale.lawvere, { |x, y| RLVoiceLeading.stepsBetween(x, y) });
+~cost.at(~c, ~space.minor(9));                      // 2.0: R moves a voice by a whole tone
+~cost.closure.at(~c, ~space.major(1));              // 5.0: C major to C# major along P, L, R
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: source
+argument:: target
+Two Arrays of objects.
+argument:: rows
+One Array per source object, one value per target object (numbers, or true, false, nil).
+argument:: quantale
+link::Classes/RLQuantale#*boolean:: when nil.
+argument:: label
+
+METHOD:: between
+From a rule: code::func.(x, y):: answers a value, true, false or nil for each pair.
+
+METHOD:: on
+The same on one list, as source and target.
+
+METHOD:: fromPairs
+From an Array of code::[x, y]:: or code::[x, y, value]::.
+
+METHOD:: identity
+Each object related to itself.
+
+METHOD:: ofFunction
+A function as a relation: x is related to code::func.(x)::, which must be one of the objects.
+
+METHOD:: voiceMoves
+Chords related by a voice leading whose moves are these numbers of steps, the other voices staying: code::[1]:: one voice by one step, code::[1, 1]:: two voices by one step each. The chords belong to one link::Classes/RLEDO::. In 12 steps code::[1]:: is "P or L" and code::[2]:: is R; in 19 steps P, L, R are code::[1]::, code::[2]::, code::[3]::; in 31, code::[2]::, code::[3]::, code::[5]::.
+argument:: chords
+argument:: moves
+argument:: quantale
+argument:: label
+
+METHOD:: pmn
+Douthett and Steinbach's P(m, n): m voices by one step and n by two.
+
+METHOD:: commonTones
+Chords that share exactly k tones and are not the same chord.
+
+INSTANCEMETHODS::
+
+METHOD:: source
+METHOD:: target
+METHOD:: rows
+METHOD:: quantale
+METHOD:: label
+
+METHOD:: at
+The value at (x, y).
+
+METHOD:: relates
+Whether x is related to y.
+
+METHOD:: images
+The objects x is related to, in the order of the target.
+
+METHOD:: preimages
+The objects related to y.
+
+METHOD:: value
+The one image of x. An Error when x has none or several: a relation is a function only where it has one image.
+
+METHOD:: <>
+This after that. An Error when this does not start on the list where that ends, or when the quantales differ.
+
+METHOD:: follows
+Whether this can come after that.
+
+METHOD:: repeated
+n times itself.
+
+METHOD:: converse
+The same pairs read backwards.
+
+METHOD:: |
+The join of two relations, value by value (their union).
+
+METHOD:: without
+This where that has nothing.
+
+METHOD:: <=
+Whether this is included in that: every value below that's.
+
+METHOD:: valued
+The same pairs with other values, in another quantale.
+argument:: newQuantale
+argument:: func
+code::func.(x, y, value):: for each related pair.
+
+METHOD:: closure
+The join of the identity and of every power: with Lawvere costs, the least cost of a walk between two objects (inf when none joins them); with a boolean relation, whether a walk joins them.
+
+METHOD:: pairs
+The related pairs, code::[x, y, value]:: each.
+
+METHOD:: pairCount
+METHOD:: degrees
+How many pairs; how many images each source object has.
+
+METHOD:: isTotal
+METHOD:: isFunction
+METHOD:: isBijection
+METHOD:: isSymmetric
+METHOD:: isIdentity
+Every object has an image; exactly one; one to one; the same read backwards; each object related to itself only.
+
+METHOD:: sourceIdentity
+METHOD:: targetIdentity
+The identity on each list (what an link::Classes/RLCategory:: asks of its arrows).
