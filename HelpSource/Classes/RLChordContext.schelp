@@ -1,0 +1,103 @@
+TITLE:: RLChordContext
+summary:: The triads of a space and the group that moves them: T and I on the left, P, L, R on the right
+categories:: Libraries>reLation
+related:: Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLChordSpace, Guides/reLation
+
+DESCRIPTION::
+A context is a set of musical objects and what moves them. This one holds the chords of a two-type link::Classes/RLChordSpace:: (a triad and its inversion) and one group acting on them in two ways.
+
+Once a base chord is chosen (the first type on the origin), every chord is an element of the group: the chord of root x and type index e is code::[x, e]::. Elements multiply as
+
+code::
+[v, 0] * [w, e] = [v + w, e]            [v, 1] * [w, e] = [v - w, 1 + e]
+::
+
+and the group moves the chords from either side (Lewin's duality; the two commute):
+
+table::
+## on the left || T and I || transpositions and inversions of the pitch classes: the same move for every chord
+## on the right || P, L, R and their products || read from the chord they are applied to (contextual): a major chord and a minor chord move opposite ways
+::
+
+P, L and R are the three moves that keep two tones of a triad: P keeps root and fifth (C major, C minor), L third and fifth (C major, E minor), R root and third (C major, A minor).
+
+A transformation is an link::Classes/RLTransform::. The same class serves an equal division and the just lattice: nothing here counts the pitch classes, so in 19 steps or on the lattice the group is larger (infinite on the lattice) and the same words mean the same moves.
+
+code::
+~ctx = RLChordContext(RLChordSpace.triads(RLEDO(12)));
+~c = ~ctx.space.major(0);
+~ctx.l.(~c);                        // E minor
+~ctx.t(7).(~c);                     // G major
+~ctx.i(0).(~c);                     // F minor: the pitch classes turned around 0
+(~ctx.l <> ~ctx.p).(~c);            // Ab major: P first, then L
+~ctx.act(\R, ~c);                   // [A minor]: a list, as every context answers
+~ctx.neighbours(~c);                // [[P, C minor], [L, E minor], [R, A minor]]
+~ctx.rightInterval(~c, ~ctx.space.minor(9)).label;      // R
+~ctx.leftInterval(~c, ~ctx.space.minor(11)).label;      // I6 (opycleid's example)
+~ctx.define(\N, [\R, \L, \P]);      // a name for R, then L, then P
+~ctx.act(\N, ~c);                   // [F minor]
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: space
+A space of two types of three tones, the second the inversion of the first, as link::Classes/RLChordSpace#*triads:: makes. Anything else is an Error.
+
+INSTANCEMETHODS::
+
+METHOD:: space
+METHOD:: system
+
+SUBSECTION:: Transformations
+
+METHOD:: t
+The transposition by a pitch class.
+
+METHOD:: i
+The inversion I_k: the pitch class x goes to k - x.
+
+METHOD:: p
+METHOD:: l
+METHOD:: r
+The three contextual moves.
+
+METHOD:: transform
+A transformation by its Symbol: code::\P::, code::\L::, code::\R::, or a name given with link::#-define::. An unknown name is an Error.
+
+METHOD:: define
+Names the transformation a word does.
+argument:: name
+argument:: word
+The steps in the order they are taken, Symbols or RLTransforms: code::[\R, \L, \P]:: is R, then L, then P.
+
+METHOD:: generators
+code::[\P, \L, \R]::.
+
+METHOD:: names
+Every name the context knows.
+
+METHOD:: act
+What a named transformation (or an RLTransform) makes of a chord: a list, here always of one chord.
+
+METHOD:: neighbours
+The chords one generator away, as code::[name, chord]:: pairs.
+
+METHOD:: leftInterval
+METHOD:: rightInterval
+The one transformation of that side taking x to y: a T or an I (labelled), or a product of P, L, R (labelled when it has a name).
+
+SUBSECTION:: The group
+
+METHOD:: identity
+METHOD:: mul
+METHOD:: inv
+The group on elements code::[v, e]::.
+
+METHOD:: element
+METHOD:: chordOf
+A chord as an element, and back.
+
+METHOD:: isCentral
+METHOD:: center
+The elements that commute with all others: a transposition by half the octave, when the system has one. Such an element does the same on the left and on the right (in 12 steps, T6 is also RPRP).

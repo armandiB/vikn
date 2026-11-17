@@ -1,0 +1,61 @@
+TITLE:: RLTransform
+summary:: A transformation of an RLChordContext's chords
+categories:: Libraries>reLation
+related:: Classes/RLChordContext, Classes/RLWalk, Classes/RLChord, Guides/reLation
+
+DESCRIPTION::
+A transformation sends each chord of an link::Classes/RLChordContext:: to a chord: code::chord -> left * chord * right::, with strong::left:: and strong::right:: two elements of the context's group. The left element moves every chord the same way (a transposition or an inversion of the pitch classes); the right one is read from the chord itself (P, L, R and their products). The two sides commute.
+
+Transformations are usually made by the context (code::ctx.t(7)::, code::ctx.l::, code::ctx.define::) and composed with code::<>::, strong::right to left:: as functions do: code::(l <> p).(chord):: applies p first. A word, the list of a walk's steps, is written the other way, in the order of time (link::Classes/RLWalk::).
+
+A transformation is a value, and its equality is about what it does: two pairs are equal when they move every chord alike, whatever their labels. In 12 steps T6 (on the left) and RPRP (on the right) are equal.
+
+code::
+~ctx = RLChordContext(RLChordSpace.triads(RLEDO(12)));
+~h = ~ctx.l <> ~ctx.p <> ~ctx.l;            // LPL, the hexatonic pole
+~h.(~ctx.space.major(0));                    // Ab minor
+(~h <> ~h).isIdentity;                       // true
+(~ctx.t(5) <> ~ctx.r) == (~ctx.r <> ~ctx.t(5));     // true: the two sides commute
+(~ctx.r <> ~ctx.p).repeated(2) == ~ctx.t(6);        // true
+(~ctx.l <> ~ctx.r).repeated(12).isIdentity;         // true in 12 steps
+~ctx.l.inverse == ~ctx.l;                    // true: P, L and R undo themselves
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: context
+argument:: left
+An element code::[v, e]:: of the context's group; the identity when nil.
+argument:: right
+The same, for the right side.
+argument:: label
+A String, or nil.
+
+INSTANCEMETHODS::
+
+METHOD:: context
+METHOD:: left
+METHOD:: right
+METHOD:: label
+
+METHOD:: value
+The chord a chord goes to. code::transform.(chord)::.
+
+METHOD:: images
+The same as a list of one chord.
+
+METHOD:: <>
+This after that.
+
+METHOD:: inverse
+
+METHOD:: repeated
+n times itself.
+
+METHOD:: isIdentity
+Whether it leaves every chord in place.
+
+METHOD:: isLeft
+METHOD:: isRight
+Whether it can be written on that side alone: a T or an I; a product of P, L, R.
