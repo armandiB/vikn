@@ -1,7 +1,7 @@
 title:: reLation
 summary:: Musical objects and the relations that move them: pitch systems, chords, transformations, walks, and maps between contexts
 categories:: Libraries>reLation
-related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism
+related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism, Classes/RLExtension, Classes/RLWreath
 
 section:: What it is
 
@@ -40,6 +40,8 @@ table::
 ## a graph || link::Classes/RLGraph::: the graph of a relation, with a cost on each edge || a path is a plain list of objects
 ## a network || link::Classes/RLNetwork::: nodes with one object each, arrows with labels || valid when each label takes its tail to its head and the labels compose as the arrows do
 ## an automorphism || link::Classes/RLAutomorphism::: a one-to-one map of a relation context's objects || valid when it turns every relation of the context into one of them
+## a group element || an Array code::[z, h]:: read by an link::Classes/RLExtension:: (root difference and type difference from a base chord) || means a chord only once the base chord is named
+## a uniform transformation || an Array code::[shifts, types]:: read by an link::Classes/RLWreath:: || one shift and one new type for each chord type
 ::
 
 Sizes are always in cents (intervals, drifts, voice motions), so that numbers from different systems compare.
@@ -195,6 +197,26 @@ code::
 ~chords = ~seq.collect(_.objects).flat;          // 36 chords
 ~voices = RLVoiceLeading.through(~chords);       // each step moves one voice up a semitone
 ~cd.category.automorphisms.size;                 // 12 ways of changing the labels
+::
+
+section:: Other groups on the triads
+
+T, I, P, L, R come from one group, the dihedral one. link::Classes/RLExtension:: gives the others that move the 2n triads as well: once a base chord is chosen every triad is an element code::[root, type]::, and two numbers (p, q) say how elements multiply. In 12 steps there are eight such groups, in a prime division two. Multiplying on the left or on the right gives the two kinds of move, and the base chord can itself be moved.
+
+code::
+~space = RLChordSpace.triads(RLEDO(12));
+RLExtension.classes(12);                              // eight (p, q)
+~ext = RLExtension(12, 6, 11);
+~ext.right([3, 1], ~space.minor(7), ~space.major(0));
+~ext.right([3, 1], ~space.minor(7), ~space.minor(0)); // from another base chord
+::
+
+Hook's uniform transformations (link::Classes/RLWreath::) move each chord type by its own interval: P, L, R and every right action above are such; one of them repeated is a progression.
+
+code::
+~w = RLWreath(12, 2);
+~w.of(RLChordContext(~space).r, ~space);              // [[9, 3], [1, 0]]: R = <9, 3, ->
+~w.order([[9, 8], [1, 0]]);                           // 24: R and L in turn, through every triad
 ::
 
 section:: Sound

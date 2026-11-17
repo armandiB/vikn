@@ -72,6 +72,9 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
   validity, the networks of one structure, local isographies; Klumpenhouwer networks on
   `RLRelationContext.pitchClasses`), RLAutomorphism (a map of a context's objects that its relations go
   through: a complete isography; applied again and again to a cell it makes a sequence)
+- `reLation/Groups`: RLExtension (chords as elements of a group once a base chord is chosen: the eight
+  extensions of Z12 by Z2, two in a prime division; left and right actions, a movable base chord; other
+  (p, q) on request), RLWreath (Hook's uniform transformations: 288 in 12 steps for two types)
 
 Tests in `tests/reLation_tests/` (UnitTest, no server): the tables of the theory.
 
