@@ -52,6 +52,20 @@ Two small modules the songs hold by name (`~song.ambi`, `~song.recorder(\k)`):
   by REShowFxPages). Guide: `HelpSource/Guides/reCording.schelp`;
   tests in `tests/reCording_tests/`.
 
+### reLation
+`reLation/` is transformational music theory as objects (classes `RL...`): harmony described by what
+moves one chord to another, in any tuning. The theory, its sources and its studies are in HomewareSC,
+`Math/Category_Theory/`. Start with `HelpSource/Guides/reLation.schelp`.
+
+- `reLation/Pitch`: RLPitchSystem, RLEDO (an equal division and its val), RLJust (just intonation as a
+  lattice, its commas, its maps to equal divisions), RLVoiceLeading (the least motion between voicings)
+- `reLation/Chords`: RLChordSpace (a system and its chord types), RLChord
+- `reLation/Contexts`: RLChordContext (triads moved by T, I on the left and P, L, R on the right),
+  RLTransform, RLMorphism (maps between contexts: temperaments, pushed and lifted walks)
+- `reLation/Walks`: RLWalk (a start and a word; its chords, its drift, its voices, its frequencies)
+
+Tests in `tests/reLation_tests/` (UnitTest, no server): the tables of the theory.
+
 ### Extensions of SuperCollider's classes
 - `SCExtensions/ScoreExt.sc`: `Score:spillDefs(dir)`, SynthDefs of any size in a non-realtime score. A score
   carries its defs inline (`/d_recv`) and sclang encodes each line into a 64 KB buffer: a def over 65480 bytes
