@@ -21,8 +21,14 @@ RLTransform {
 
 	value { |chord| ^context.chordOf(context.mul(context.mul(left, context.element(chord)), right)) }
 
-	// The same as a list, as relations answer.
+	// The same as a list, as relations answer; whether it takes x to y.
 	images { |chord| ^[this.value(chord)] }
+	relates { |x, y| ^this.value(x) == y }
+
+	// What an RLCategory asks of its arrows: the identity before and after, and whether this can come after that.
+	sourceIdentity { ^RLTransform(context) }
+	targetIdentity { ^RLTransform(context) }
+	follows { |that| ^that.isKindOf(RLTransform) and: { context == that.context } }
 
 	// This after that.
 	<> { |that|

@@ -45,6 +45,14 @@ The chord a chord goes to. code::transform.(chord)::.
 METHOD:: images
 The same as a list of one chord.
 
+METHOD:: relates
+Whether it takes x to y.
+
+METHOD:: sourceIdentity
+METHOD:: targetIdentity
+METHOD:: follows
+What an link::Classes/RLCategory:: asks of its arrows: the transformation that moves nothing, and whether this can come after that (the same context).
+
 METHOD:: <>
 This after that.
 
