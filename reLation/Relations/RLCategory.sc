@@ -124,5 +124,74 @@ RLCategory {
 	// The arrows that take x to y (for relations: that relate them).
 	relating { |x, y| ^arrows.select { |a| a.relates(x, y) } }
 
+	// The category's own instance of an arrow (the one that carries its word as label), or nil.
+	canonical { |arrow| ^index[arrow] !? { |i| arrows[i] } }
+
+	// Where the powers of arrows[i] come back: [m, period], the first m with a^m = a^(m + period).
+	prPowerType { |i|
+		var seen = [i], k = i, at;
+		while {
+			k = this.composeIndex(i, k);
+			at = seen.indexOf(k);
+			at.isNil
+		} { seen = seen.add(k) };
+		^[at + 1, seen.size - at]
+	}
+
+	// The automorphisms of a monoid: the ways of sending each arrow to an arrow, one to one, that keep
+	// composition. Each is an Array of indices: arrows[i] goes to arrows[result[i]]. Found by trying, for each
+	// generator, the arrows that behave as it does (undone or not, the same return of their powers).
+	automorphisms {
+		var id, inv, types, gens, cands, out = Array.new, n = arrows.size, try;
+		if(this.isMonoid.not) { Error("RLCategory: automorphisms are searched for a monoid (one list of objects)").throw };
+		id = index[identities[0]];
+		inv = this.invertibles.collect { |a| index[a] };
+		types = Array.fill(n) { |i| this.prPowerType(i) };
+		gens = names.collect { |name| index[this.arrow([name])] };
+		cands = gens.collect { |g|
+			(0..(n - 1)).select { |c| (types[c] == types[g]) and: { inv.includes(c) == inv.includes(g) } }
+		};
+		try = { |chosen|
+			var img, ok = true;
+			if(chosen.size < gens.size) {
+				cands[chosen.size].do { |c| try.value(chosen ++ [c]) };
+			} {
+				img = Array.fill(n) { |j|
+					var k = id;
+					words[j].do { |name| k = this.composeIndex(chosen[names.indexOf(name)], k) };
+					k
+				};
+				if(img.asSet.size != n) { ok = false };
+				if(ok) {
+					n.do { |j|
+						names.size.do { |g|
+							if(ok and: { img[steps[j][g]] != this.composeIndex(chosen[g], img[j]) }) { ok = false };
+						};
+					};
+				};
+				if(ok) { out = out.add(img) };
+			};
+		};
+		try.value([]);
+		^out
+	}
+
+	// From where the generators go (the index of each one's image, in the order of names), where every arrow
+	// goes, along its word. Nothing is checked.
+	extendMap { |generatorImages|
+		var id = index[identities[0]];
+		^Array.fill(arrows.size) { |j|
+			var k = id;
+			words[j].do { |name| k = this.composeIndex(generatorImages[names.indexOf(name)], k) };
+			k
+		}
+	}
+
+	// The image of an arrow under one of them.
+	imageOf { |automorphism, arrow|
+		var i = index[arrow] ?? { Error("RLCategory: % is not one of the arrows".format(arrow)).throw };
+		^arrows[automorphism[i]]
+	}
+
 	printOn { |stream| stream << "RLCategory(" << names << ": " << arrows.size << " arrows)" }
 }

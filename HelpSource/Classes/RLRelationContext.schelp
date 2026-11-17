@@ -56,6 +56,9 @@ Cube Dance in an link::Classes/RLEDO:: of 3k steps (12 when none is given), with
 METHOD:: triads
 The 2n triads nearest 4:5:6 of an equal division under P, L, R, each a relation with one image: the chicken-wire graph in 12 steps.
 
+METHOD:: pitchClasses
+The pitch classes of an equal division under transposition and inversion, named code::\T0::, code::\T1::... and code::\I0::, code::\I1::... (I5 sends x to 5 - x), with T1 and I0 as generators. Klumpenhouwer networks live here (link::Classes/RLNetwork::).
+
 INSTANCEMETHODS::
 
 METHOD:: objects
@@ -76,6 +79,12 @@ A relation by its name.
 
 METHOD:: identityTransform
 Each object related to itself.
+
+METHOD:: arrow
+An arrow from what names it: a relation, a name, or a word (an Array of names in the order of time).
+
+METHOD:: nameOf
+The name of an arrow: the first name of the context that does the same, else its word in the generators (read right to left), else nil.
 
 METHOD:: define
 Names the relation a word does (steps in time order).

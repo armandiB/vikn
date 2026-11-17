@@ -92,3 +92,19 @@ A monoid whose arrows can all be undone.
 
 METHOD:: relating
 The arrows that take x to y (for relations: that relate them).
+
+METHOD:: canonical
+The category's own instance of an arrow (the one that carries its word as label), or nil.
+
+METHOD:: automorphisms
+The automorphisms of a monoid: the ways of sending each arrow to an arrow, one to one, that keep composition. Each is an Array of indices: code::arrows[i]:: goes to code::arrows[result[i]]::. T and I on twelve pitch classes have 48, on nineteen 342; the monoid of U, P, L has 12.
+code::
+~m = RLRelationContext.cubeDance.category;
+~m.automorphisms.collect { |a| ~m.imageOf(a, ~m.generator(\U)).label }.asSet;     // U and PUP
+::
+
+METHOD:: imageOf
+The image of an arrow under one of them.
+
+METHOD:: extendMap
+From the indices of the generators' images (in the order of link::#-names::), the index of every arrow's image, along its word. Nothing is checked.

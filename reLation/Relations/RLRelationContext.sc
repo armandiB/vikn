@@ -16,7 +16,7 @@
 // under P, L, R as relations (the chicken-wire).
 
 RLRelationContext {
-	var <objects, <names, named, <quantale, <space, generatorNames, categoryCache;
+	var <objects, <names, named, <quantale, <space, generatorNames, categoryCache, pitchSystem;
 
 	// relations: [[name, RLRelation], ...], or a rule (x, y) -> value in place of a relation.
 	*new { |objects, relations, quantale, space| ^super.new.prInit(objects, relations, quantale, space) }
@@ -68,7 +68,39 @@ RLRelationContext {
 		^this.new(chords, [[\U, u], [\P, p], [\L, l]].collect { |pair| [pair[0], RLRelation.fromPairs(chords, chords, pair[1])] }, nil, sp)
 	}
 
-	system { ^space !? { space.system } }
+	// The pitch classes of an equal division under transposition and inversion: T0, T1 ... and I0, I1 ...
+	// by name (I5 sends x to 5 - x), T1 and I0 as generators. Klumpenhouwer networks live here.
+	*pitchClasses { |system|
+		var sys = system ?? { RLEDO(12) }, pcs = sys.pcs, rels = Array.new;
+		pcs.do { |n| rels = rels.add([("T" ++ n).asSymbol, RLRelation.ofFunction(pcs, { |x| sys.pcAdd(x, n) })]) };
+		pcs.do { |n| rels = rels.add([("I" ++ n).asSymbol, RLRelation.ofFunction(pcs, { |x| sys.pcSub(n, x) })]) };
+		^this.new(pcs, rels).prGenerators([\T1, \I0]).prSystem(sys)
+	}
+
+	prGenerators { |list| generatorNames = list; categoryCache = nil }
+	prSystem { |sys| pitchSystem = sys }
+
+	system { ^pitchSystem ?? { space !? { space.system } } }
+
+	// An arrow from what names it: a relation, a name, or a word (an Array of names, in the order of time).
+	arrow { |label|
+		var rel;
+		^case
+		{ label.isKindOf(RLRelation) } { label }
+		{ label.isKindOf(SequenceableCollection) and: { label.isKindOf(String).not } } {
+			rel = this.identityTransform;
+			label.do { |w| rel = this.arrow(w) <> rel };
+			rel
+		}
+		{ this.transform(label) }
+	}
+
+	// The name of an arrow: the first name of the context that does the same, else its word in the generators
+	// (read right to left), else nil.
+	nameOf { |arrow|
+		var known = names.detect { |n| named[n] == arrow };
+		^if(known.notNil) { known.asString } { this.category.canonical(arrow) !? { |a| a.label } }
+	}
 
 	// A relation by its name; the names given at the start; the relation of each object to itself.
 	transform { |name| ^named[name.asSymbol] ?? { Error("RLRelationContext: no relation named %".format(name)).throw } }
