@@ -1,7 +1,7 @@
 title:: reLation
 summary:: Musical objects and the relations that move them: pitch systems, chords, transformations, walks, and maps between contexts
 categories:: Libraries>reLation
-related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading
+related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale
 
 section:: What it is
 
@@ -33,6 +33,11 @@ table::
 ## a word || an Array of Symbols or RLTransforms, code::[\R, \L, \P]:: || in the order of time: R first
 ## a walk || link::Classes/RLWalk::: a context, a start, a word || the start is a chord of the context
 ## a morphism || link::Classes/RLMorphism::: two contexts and a map of chords || code::isValid:: checks that it commutes with the named transformations
+## a relation || link::Classes/RLRelation::: two lists of objects and a value for each pair || composes right to left when one starts on the list where the other ends; code::images(x):: is a list, code::value(x):: only where there is one image
+## a quantale || code::RLQuantale.boolean::, code::.lawvere::, code::.multiplicative::, code::.interval:: || what the values of a relation are and how they combine
+## a relation context || link::Classes/RLRelationContext::: objects and named relations || code::act:: answers a list of any length
+## a category || link::Classes/RLCategory::: what named arrows generate || each arrow has a shortest word, in time order; its label reads right to left
+## a graph || link::Classes/RLGraph::: the graph of a relation, with a cost on each edge || a path is a plain list of objects
 ::
 
 Sizes are always in cents (intervals, drifts, voice motions), so that numbers from different systems compare.
@@ -103,6 +108,61 @@ code::
 ~lifted.voiceCents;                  // 182.4 (10/9) for R, 111.7 (16/15) for L, 70.7 (25/24) for P
 ::
 
+With more voices than a chord has tones, some tones are doubled, again by the least motion (link::Classes/RLVoiceLeading#*minimalDoubled::); link::Classes/RLVoiceLeading#*withDoublings:: leads the tones of one chord to those of another of any size.
+
+code::
+~pump.voices([48, 60, 64, 67]).last;     // four voices on triads
+RLVoiceLeading.withDoublings(RLEDO(12), [0, 4, 7], [0, 4, 7, 10]);     // a triad to a seventh chord
+::
+
+section:: Relations: when a step offers several chords
+
+P, L and R send each triad to one triad. Many musical relations do not: an augmented triad is one semitone from six triads. An link::Classes/RLRelation:: holds such a relation, link::Classes/RLRelationContext:: a family of them by name. Cube Dance is the 24 triads and the 4 augmented triads with the three relations U, P, L that move one voice by one semitone.
+
+code::
+~cd = RLRelationContext.cubeDance;
+~sp = ~cd.space;
+~cd.act(\U, ~sp.chord(0, \aug));         // six triads
+~cd.act(\U, ~sp.major(0));               // [C aug]
+~near = RLRelation.voiceMoves(~cd.objects, [1]);      // one voice by one step, however it is named
+~near == ~cd.union.without(~cd.identityTransform);    // true: U, P and L together
+(~near <> ~near).images(~sp.major(0)).size;           // 7 chords are two such steps away
+::
+
+The relations of a context generate a monoid (link::Classes/RLCategory::): all the different things a word can do. U, P, L generate 40 relations; six of them can be undone, the products of P and L; six relate D major to G minor.
+
+code::
+~m = ~cd.category;
+~m.size;                                              // 40
+~m.arrow([\U, \U, \U]) == ~m.generator(\U);           // true
+~m.relating(~sp.major(2), ~sp.minor(7)).collect(_.label);    // UU, UPU ...
+::
+
+A relation can carry values (link::Classes/RLQuantale::): costs that add along a walk, strengths that a walk keeps the weakest of.
+
+section:: Graphs and the two distances
+
+The graph of a relation (link::Classes/RLGraph::) answers what a walker asks: how far, by which way, and whether one can pass through every chord once.
+
+code::
+~g = ~cd.graph;
+~g.distance(~sp.major(0), ~sp.major(6));              // 6
+~g.shortestPaths(~sp.major(0), ~sp.major(1));         // two walks of three steps
+~g.countHamiltonianCycles;                            // 1296
+~cd.wordOf(~g.hamiltonianCycle);                      // the steps of the first one, by name
+~voices = RLVoiceLeading.through(~g.hamiltonianCycle, [60, 64, 67]);   // and its voices, one semitone at each step
+::
+
+Two distances between chords meet here: the number of steps in a graph, and the least voice leading (link::Classes/RLVoiceLeading#*stepsBetween::). On Cube Dance they are equal for every pair of chords, and so they are on its analogues in 15, 18 and 24 steps (code::RLRelationContext.cubeDance(RLEDO(15))::). On the 24 triads joined by P, L, R they are not: C major to C# major is 4 edges, 5 semitones along them, 3 semitones directly.
+
+code::
+~cw = RLRelationContext.triads(RLEDO(12));
+~cw.graph.countHamiltonianCycles;                     // 62
+~cw.graph.distance(~cw.space.major(0), ~cw.space.major(1));                          // 4
+RLGraph.voiceLeading(~cw.union).distance(~cw.space.major(0), ~cw.space.major(1));    // 5
+RLVoiceLeading.stepsBetween(~cw.space.major(0), ~cw.space.major(1));                 // 3
+::
+
 section:: Sound
 
 link::Classes/RLWalk#-freqs:: gives the voicings as frequencies, link::Classes/RLWalk#-asPattern:: as a pattern of chords:
@@ -116,4 +176,4 @@ HomewareSC's code::Math/Category_Theory/studies/:: holds the studies rendered of
 
 section:: Tests
 
-code::tests/reLation_tests/:: (UnitTest, no server), run with HomewareSC's code::scripts/test.sh vikn::. They hold the tables of the theory: the vals of seven divisions, the cycles in each, the commas of closed walks on the lattice, the voice drifts, and the least voice leading checked against every assignment.
+code::tests/reLation_tests/:: (UnitTest, no server), run with HomewareSC's code::scripts/test.sh vikn::. They hold the tables of the theory: the vals of seven divisions, the cycles in each, the commas of closed walks on the lattice, the voice drifts, the least voice leading checked against every assignment; the monoids of relations (7, 4, 8, 6 and 40 arrows), the Hamiltonian cycles (62, 1296, 7776) and the two distances compared over every pair of chords.

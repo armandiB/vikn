@@ -63,6 +63,11 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
 - `reLation/Contexts`: RLChordContext (triads moved by T, I on the left and P, L, R on the right),
   RLTransform, RLMorphism (maps between contexts: temperaments, pushed and lifted walks)
 - `reLation/Walks`: RLWalk (a start and a word; its chords, its drift, its voices, its frequencies)
+- `reLation/Relations`: RLQuantale (the values of a relation: boolean, costs, strengths), RLRelation (a
+  relation between two lists, composed, compared, closed into a distance), RLCategory (what named arrows
+  generate, each with a shortest word: monoids of relations, groups of transformations), RLRelationContext
+  (objects and named relations: Cube Dance and its analogues in 3k steps, the triads under P, L, R), RLGraph
+  (distances, shortest walks, Hamiltonian cycles; edges costing steps or voice leading)
 
 Tests in `tests/reLation_tests/` (UnitTest, no server): the tables of the theory.
 
