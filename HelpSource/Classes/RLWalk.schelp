@@ -1,0 +1,127 @@
+TITLE:: RLWalk
+summary:: A walk on chords: a start and a word, with its voices
+categories:: Libraries>reLation
+related:: Classes/RLChordContext, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLTransform, Guides/reLation
+
+DESCRIPTION::
+A walk is a strong::start:: chord in a context and a strong::word::, the list of its steps strong::in the order they are taken::. A step is the Symbol of one of the context's transformations (code::\P::, code::\L::, code::\R::, or a name it defines), or an link::Classes/RLTransform::.
+
+The same word can be read in any context that knows its names: link::#-inContext:: carries a walk from 12 equal steps to 19, or to the just lattice, where a walk that closed may not close any more. link::#-drift:: says where a walk ends from where it started: nothing when it closes, a comma for the lift of a closed walk (link::Classes/RLMorphism::).
+
+A walk also has voices: link::#-voices:: plays it from a voicing, each chord reached by the least motion from the one before (link::Classes/RLVoiceLeading::), and link::#-voiceDrift:: says how far each voice is from where it began once the walk is over. A walk can close on its chords and not on its voices.
+
+code::
+~ctx = RLChordContext(RLChordSpace.triads(RLEDO(12)));
+~pump = RLWalk(~ctx, ~ctx.space.major(0), [\R, \L, \R, \P, \R, \L, \R, \L]);
+~pump.chords;                        // C major, A minor, F major, D minor, D major, B minor, G major, E minor, C major
+~pump.isClosed;                      // true
+~pump.voices([60, 64, 67]).last;     // [64, 67, 72]: back on C major, one inversion higher
+~pump.voiceDrift([60, 64, 67]);      // [4, 3, 5]
+
+~just = RLChordContext(RLChordSpace.triads(RLJust([3, 5])));
+~lifted = ~pump.inContext(~just);    // the same word from 1/1 major
+~lifted.isClosed;                    // false
+~lifted.drift;                       // [-4, 1]
+~lifted.driftCents;                  // -21.5: a syntonic comma down
+
+RLWalk.cycle(~ctx, ~ctx.space.major(0), [\P, \L]).chords;    // the hexatonic cycle, 6 steps
+~e19 = RLChordContext(RLChordSpace.triads(RLEDO(19)));
+RLWalk.cycle(~e19, ~e19.space.major(0), [\P, \L]).size;      // 38 steps in 19
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: context
+argument:: start
+A chord of the context.
+argument:: word
+An Array of Symbols or RLTransforms, in time order.
+
+METHOD:: cycle
+A word repeated until the walk is back on its start; nil when it has not closed after strong::maxRepeats::.
+
+INSTANCEMETHODS::
+
+METHOD:: context
+METHOD:: start
+METHOD:: word
+
+METHOD:: transforms
+The steps as RLTransforms.
+
+METHOD:: chords
+The chords met, the start first: one more than the word has steps.
+
+METHOD:: end
+The last chord.
+
+METHOD:: size
+The number of steps.
+
+METHOD:: isClosed
+Whether the walk ends on its start.
+
+METHOD:: composed
+The whole walk as one transformation.
+
+METHOD:: drift
+The interval from the start's root to the end's, a pitch class of the system, when the two chords have the same type; nil when they differ.
+
+METHOD:: driftCents
+The drift in cents, or nil.
+
+METHOD:: inContext
+The same word in another context.
+argument:: other
+argument:: from
+A chord of the other context; its base chord of the start's type when nil.
+
+METHOD:: repeated
+The word n times.
+
+METHOD:: ++
+One walk's word after another's, from this walk's start.
+
+SUBSECTION:: Voices
+
+METHOD:: voices
+The voicings of its chords, one Array of pitches per chord.
+argument:: from
+A voicing of the start chord (anything else is an Error); close position at the origin when nil.
+
+METHOD:: voiceDrift
+How far each voice ends from where it began, as pitch intervals (steps in RLEDO).
+
+METHOD:: voiceCents
+The motion of the voices at each step, in cents.
+argument:: from
+argument:: measure
+code::\l1::, code::\l2:: or code::\linf:: (link::Classes/RLVoiceLeading#*cents::).
+
+METHOD:: freqs
+The voicings as frequencies.
+argument:: from
+argument:: base
+The frequency of the origin.
+
+METHOD:: asPattern
+The frequencies as a link::Classes/Pseq:: of chords.
+argument:: from
+argument:: base
+argument:: repeats
+
+EXAMPLES::
+code::
+// one walk, the same voices, in three tunings (with a server running)
+(
+~word = [\R, \L, \R, \P, \R, \L, \R, \L];
+~play = { |system|
+	var ctx = RLChordContext(RLChordSpace.triads(system));
+	Pbind(\freq, RLWalk(ctx, ctx.space.major, ~word).asPattern(nil, 220), \dur, 1, \legato, 1).play;
+};
+)
+~play.(RLEDO(12));
+~play.(RLEDO(19));
+~play.(RLJust([3, 5]));     // ends a syntonic comma below where it began
+::
