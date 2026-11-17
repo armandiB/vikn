@@ -1,0 +1,62 @@
+TITLE:: RLJust
+summary:: Just intonation as a lattice of prime exponents, with its commas and its maps to equal divisions
+categories:: Libraries>reLation
+related:: Classes/RLPitchSystem, Classes/RLEDO, Classes/RLMorphism, Guides/reLation
+
+DESCRIPTION::
+A link::Classes/RLPitchSystem:: whose pitch classes are Arrays of exponents, one for each of the system's odd primes, and whose pitches have the exponent of 2 in front: with code::RLJust([3, 5])::, the pitch class code::[-1, 1]:: is 5/3 and the pitch code::[-1, 1, 0]:: is 3/2.
+
+The lattice is where every equal division comes from: link::#-temperPc:: sends a pitch class to a division's step through its val (link::Classes/RLEDO#-val::), and link::#-kernel:: lists the commas the division tempers out. A closed walk of a division, lifted to the lattice, ends on one of them (link::Classes/RLMorphism#-lift::).
+
+code::
+~just = RLJust([3, 5]);
+~just.interval([3, 2]);            // [1, 0]: one step along 3
+~just.interval([6, 5]);            // [1, -1]: a fifth up, a major third down
+~just.name([-1, 1]);               // 5/3
+~just.cents([0, -3]);              // 41.06: three major thirds down, the diesis 128/125
+~just.commaName([4, -1]);          // syntonic comma 81/80
+~just.temperPc(RLEDO(19), [0, 3]); // 18: the diesis is a step of 19
+~just.kernel(RLEDO(12), 4);        // [[4, 2], [4, -1], [0, 3], [4, -4] ...]: diaschisma, syntonic comma, diesis, major diesis
+RLJust([3, 5, 7]).interval([7, 4]); // [0, 0, 1]
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: primes
+The odd primes of the lattice, code::[3, 5]:: by default (the 5-limit).
+
+METHOD:: commas
+The table of known commas and small steps, code::[[numerator, denominator], name]:: each.
+
+INSTANCEMETHODS::
+
+METHOD:: primes
+
+METHOD:: rank
+The number of primes.
+
+METHOD:: interval
+METHOD:: pitchInterval
+The exponents of a just ratio, without the exponent of 2 (interval) or with it in front (pitchInterval). A ratio that needs a prime outside the lattice is an Error.
+
+METHOD:: ratioOf
+A pitch class as a ratio between 1 and 2, code::[numerator, denominator]:: (Floats: exact up to 2 ** 53).
+
+METHOD:: name
+A pitch class as code::"5/3"::; as powers of the primes when the numbers are too large.
+
+METHOD:: commaName
+The name of a comma or of a small step, in either direction (code::[4, -1]:: and code::[-4, 1]:: are both the syntonic comma), or nil.
+
+METHOD:: temperPc
+METHOD:: temperPitch
+A pitch class, or a pitch, in an equal division: the sum of its exponents times the division's steps for each prime.
+argument:: edo
+An link::Classes/RLEDO::.
+
+METHOD:: kernel
+The commas an equal division tempers out: the pitch classes sent to 0 with exponents up to strong::bound::, one of each pair (x, -x), the smallest in cents first.
+argument:: edo
+argument:: bound
+6 by default.

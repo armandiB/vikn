@@ -1,0 +1,93 @@
+TITLE:: RLPitchSystem
+summary:: A pitch system: its pitch classes, its pitches, and how they sound
+categories:: Libraries>reLation
+related:: Classes/RLEDO, Classes/RLJust, Classes/RLVoiceLeading, Guides/reLation
+
+DESCRIPTION::
+The abstract class of link::Classes/RLEDO:: (an equal division of the octave) and link::Classes/RLJust:: (just intonation as a lattice). A strong::pitch class:: is a note once octaves are forgotten, a strong::pitch:: is a note. Each system has its own coordinates for both, plain Integers and Arrays, and answers the same questions about them:
+
+table::
+## system || pitch class || pitch
+## code::RLEDO(19):: || an Integer, 0..18 || an Integer, steps from the origin
+## code::RLJust([3, 5]):: || code::[e3, e5]::, exponents of 3 and 5 || code::[e2, e3, e5]::, the exponent of 2 first
+::
+
+Pitch classes form a group (link::#-pcZero::, link::#-pcAdd::, link::#-pcNeg::, link::#-pcSub::, link::#-pcScale::): an interval between two pitch classes is a pitch class too. Pitches lie on a line: link::#-height:: is a pitch's place on it in octaves above the origin, link::#-nearest:: the pitch of a class closest to a height. code::interval([5, 4]):: is the system's pitch class for a just ratio: exact in RLJust, the nearest step in RLEDO.
+
+A system is a value: two systems with the same numbers are equal and hash alike.
+
+code::
+~edo = RLEDO(12);  ~just = RLJust([3, 5]);
+~edo.interval([3, 2]);                   // 7
+~just.interval([5, 3]);                  // [-1, 1]: a fifth down, a major third up
+~just.cents(~just.interval([81, 80]));   // 21.5
+~just.temperPc(~edo, [4, -1]);           // 0: 12 steps temper the syntonic comma out
+::
+
+CLASSMETHODS::
+
+METHOD:: factor
+The prime factors of a positive Integer, a Dictionary prime -> exponent.
+
+METHOD:: monzo
+A ratio as prime exponents, a Dictionary prime -> signed exponent: code::[5, 4]:: gives code::(5: 1, 2: -2)::.
+argument:: ratio
+An Array code::[numerator, denominator]::, or a number (read as the nearest simple fraction).
+
+INSTANCEMETHODS::
+
+METHOD:: pcZero
+The pitch class of the origin.
+
+METHOD:: pcAdd
+METHOD:: pcSub
+METHOD:: pcNeg
+METHOD:: pcScale
+The group of pitch classes: sum, difference, opposite, and a pitch class taken k times.
+
+METHOD:: pc
+The class of a pitch.
+
+METHOD:: pcHeight
+A pitch class's place in the octave, in [0, 1).
+
+METHOD:: height
+A pitch's place in octaves above the origin.
+
+METHOD:: nearest
+The pitch of a class closest to a height (in octaves).
+
+METHOD:: above
+The pitch of a class at or above a height, within an octave.
+
+METHOD:: interval
+The pitch class of a just ratio (code::[3, 2]::, or a number).
+
+METHOD:: pitchAdd
+METHOD:: pitchSub
+METHOD:: pitchNeg
+Sum, difference and opposite of pitches (of intervals between pitches).
+
+METHOD:: octave
+The octave as an interval between pitches.
+
+METHOD:: cents
+The size of a pitch-class interval in cents, the shorter way round: in (-600, 600]. A fifth is -500 (a fourth down).
+
+METHOD:: pitchCents
+The size of an interval between pitches, in cents.
+
+METHOD:: ratio
+The frequency ratio of a pitch to the origin.
+
+METHOD:: freq
+The frequency of a pitch.
+argument:: pitch
+argument:: base
+The frequency of the origin (middle C by default).
+
+METHOD:: name
+A pitch class as a String: note names in 12 steps, step numbers in other divisions, a ratio on the lattice.
+
+METHOD:: isFinite
+Whether the system has finitely many pitch classes.
