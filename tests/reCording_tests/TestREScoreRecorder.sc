@@ -39,11 +39,17 @@ TestREScoreRecorder : UnitTest {
 	// (Nov 16 2026) An overdub starts in a Function the clock's own thread runs. Waits 0.3 beats as
 	// before, then until the recorder records, at most secs: 0.3 beats is 15 ms on the 20 Hz clock,
 	// which a loaded Mac can outlast (test_overdub failed "both started" beside the clone checks).
+	// (Nov 17 2026) And until the base's player has started (its startBeat, set as its routine runs,
+	// never cleared): it failed again on Nov 17, because a base with one event past the punch-in
+	// plays it 0.5 beats in, 25 ms, and ends, so a thread that wakes late finds it stopped.
 	waitOverdubStart { |secs = 2|
 		var t = 0;
 		(0.3 / clock.tempo).wait;
-		while { rec.isRecording.not and: { t < secs } } { 0.005.wait; t = t + 0.005 };
+		while { (rec.isRecording.not or: { this.playerStarted.not }) and: { t < secs } } { 0.005.wait; t = t + 0.005 };
 	}
+
+	// The overdub's player has run (it may have played its span and ended already).
+	playerStarted { ^rec.player.isNil or: { rec.player.startBeat.notNil } }
 
 	test_off_means_off {
 		var b;
@@ -656,7 +662,7 @@ TestREScoreRecorder : UnitTest {
 		rec.overdub(s, ['core/k'], \replace, [0.5, 4]);
 		player = rec.player;
 		this.waitOverdubStart;
-		this.assert(rec.isRecording and: { player.isPlaying }, "both started");
+		this.assert(rec.isRecording and: { player.startBeat.notNil }, "both started (the player's span is 25 ms: it may have ended)");
 		this.assert(player.muted.includes('core/k'), "replace: the voice is muted while overdubbing");
 		b.set(\amp, 0.9);
 		(0.3 / clock.tempo).wait;
