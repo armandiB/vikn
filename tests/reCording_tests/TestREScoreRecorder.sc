@@ -36,6 +36,15 @@ TestREScoreRecorder : UnitTest {
 
 	restBeat { |l, name, attrs| ^l.addBeat(name, [type: \rest, dur_flex: 1] ++ (attrs ? [])) }
 
+	// (Nov 16 2026) An overdub starts in a Function the clock's own thread runs. Waits 0.3 beats as
+	// before, then until the recorder records, at most secs: 0.3 beats is 15 ms on the 20 Hz clock,
+	// which a loaded Mac can outlast (test_overdub failed "both started" beside the clone checks).
+	waitOverdubStart { |secs = 2|
+		var t = 0;
+		(0.3 / clock.tempo).wait;
+		while { rec.isRecording.not and: { t < secs } } { 0.005.wait; t = t + 0.005 };
+	}
+
 	test_off_means_off {
 		var b;
 		this.assertEquals(RETap.active, false, "nothing armed: the tap is inactive");
@@ -646,7 +655,7 @@ TestREScoreRecorder : UnitTest {
 		this.assertEquals(s.size, 2);
 		rec.overdub(s, ['core/k'], \replace, [0.5, 4]);
 		player = rec.player;
-		(0.3 / clock.tempo).wait;   // the start is one scheduled Function on the clock
+		this.waitOverdubStart;
 		this.assert(rec.isRecording and: { player.isPlaying }, "both started");
 		this.assert(player.muted.includes('core/k'), "replace: the voice is muted while overdubbing");
 		b.set(\amp, 0.9);
@@ -681,7 +690,7 @@ TestREScoreRecorder : UnitTest {
 		rec.overdub(s, mode: \keep, with: w);
 		wp = rec.withPlayer;
 		this.assert(wp.notNil, "the second take has a player of its own");
-		(0.3 / clock.tempo).wait;
+		this.waitOverdubStart;
 		this.assert(rec.isRecording, "the recorder started");
 		(0.5 / clock.tempo).wait;
 		b.set(\amp, 0.9);                               // at beat 0.8 of the overdub
@@ -722,7 +731,7 @@ TestREScoreRecorder : UnitTest {
 		rec.overdub(path, rendered: \auto, mode: \keep);
 		this.assertEquals(rec.state, \armed, "\\auto finds the render and wants the server as well");
 		rec.overdub(path, mode: \keep);
-		(0.3 / clock.tempo).wait;
+		this.waitOverdubStart;
 		this.assert(rec.isRecording and: { rec.player.notNil } and: { rec.player.isKindOf(RERenderedPlayer).not }, "without rendered: the program's player, from the path (an empty take: done at once)");
 		rec.stop;
 		(dir +/+ "*").pathMatch.do { |f| File.delete(f) };
@@ -746,7 +755,7 @@ TestREScoreRecorder : UnitTest {
 		this.assert(path.notNil and: { File.exists(path) }, "the old take written under root");
 		rec.version = "fx";
 		rec.overdub(path, mode: \keep, merge: false);
-		(0.3 / clock.tempo).wait;
+		this.waitOverdubStart;
 		b.set(\amp, 0.9);
 		(0.2 / clock.tempo).wait;
 		out = rec.stop;
@@ -781,7 +790,7 @@ TestREScoreRecorder : UnitTest {
 		this.assertEquals(rec.lastPassPath, nil, "a plain take has no pass");
 		rec.version = "w1";   // the merge's own name: the old take may share its stamp's second
 		rec.overdub(path, mode: \keep);
-		(0.3 / clock.tempo).wait;
+		this.waitOverdubStart;
 		b.set(\amp, 0.9);
 		(0.2 / clock.tempo).wait;
 		merged = rec.stop;
