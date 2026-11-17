@@ -68,6 +68,10 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
   generate, each with a shortest word: monoids of relations, groups of transformations), RLRelationContext
   (objects and named relations: Cube Dance and its analogues in 3k steps, the triads under P, L, R), RLGraph
   (distances, shortest walks, Hamiltonian cycles; edges costing steps or voice leading)
+- `reLation/Networks`: RLNetwork (nodes holding objects, arrows labelled with transformations or relations:
+  validity, the networks of one structure, local isographies; Klumpenhouwer networks on
+  `RLRelationContext.pitchClasses`), RLAutomorphism (a map of a context's objects that its relations go
+  through: a complete isography; applied again and again to a cell it makes a sequence)
 
 Tests in `tests/reLation_tests/` (UnitTest, no server): the tables of the theory.
 
