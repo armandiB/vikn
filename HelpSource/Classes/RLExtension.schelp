@@ -1,0 +1,109 @@
+TITLE:: RLExtension
+summary:: Chords as elements of a group: the extensions of the roots by the two chord types, with a movable base chord
+categories:: Libraries>reLation
+related:: Classes/RLChordContext, Classes/RLWreath, Classes/RLChordSpace, Guides/reLation
+
+DESCRIPTION::
+Once a strong::base chord:: is chosen, the chord whose root is z steps above the base's and whose type differs by h is the element code::[z, h]::. The groups that move the 2n chords simply transitively, contain the transpositions and respect the types are the extensions of Z_n (the roots) by Z_2 (the types), given by two numbers p and q (Popoff, after the blog's "neo-Riemannian theory" 7 and 8):
+
+code::
+[z1, 0] [z2, h] = [z1 + z2, h]           [z1, 1] [z2, h] = [z1 + q z2 + (p when h is 1), 1 + h]
+::
+
+with q q = 1 and p (q - 1) = 0 modulo n. Multiplying a chord's element on the strong::left:: moves every chord by the same rule; on the strong::right::, the move is read from the chord (contextual). The two commute.
+
+In 12 steps there are eight such groups, told apart by the orders of their elements:
+
+table::
+## (p, q) || the group ||
+## (0, 11) || dihedral, of order 24 || left: T and I; right: P, L, R (link::Classes/RLChordContext::)
+## (0, 1) || Z12 x Z2 || no contextual action
+## (1, 1) || cyclic, of order 24 ||
+## (0, 5) || Z4 x S3 ||
+## (0, 7) || Z3 x D8 ||
+## (2, 7) || Z3 x Q8 ||
+## (3, 5) || Z3 : Z8 ||
+## (6, 11) || Z3 : Q8 ||
+::
+
+A prime division (19, 31) has two, the cyclic and the dihedral: the richness of 12 comes from 12 not being prime.
+
+The base chord is an argument of every action: moving it changes which element each chord is, so the same element then acts differently (the idea of the ChucK piece of 2019, ported in HomewareSC's code::Math/Category_Theory/studies/::). With code::strict: false:: any (p, q) is accepted; the product is then not associative and the two actions no longer commute.
+
+code::
+~space = RLChordSpace.triads(RLEDO(12));
+~base = ~space.major(0);
+~ext = RLExtension(12, 2, 7);
+~ext.orders;                                    // [[1, 1], [2, 1], [3, 2], [4, 6], [6, 2], [12, 12]]: Z3 x Q8
+~ext.right([3, 1], ~space.minor(7), ~base);     // read from the chord
+~ext.left([3, 1], ~space.minor(7), ~base);      // the same rule for every chord
+~ext.right([3, 1], ~space.minor(7), ~space.minor(0));   // another base, another chord
+RLExtension.classes(12);                        // one (p, q) for each of the eight groups
+RLExtension.classes(19);                        // [[0, 1], [0, 18]]
+
+RLExtension(12, 7, 0);                          // an Error: not a group
+~odd = RLExtension(12, 7, 0, false);            // taken as it is
+~odd.failures;                                  // how many triples fail (a b) c = a (b c)
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: n
+The number of steps of the division.
+argument:: p
+argument:: q
+n - 1 (the dihedral group) when nil.
+argument:: strict
+true: a pair that gives no group is an Error. false: it is taken as it is.
+
+METHOD:: isValid
+Whether (p, q) gives a group in n steps.
+
+METHOD:: valid
+Every valid pair code::[p, q]::.
+
+METHOD:: classes
+One pair for each group: the first of each set of pairs whose elements have the same orders (enough to tell the groups apart in 12 steps).
+
+INSTANCEMETHODS::
+
+METHOD:: n
+METHOD:: p
+METHOD:: q
+
+METHOD:: isGroup
+
+METHOD:: identity
+METHOD:: elements
+code::[0, 0]::; the 2n elements.
+
+METHOD:: mul
+The product of two elements.
+
+METHOD:: inv
+The element that undoes one on both sides, or nil.
+
+METHOD:: pow
+METHOD:: order
+An element taken k times; how many times before the identity (nil when never).
+
+METHOD:: orders
+How many elements have each order, as code::[order, count]:: pairs.
+
+METHOD:: failures
+METHOD:: isAssociative
+Over every triple of elements: how many fail (a b) c = a (b c); whether none does.
+
+METHOD:: element
+METHOD:: chordOf
+A chord as an element, given the base chord; and back.
+
+METHOD:: left
+METHOD:: right
+A chord multiplied by an element on the left, on the right.
+argument:: g
+An element code::[z, h]::.
+argument:: chord
+argument:: base
+The base chord: a chord of the same two-type space of an RLEDO of n steps.

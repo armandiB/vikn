@@ -1,0 +1,63 @@
+TITLE:: RLWreath
+summary:: Uniform transformations (Hook): a transposition for each chord type, and a permutation of the types
+categories:: Libraries>reLation
+related:: Classes/RLExtension, Classes/RLChordContext, Classes/RLTransform, Guides/reLation
+
+DESCRIPTION::
+A uniform transformation moves every chord of one type by the same interval and changes its type by a fixed rule. An element is code::[shifts, types]::: a chord of type i goes to the root code::shifts[i]:: higher, with type code::types[i]::. For two types and 12 steps these are Hook's 288 uniform triadic transformations, written <p major, p minor, sign>; for k types and n steps they form the wreath product of Z_n by the permutations of k things, n^k k! elements.
+
+table::
+## P || code::[[0, 0], [1, 0]]:: || <0, 0, ->
+## L || code::[[4, 8], [1, 0]]:: || <4, 8, ->
+## R || code::[[9, 3], [1, 0]]:: || <9, 3, ->
+## T5 || code::[[5, 5], [0, 1]]:: || <5, 5, +>
+::
+
+Inversions are not uniform: their shift depends on the root. One uniform transformation repeated makes a progression: Beethoven's Ninth alternates R and L, which is <9, 8, -> again and again. The right action of each of the eight groups of link::Classes/RLExtension:: is a set of 24 uniform transformations.
+
+code::
+~w = RLWreath(12, 2);
+~space = RLChordSpace.triads(RLEDO(12));  ~ctx = RLChordContext(~space);
+~w.of(~ctx.l, ~space);                 // [[4, 8], [1, 0]]
+~w.of(~ctx.i(0), ~space);              // nil
+~u = [[9, 8], [1, 0]];
+~w.act(~u, ~space.major(0));           // A minor
+~w.mul(~u, ~u);                        // [[5, 5], [0, 1]]: twice is a fourth up
+~w.order(~u);                          // 24: it meets every triad
+~w.size;                               // 288
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: n
+The number of steps of the division.
+argument:: k
+The number of chord types.
+
+INSTANCEMETHODS::
+
+METHOD:: n
+METHOD:: k
+
+METHOD:: size
+n^k k!.
+
+METHOD:: identity
+METHOD:: elements
+The element that moves nothing; every element (for small n and k).
+
+METHOD:: mul
+u after v.
+
+METHOD:: inv
+METHOD:: order
+
+METHOD:: act
+What an element makes of a chord of a k-type space.
+
+METHOD:: of
+The element that does what a function of chords does on a space of an RLEDO, or nil when the function is not uniform.
+argument:: func
+A Function or an link::Classes/RLTransform::, chord -> chord.
+argument:: space
