@@ -154,4 +154,62 @@ TestRLVoiceLeading : UnitTest {
 		this.assertEquals(RLVoiceLeading.closePosition(space.major(0), 5.0), [60, 64, 67], "five octaves up");
 		this.assertEquals(RLVoiceLeading.closePosition(space.minor(9), 5.0), [57, 60, 64], "the root nearest the height");
 	}
+
+	test_between_two_chords {
+		var space = RLChordSpace.triads(RLEDO(12)), c = space.major(0);
+		this.assertFloatEquals(RLVoiceLeading.between(c, space.major(5)), 300.0, "C major to F major: three semitones");
+		this.assertEquals(RLVoiceLeading.stepsBetween(c, space.minor(5)), 2, "C major to F minor: two");
+		this.assertEquals(RLVoiceLeading.stepsBetween(c, space.major(6)), 6, "C major to F# major: six");
+		this.assert(RLVoiceLeading.moveSets(c, space.minor(4)).includesEqual([1]), "C major to E minor: one voice by one step");
+		this.assert(RLVoiceLeading.moveSets(c, space.minor(9)).includesEqual([2]), "to A minor: one voice by two");
+		this.assert(RLVoiceLeading.moveSets(c, space.major(1)).includesEqual([1, 1, 1]), "to C# major: every voice by one");
+		this.assertEquals(RLVoiceLeading.stepsBetween(RLChordSpace.triads(RLEDO(19)).major(0), RLChordSpace.triads(RLEDO(19)).minor(0)), 1, "in 19 steps P is one step");
+	}
+
+	// Tymoczko 2006: (0, 0, 4, 6) to (10, 0, 6, 6) beats every voice leading without doublings
+	test_doublings {
+		var edo = RLEDO(12), four;
+		this.assertEquals(RLVoiceLeading.minimalDoubled(edo, [0, 0, 4, 6], [6, 10, 0]), [-2, 0, 6, 6], "four voices on three tones");
+		this.assertFloatEquals(RLVoiceLeading.cents(edo, [0, 0, 4, 6], [-2, 0, 6, 6]), 400.0, "four semitones");
+		this.assertFloatEquals(RLVoiceLeading.cents(edo, [0, 4, 6], RLVoiceLeading.minimal(edo, [0, 4, 6], [6, 10, 0])), 600.0, "six without the doubling");
+		this.assertEquals(RLVoiceLeading.minimalDoubled(edo, [60, 64, 67], [5, 9, 0]), RLVoiceLeading.minimal(edo, [60, 64, 67], [5, 9, 0]), "as many voices as tones: the same");
+		this.assertException({ RLVoiceLeading.minimalDoubled(edo, [60, 64], [5, 9, 0]) }, Error, "fewer voices than tones are refused");
+		four = RLVoiceLeading.through(RLWalk(RLChordContext(RLChordSpace.triads(edo)), RLChordSpace.triads(edo).major(0), [\R, \L, \R, \P]).chords, [48, 60, 64, 67]);
+		this.assert(four.every { |v| v.size == 4 }, "a walk in four voices");
+		this.assertEquals(four.last.collect { |p| p % 12 }.asSet, Set[2, 6, 9], "each chord complete: D major at the end");
+	}
+
+	test_doublings_on_both_sides {
+		var edo = RLEDO(12), bad = 0, count = 0, brute;
+		// every set of pairs that leaves no tone out, by trying them all
+		brute = { |a, b|
+			var best = inf;
+			(1..((2 ** (a.size * b.size)).asInteger - 1)).do { |mask|
+				var usedA = Array.fill(a.size, false), usedB = Array.fill(b.size, false), cost = 0;
+				a.size.do { |i|
+					b.size.do { |j|
+						if(mask.bitTest((i * b.size) + j)) {
+							var d = (a[i] - b[j]) % 12;
+							usedA[i] = true; usedB[j] = true;
+							cost = cost + min(d, 12 - d);
+						};
+					};
+				};
+				if(usedA.every { |x| x } and: { usedB.every { |x| x } } and: { cost < best }) { best = cost };
+			};
+			best
+		};
+		this.assertFloatEquals(RLVoiceLeading.withDoublings(edo, [0, 4, 6], [6, 10, 0])[0], 400.0, "the paper's example");
+		this.assertEquals(RLVoiceLeading.withDoublings(edo, [0, 4, 6], [6, 10, 0])[1].size, 4, "in four pairs");
+		this.assertFloatEquals(RLVoiceLeading.withDoublings(edo, [4, 7, 11, 0], [4, 8, 11, 3])[0], 300.0, "C major seventh to E major seventh: three, by doubling E");
+		thisThread.randSeed = 5;
+		[[3, 3, 40], [2, 3, 30], [3, 2, 30], [3, 4, 8]].do { |row|
+			row[2].do {
+				var a = Array.series(12).scramble.keep(row[0]), b = Array.series(12).scramble.keep(row[1]);
+				count = count + 1;
+				if((RLVoiceLeading.withDoublings(edo, a, b)[0] - (brute.(a, b) * 100)).abs > 1e-6) { bad = bad + 1 };
+			};
+		};
+		this.assertEquals(bad, 0, "the dynamic programme finds the least motion on % random pairs of sets".format(count));
+	}
 }

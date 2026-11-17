@@ -62,7 +62,7 @@ RLWalk {
 
 	// The whole walk as one transformation.
 	composed {
-		var tr = RLTransform(context);
+		var tr = context.identityTransform;
 		this.transforms.do { |step| tr = step <> tr };
 		^tr
 	}
@@ -85,19 +85,8 @@ RLWalk {
 	++ { |that| ^RLWalk(context, start, word ++ that.word) }
 
 	// The voicings of its chords, from a voicing of the start (close position at the origin when none is
-	// given): one Array of pitches per chord.
-	voices { |from|
-		var system = context.system, v = from ?? { RLVoiceLeading.closePosition(start) }, out;
-		if(start.hasPcs(v.collect { |p| system.pc(p) }).not) {
-			Error("RLWalk: the voicing % is not the chord %".format(v, start)).throw
-		};
-		out = [v];
-		this.chords.drop(1).do { |chord|
-			v = RLVoiceLeading.minimal(system, v, chord.pcs);
-			out = out.add(v);
-		};
-		^out
-	}
+	// given): one Array of pitches per chord. More voices than the chords have tones double some.
+	voices { |from| ^RLVoiceLeading.through(this.chords, from) }
 
 	// How far each voice ends from where it began, as pitch intervals (steps in RLEDO).
 	voiceDrift { |from|

@@ -65,5 +65,11 @@ The chord of that type on a root (the origin when none is given).
 METHOD:: all
 Every chord of a finite system, type by type. An Error on the lattice.
 
+METHOD:: canonical
+A symmetric chord has several roots (C, E and Ab augmented are one chord in 12 steps): the chord of the same type and tones on the first of them.
+
+METHOD:: distinct
+Every chord of a finite system once: 28 for major, minor and augmented triads in 12 steps, where link::#-all:: has 36.
+
 METHOD:: find
 The chord with these pitch classes, in any order, or nil.

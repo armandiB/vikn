@@ -88,7 +88,7 @@ SUBSECTION:: Voices
 METHOD:: voices
 The voicings of its chords, one Array of pitches per chord.
 argument:: from
-A voicing of the start chord (anything else is an Error); close position at the origin when nil.
+A voicing of the start chord (anything else is an Error); close position at the origin when nil. More voices than the chords have tones double some (link::Classes/RLVoiceLeading#*through::).
 
 METHOD:: voiceDrift
 How far each voice ends from where it began, as pitch intervals (steps in RLEDO).

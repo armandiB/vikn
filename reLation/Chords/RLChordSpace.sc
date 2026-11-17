@@ -47,6 +47,22 @@ RLChordSpace {
 		^types.collect { |t| system.pcs.collect { |r| this.chord(r, t[0]) } }.flatten(1)
 	}
 
+	// A symmetric chord has several roots (C, E and Ab augmented are one chord in 12 steps): canonical is the
+	// chord of the same type and tones on the first of them, distinct every chord of a finite system once.
+	canonical { |chord|
+		^if(system.isFinite) {
+			system.pcs.collect { |r| this.chord(r, chord.type) }.detect { |c| c.hasPcs(chord.pcs) }
+		} { chord }
+	}
+	distinct {
+		var out = Array.new, seen = Set.new;
+		this.all.do { |c|
+			var k = this.canonical(c);
+			if(seen.includes(k).not) { seen.add(k); out = out.add(k) };
+		};
+		^out
+	}
+
 	// The chord with these pitch classes, in any order, or nil.
 	find { |pcs|
 		var found;

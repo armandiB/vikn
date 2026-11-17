@@ -35,6 +35,35 @@ The target's pitch classes, as many as there are voices (double a tone by naming
 METHOD:: exhaustive
 The same by trying every assignment of voices to tones: for tests, and for chords of up to six voices.
 
+METHOD:: minimalDoubled
+More voices than tones: each voice goes to a tone, every tone is taken, the total motion is least (every way of doubling the tones is tried). Fewer voices than tones is an Error.
+code::
+RLVoiceLeading.minimalDoubled(RLEDO(12), [48, 60, 64, 67], [5, 9, 0]);   // [48, 60, 65, 69]: four voices to F major
+RLVoiceLeading.minimalDoubled(RLEDO(12), [0, 0, 4, 6], [6, 10, 0]);      // [-2, 0, 6, 6]: Tymoczko's example
+::
+
+METHOD:: through
+The voicings of a list of chords, from a voicing of the first (close position at the origin when nil): each chord by the least motion from the one before. With more voices than the chords have tones, some are doubled. A voicing that is not the first chord is an Error.
+argument:: chords
+An Array of link::Classes/RLChord::s of one system.
+argument:: from
+
+METHOD:: between
+The least total motion between two chords of as many tones, in cents.
+
+METHOD:: stepsBetween
+The same in steps of their link::Classes/RLEDO::: 3 from C major to F major, 2 to F minor.
+
+METHOD:: moveSets
+Every way the tones of one chord can go to the tones of another of the same size, each as the sorted steps moved (the voices that stay left out): C major to E minor gives code::[1]:: among others. In an RLEDO.
+
+METHOD:: withDoublings
+Between two sets of pitch classes of any sizes, doublings allowed on both sides (Tymoczko's dynamic programme over the voice leadings without crossings): code::[cents, pairs]::, the least total motion and the code::[from, to]:: pairs that make it. Every tone of each side is in a pair.
+code::
+RLVoiceLeading.withDoublings(RLEDO(12), [0, 4, 6], [6, 10, 0]);         // [400.0, [[0, 10], [0, 0], [4, 6], [6, 6]]]
+RLVoiceLeading.withDoublings(RLEDO(12), [0, 4, 7], [0, 4, 7, 10]);      // a triad to a seventh chord
+::
+
 METHOD:: displacements
 How far each voice moves between two voicings, in cents, signed.
 

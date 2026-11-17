@@ -79,6 +79,9 @@ RLChordContext {
 
 	prLabel { |v| ^if(v.isKindOf(SequenceableCollection)) { "(" ++ v.join(" ") ++ ")" } { v.asString } }
 
+	// The transformation that moves nothing.
+	identityTransform { ^RLTransform(this) }
+
 	// A transformation by its Symbol: \P, \L, \R, or a name given with define.
 	transform { |name|
 		^named[name.asSymbol] ?? { Error("RLChordContext: no transformation named %".format(name)).throw }

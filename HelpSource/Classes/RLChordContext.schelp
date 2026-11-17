@@ -65,6 +65,9 @@ The three contextual moves.
 METHOD:: transform
 A transformation by its Symbol: code::\P::, code::\L::, code::\R::, or a name given with link::#-define::. An unknown name is an Error.
 
+METHOD:: identityTransform
+The transformation that moves nothing.
+
 METHOD:: define
 Names the transformation a word does.
 argument:: name
