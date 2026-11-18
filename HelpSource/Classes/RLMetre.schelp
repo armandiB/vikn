@@ -30,6 +30,12 @@ METHOD:: new
 argument:: n
 The number of pulses in the cycle.
 
+METHOD:: perfect
+Perfect tilings: a rhythm played by a number of voices, each at a stretch of its own, tiling the line of code::rhythm.size * voices:: pulses. code::[stretches, entries]:: pairs. For three pulses in a row there is none before five voices.
+code::
+RLMetre.perfect([0, 1, 2], 5);      // 15 pulses, stretches 1, 2, 4, 5, 7, entering at 10, 2, 1, 3, 0 or at 2, 8, 5, 1, 0
+::
+
 INSTANCEMETHODS::
 
 METHOD:: n
@@ -47,3 +53,9 @@ Whether a rhythm (a list of pulses), entering at each of the entries, sounds eve
 
 METHOD:: complements
 Every set of entries, the pulse 0 among them, with which a rhythm tiles the cycle.
+
+METHOD:: augmented
+A canon by augmentation on the line of the n pulses (not round the cycle): one voice per stretch plays the rhythm d times as slow from its entry, and every pulse is sounded once. Every list of entries, in the order of the stretches. With link::Classes/RLTimeSpans#-canon::, the voice of stretch d entering at u is the rhythm under the left element code::[u, d]::.
+code::
+RLMetre(12).augmented([0, 1, 2], [1, 1, 2, 2]);     // [[0, 3, 6, 7], [0, 9, 3, 4], [6, 9, 0, 1]]
+::

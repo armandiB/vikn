@@ -43,6 +43,18 @@ TestRLTimeSpans : UnitTest {
 		this.assertEquals(time.wait([2, 0.5], 3), 2, "the wait until a cue, in the span's own durations");
 	}
 
+	test_a_canon_is_one_word_under_left_steps {
+		var spans = time.spans([1, 0.5, 0.5, 1, 1]), voices = time.canon(spans, [[0, 1], [0, 2], [2, 0.5]]);
+		var steps = { |v| (v.size - 1).collect { |i| time.interval(v[i], v[i + 1]) } };
+		this.assertEquals(voices[0], spans, "the identity gives the leader");
+		this.assertEquals(voices[1], [[0, 2], [2, 1], [3, 1], [4, 2], [6, 2]], "twice as slow");
+		this.assertEquals(voices[2], [[2, 0.5], [2.5, 0.25], [2.75, 0.25], [3, 0.5], [3.5, 0.5]], "twice as fast, two beats later");
+		this.assert(voices.every { |v| steps.(v) == steps.(spans) }, "every voice has the leader's word: the same right steps");
+		this.assertEquals(time.endTogether(spans, 0.5), [2, 0.5], "the voice twice as fast that ends with the leader enters at 2");
+		this.assertEquals(time.endTogether(spans, 2), [-4, 2], "the one twice as slow would have started 4 before");
+		this.assertEquals(time.canon(spans, [time.endTogether(spans, 0.25)])[0].last, [3.75, 0.25], "its last note ends where the leader's does");
+	}
+
 	test_with_a_sieve {
 		var sieve = RCSieve.residues(8, [0, 3, 6], 1/2), spans = time.spansOf(sieve.points(0, 8));
 		this.assertEquals(spans.collect(_[1]), [1.5, 1.5, 1, 1.5, 1.5, 1], "the 3, 3, 2 rhythm of a sieve as durations");
@@ -83,6 +95,24 @@ TestRLMetre : UnitTest {
 		this.assertEquals(m.complements([0, 1, 3]), [], "a rhythm with none");
 		this.assertEquals(m.complements([0, 1, 2, 3, 4]), [], "a rhythm whose size does not divide the cycle");
 		this.assertEquals(RLMetre(16).complements([0, 1, 4, 5]), [[0, 2, 8, 10], [0, 6, 8, 14]], "16 pulses: two sets of entries");
+	}
+
+	// Canons by augmentation on a line of pulses: each voice the rhythm at its own stretch, every pulse once.
+	// The numbers are those of a search over every case in Python (HomewareSC, Math/Category_Theory, Nov 18 2026).
+	test_canons_by_augmentation {
+		var perfect = RLMetre.perfect([0, 1, 2], 5), sounded;
+		this.assertEquals(RLMetre(12).augmented([0, 1, 2], [1, 1, 2, 2]).size, 3, "two voices at 1 and two at 2 tile 12 pulses three ways");
+		this.assert(RLMetre(12).augmented([0, 1, 2], [1, 1, 2, 2]).includesEqual([0, 3, 6, 7]), "one of them: entries 0, 3 and 6, 7");
+		[2, 3, 4, 6].do { |k|
+			this.assertEquals(RLMetre.perfect([0, 1, 2], k).size, 0, "three pulses in a row, % voices each at its own stretch: no tiling".format(k));
+		};
+		this.assertEquals(perfect.size, 2, "five voices: two tilings of 15 pulses");
+		this.assert(perfect.every { |pair| pair[0] == [1, 2, 4, 5, 7] }, "both with the stretches 1, 2, 4, 5, 7");
+		this.assert(perfect.collect(_[1]).includesEqual([10, 2, 1, 3, 0]) and: { perfect.collect(_[1]).includesEqual([2, 8, 5, 1, 0]) },
+			"entering at 10, 2, 1, 3, 0 or at 2, 8, 5, 1, 0");
+		this.assertEquals([10, 2, 1, 3, 0].collect { |u, i| 14 - (u + (2 * [1, 2, 4, 5, 7][i])) }, [2, 8, 5, 1, 0], "each the other read backwards");
+		sounded = [1, 2, 4, 5, 7].collect { |d, i| [0, 1, 2].collect { |r| [10, 2, 1, 3, 0][i] + (d * r) } }.flat.sort;
+		this.assertEquals(sounded, Array.series(15), "every pulse sounded once");
 	}
 }
 
