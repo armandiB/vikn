@@ -251,11 +251,12 @@ REShowConsole {
 		cues.do { |cue| this.prSend('/fx/cue', [cue[\name], cue[\video], cue[\start], if(cue[\end] == inf) { openEnd } { cue[\end] }, cue[\videoOffset]]) };
 	}
 
-	// a mapped /fx/ctl carries the mix's value; with fx pages the chain is theirs (a tape's /fx/chain, /fx/clear and
-	// /fx/on dropped); everything else goes as it is
+	// a mapped /fx/ctl carries the mix's value; with fx pages the chain and the graph are theirs (a tape's /fx/chain,
+	// /fx/clear and /fx/on dropped, and what would undo the graph they keep: /fx/patch, /fx/free, /fx/out);
+	// everything else goes as it is
 	prFilter { |e|
 		var v;
-		if(fxPages.notNil and: { #["/fx/chain", "/fx/clear", "/fx/on"].includesEqual(e[1].asString) }) { ^nil };
+		if(fxPages.notNil and: { #["/fx/chain", "/fx/clear", "/fx/on", "/fx/patch", "/fx/free", "/fx/out"].includesEqual(e[1].asString) }) { ^nil };
 		if(roto.isNil or: { e[1].asString != "/fx/ctl" } or: { e.size < 4 }) { ^e };
 		v = roto.tapeValue(e[2], e[3], timeFunc.value);
 		if(v.isNil) { ^e };
