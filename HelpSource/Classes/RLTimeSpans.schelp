@@ -1,0 +1,102 @@
+TITLE:: RLTimeSpans
+summary:: Time-spans and what moves them (Lewin): a context for rhythm, with rhythms as walks
+categories:: Libraries>reLation
+related:: Classes/RLWalk, Classes/RLTransform, Classes/RLMetre, Classes/RCSieve, Guides/reLation
+
+DESCRIPTION::
+A time-span is code::[onset, duration]::, a plain Array, the duration above zero. The spans are also the elements of a group, code::[u, d]::, with
+
+code::
+[u1, d1] [u2, d2] = [u1 + d1 u2, d1 d2]
+::
+
+which moves them from both sides, as T, I and P, L, R move triads:
+
+table::
+## on the left || code::[u, d] [t, D] = [u + d t, d D]:: || everything stretched by d and shifted by u
+## on the right || code::[t, D] [u, d] = [t + D u, D d]:: || "move by u of my own durations, then scale my duration by d"
+::
+
+The two commute. A strong::rhythm is a walk::: a first span and a word of right steps (link::Classes/RLWalk::, whose "chords" are here the spans). The step from a note to the next is code::[1, r]::, r the ratio of their durations; so the same word, from another span, is the same rhythm at another time and tempo, and several voices on one word are a canon in augmentation. One step repeated is an accelerando or a ritardando.
+
+code::
+~time = RLTimeSpans.new;
+~time.define(\same, [1, 1]);  ~time.define(\half, [1, 0.5]);  ~time.define(\twice, [1, 2]);
+~walk = RLWalk(~time, [0, 1], [\half, \same, \twice, \same]);
+~walk.chords;                                   // [0, 1], [1, 0.5], [1.5, 0.5], [2, 1], [3, 1]
+~time.stretch(1.5).(~walk.chords.last);         // [4.5, 1.5]
+RLWalk(~time, [2, 1.5], ~walk.word).chords;     // the same rhythm, later and slower
+RLWalk(~time, [0, 1], ~time.right(1, 0.5) ! 4).chords;     // each note half as long as the one before
+
+~time.word([1, 0.5, 0.5, 1, 1]);                // the steps of a list of durations
+~time.interval([0, 1], [3, 2]);                 // [3, 2]: three of my durations later, twice as long
+~time.wait([2, 0.5], 3);                        // 2: the cue at 3 is two of this span's durations away
+
+// the 3, 3, 2 rhythm of a sieve as spans, then as a pattern
+~spans = ~time.spansOf(RCSieve.residues(8, [0, 3, 6], 1/2).points(0, 8));
+Pbind(#[\delta, \sustain], Pseq(~time.events(~spans)), \degree, Pseq([0, 2, 4], inf)).play;
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+
+INSTANCEMETHODS::
+
+SUBSECTION:: Transformations
+
+METHOD:: left
+The spans stretched by d and shifted by u, all alike: an link::Classes/RLTransform::.
+
+METHOD:: right
+Each span moved by u of its own durations, its duration scaled by d.
+
+METHOD:: shift
+METHOD:: stretch
+code::left(u, 1):: and code::left(0, d)::.
+
+METHOD:: define
+Names a right step code::[u, d]::, or the step a word does (its steps in the order of time).
+
+METHOD:: transform
+A step by its name (or the transformation itself).
+
+METHOD:: names
+METHOD:: act
+The named steps; what one makes of a span, as a list.
+
+METHOD:: interval
+METHOD:: leftInterval
+The right step from one span to another (Lewin's interval), and the left one, as elements code::[u, d]::.
+
+SUBSECTION:: Rhythms
+
+METHOD:: spans
+A list of durations as spans from an onset, each starting where the one before ends.
+
+METHOD:: word
+The right steps between the notes of a list of durations: code::[1, ratio]:: each.
+
+METHOD:: spansOf
+The spans between successive time points (the points of an link::Classes/RCSieve::, for one).
+
+METHOD:: events
+Spans as code::[delta, sustain]:: pairs, the time to the next onset and the duration: what a Pbind takes.
+
+METHOD:: wait
+How long until a cue, counted in the span's own durations; negative once the cue is past. The truth value of "after the cue" for time-spans.
+
+SUBSECTION:: The group
+
+METHOD:: identity
+METHOD:: mul
+METHOD:: inv
+On elements code::[u, d]::; results are rounded at the tenth decimal so that equal spans compare equal.
+
+METHOD:: element
+METHOD:: chordOf
+METHOD:: isCentral
+METHOD:: center
+METHOD:: identityTransform
+METHOD:: system
+What link::Classes/RLTransform:: and link::Classes/RLWalk:: ask of a context: a span is its own element.

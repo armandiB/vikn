@@ -110,6 +110,9 @@ The same pairs read backwards.
 METHOD:: |
 The join of two relations, value by value (their union).
 
+METHOD:: &
+What two relations both hold, value by value (the lower of the two values in the quantale's order).
+
 METHOD:: without
 This where that has nothing.
 

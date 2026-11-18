@@ -38,11 +38,25 @@ code::
 ~ctx.act(\N, ~c);                   // [F minor]
 ::
 
+SUBSECTION:: Chords of any size
+
+The space may hold chords of two tones or more: a type and the same turned upside down (link::Classes/RLChordSpace#*pair::, link::Classes/RLChordSpace#*tetrads::). Each pair of tones i, j of a chord of the first type gives one contextual inversion, the one that exchanges them, named code::\K01::, code::\K02::... (for triads K02 is P, K12 is L, K01 is R, and only the usual names are listed). On a chord of the second type the same transformation exchanges the tones that answer them upside down. Two in a row transpose a chord: on the tetrads 4:5:6:7, K12 then K01 is a fifth up, K12 then K02 a major third up, K13 then K01 a harmonic seventh up.
+
+code::
+~ctx = RLChordContext(RLChordSpace.tetrads(RLEDO(12)));     // dominant and half-diminished sevenths
+~c7 = ~ctx.space.otonal(0);
+~ctx.neighbours(~c7);                    // six half-diminished sevenths, each with two or three tones of C7
+~ctx.k(1, 3).(~c7);                      // E utonal: E, G, Bb kept
+~just = RLChordContext(RLChordSpace.tetrads(RLJust([3, 5, 7])));
+~walk = RLWalk(~just, ~just.space.otonal, [\K12, \K01, \K12, \K01, \K13, \K01]);    // two fifths up, a seventh up
+~just.system.commaName(~walk.drift);     // septimal comma 64/63: closed in 12 and 22 steps, not in 31
+::
+
 CLASSMETHODS::
 
 METHOD:: new
 argument:: space
-A space of two types of three tones, the second the inversion of the first, as link::Classes/RLChordSpace#*triads:: makes. Anything else is an Error.
+A space of two types, the second the inversion of the first between its root and its top tone, as link::Classes/RLChordSpace#*triads::, link::Classes/RLChordSpace#*tetrads:: or link::Classes/RLChordSpace#*pair:: make. Anything else is an Error.
 
 INSTANCEMETHODS::
 
@@ -68,6 +82,9 @@ A transformation by its Symbol: code::\P::, code::\L::, code::\R::, or a name gi
 METHOD:: identityTransform
 The transformation that moves nothing.
 
+METHOD:: k
+The contextual inversion that exchanges tones i and j of a chord of the first type (counted from 0 in its pattern).
+
 METHOD:: define
 Names the transformation a word does.
 argument:: name
@@ -75,7 +92,7 @@ argument:: word
 The steps in the order they are taken, Symbols or RLTransforms: code::[\R, \L, \P]:: is R, then L, then P.
 
 METHOD:: generators
-code::[\P, \L, \R]::.
+code::[\P, \L, \R]:: for triads; the K names for chords of another size.
 
 METHOD:: names
 Every name the context knows.

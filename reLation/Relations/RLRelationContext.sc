@@ -68,6 +68,19 @@ RLRelationContext {
 		^this.new(chords, [[\U, u], [\P, p], [\L, l]].collect { |pair| [pair[0], RLRelation.fromPairs(chords, chords, pair[1])] }, nil, sp)
 	}
 
+	// The chords of a space, each once, joined when the voices of one reach the other by these moves ([1]: one
+	// voice by one step of the division): the relation is named S. The graphs of Douthett and Steinbach.
+	*singleStep { |space, moves = #[1], name = \S|
+		var chords = space.distinct;
+		^this.new(chords, [[name, RLRelation.voiceMoves(chords, moves)]], nil, space)
+	}
+
+	// Power Towers: the 36 dominant, minor and half-diminished seventh chords of 12 steps and the 3 diminished
+	// sevenths, one voice by one semitone.
+	*powerTowers {
+		^this.singleStep(RLChordSpace(RLEDO(12), [[\dom7, [0, 4, 7, 10]], [\min7, [0, 3, 7, 10]], [\hdim7, [0, 3, 6, 10]], [\dim7, [0, 3, 6, 9]]]))
+	}
+
 	// The pitch classes of an equal division under transposition and inversion: T0, T1 ... and I0, I1 ...
 	// by name (I5 sends x to 5 - x), T1 and I0 as generators. Klumpenhouwer networks live here.
 	*pitchClasses { |system|
@@ -76,6 +89,26 @@ RLRelationContext {
 		pcs.do { |n| rels = rels.add([("I" ++ n).asSymbol, RLRelation.ofFunction(pcs, { |x| sys.pcSub(n, x) })]) };
 		^this.new(pcs, rels).prGenerators([\T1, \I0]).prSystem(sys)
 	}
+
+	// Noll's monoid of a chord: the maps x -> ux + v of an equal division's pitch classes that send a set of
+	// them into itself, each named as '3x+7'. Eight maps for C major in 12 steps.
+	*preserving { |system, pcs|
+		var sys = system ?? { RLEDO(12) }, all = sys.pcs, n = sys.steps, rels = Array.new;
+		n.do { |u|
+			n.do { |v|
+				if(pcs.every { |x| pcs.includes(((u * x) + v) % n) }) {
+					rels = rels.add(["%x+%".format(u, v).asSymbol, RLRelation.ofFunction(all, { |x| ((u * x) + v) % n })]);
+				};
+			};
+		};
+		^this.new(all, rels).prSystem(sys)
+	}
+
+	// How far each object belongs to a set the relations keep: for each object, in their order, the arrows of
+	// the category that bring it into the set (truthValues), and their share of all the arrows, 1 for the
+	// members of the set (belonging): a graded membership, to use as control data.
+	truthValues { |subset| ^objects.collect { |x| this.category.truthValue(x, subset) } }
+	belonging { |subset| ^this.truthValues(subset).collect { |tv| tv.size / this.category.size } }
 
 	prGenerators { |list| generatorNames = list; categoryCache = nil }
 	prSystem { |sys| pitchSystem = sys }

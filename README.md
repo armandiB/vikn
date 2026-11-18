@@ -62,7 +62,9 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
 - `reLation/Chords`: RLChordSpace (a system and its chord types), RLChord
 - `reLation/Contexts`: RLChordContext (triads moved by T, I on the left and P, L, R on the right),
   RLTransform, RLMorphism (maps between contexts: temperaments, pushed and lifted walks)
-- `reLation/Walks`: RLWalk (a start and a word; its chords, its drift, its voices, its frequencies)
+- `reLation/Walks`: RLWalk (a start and a word; its chords, its drift, its voices, its frequencies), RLWalker
+  (a chord and its voices taking one step at a time, for walks without an end: the `\freq` of a beat of reCurrent),
+  RLLattice (a walk sent to HomewareVisuals' lattice page: the plane of fifths and thirds, the torus of a division)
 - `reLation/Relations`: RLQuantale (the values of a relation: boolean, costs, strengths), RLRelation (a
   relation between two lists, composed, compared, closed into a distance), RLCategory (what named arrows
   generate, each with a shortest word: monoids of relations, groups of transformations), RLRelationContext
@@ -74,7 +76,13 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
   through: a complete isography; applied again and again to a cell it makes a sequence)
 - `reLation/Groups`: RLExtension (chords as elements of a group once a base chord is chosen: the eight
   extensions of Z12 by Z2, two in a prime division; left and right actions, a movable base chord; other
-  (p, q) on request), RLWreath (Hook's uniform transformations: 288 in 12 steps for two types)
+  (p, q) on request; also any pitch system, any number of types in a cycle, any finite type group),
+  RLWreath (Hook's uniform transformations: 288 in 12 steps for two types)
+- `reLation/Time`: RLTimeSpans (time-spans moved from both sides, after Lewin: a rhythm is a walk), RLMetre
+  (metre as a relation on a cycle of pulses; rhythmic canons)
+
+Chords of any size have a context (tetrads 4:5:6:7 by `RLChordSpace.tetrads`); `RLRelationContext.preserving`
+gives Noll's monoid of a chord and the graded belonging of each pitch class to it.
 
 Tests in `tests/reLation_tests/` (UnitTest, no server): the tables of the theory.
 

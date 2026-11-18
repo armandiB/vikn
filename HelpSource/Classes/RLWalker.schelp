@@ -1,0 +1,84 @@
+TITLE:: RLWalker
+summary:: A chord and its voices taking one step at a time: walks without an end, in a Pbind or a beat of reCurrent
+categories:: Libraries>reLation
+related:: Classes/RLWalk, Classes/RLVoiceLeading, Classes/RLChordContext, Classes/RLRelationContext, Classes/RCBeat, Guides/reLation
+
+DESCRIPTION::
+An link::Classes/RLWalk:: is a whole walk, known in advance. A walker holds only where it is: the chord, the voicing, and a count of steps. link::#-step:: moves it by one of its context's transformations or relations, each voice by the least motion (link::Classes/RLVoiceLeading::); where a relation offers several chords it takes the nearest, or what its link::#-chooser:: says.
+
+link::#-asPattern:: gives the frequencies of each chord as a word goes by, the word being a pattern of names: the value of code::\freq:: in a Pbind, or in a beat of reCurrent, which is how a piece plays it. Started again, the pattern goes on from where the walker stands, so the word can be changed while the harmony continues.
+
+Voices that climb or sink for ever (the R, L chain; "Take a Bow") are brought back by octaves once their middle leaves the strong::reach:: around where they started.
+
+code::
+~ctx = RLChordContext(RLChordSpace.triads(RLEDO(12)));
+~walker = RLWalker(~ctx, ~ctx.space.major(0), [60, 64, 67], 8.1757989156, 0.75);    // the origin at MIDI note 0
+~walker.step(\R).chord;                    // A minor
+~walker.voicing;                           // [60, 64, 69]
+Pbind(\freq, ~walker.asPattern(Prand([\P, \L, \R], inf)), \dur, 1).play;
+
+// in a piece (reCurrent): the word changes on the next beat, the harmony goes on from where it is
+~beat = ~song.layer(\core).addBeat(\harmony, [instrument: \default, dur_flex: 2, freq: ~walker.asPattern(Pseq([\R, \L], inf))]);
+~beat.set(\freq, ~walker.asPattern(Pseq([\P, \L], inf)));
+
+// on Cube Dance, where a step may offer six chords; in 19 steps; on the just lattice
+~cd = RLRelationContext.cubeDance;
+~w = RLWalker(~cd, ~cd.space.major(0), nil, 220, 0.75);
+~w.chooser = { |options| options.choose };           // any of the chords offered, not the nearest
+Pbind(\freq, ~w.asPattern(Pseq([\U, \U, \P], inf)), \dur, 0.5).play;
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: context
+An link::Classes/RLChordContext:: or an link::Classes/RLRelationContext::.
+argument:: start
+A chord of it.
+argument:: voicing
+Pitches of the start chord, as many voices as wanted (close position at the origin when nil). Anything that is not the chord is an Error.
+argument:: base
+The frequency of the origin.
+argument:: reach
+How far, in octaves, the middle of the voices may go from where it started before they are brought back by an octave; nil for no limit.
+
+INSTANCEMETHODS::
+
+METHOD:: context
+METHOD:: chord
+METHOD:: voicing
+METHOD:: count
+Where the walker is, and how many steps it has taken.
+
+METHOD:: base
+METHOD:: centre
+METHOD:: reach
+The frequency of the origin; the middle the voices are kept around, in octaves above the origin; how far they may go from it.
+
+METHOD:: chooser
+A Function code::(options, walker) -> chord:: for the steps that offer several chords; nil for the chord the voices reach by the least motion.
+
+METHOD:: step
+One step by a name of the context (or a transformation, or a relation). A step that offers no chord is an Error.
+
+METHOD:: next
+A step, then the frequencies.
+
+METHOD:: moveTo
+Put the walker on a chord: with a voicing of it, or by the least motion from where the voices are.
+
+METHOD:: follow
+Gives the walker a shadow on the just lattice that takes every step it takes, from 1/1 (or from a chord given): where the walk really goes, for the lattice page (link::Classes/RLLattice::). For walkers of a chord context of triads, stepped by names. Returns the walker.
+
+METHOD:: shadow
+METHOD:: latticeChord
+The shadow, a walker on the lattice (nil without one); the walker's chord on the lattice, its shadow's or its own.
+
+METHOD:: freqs
+METHOD:: middle
+The frequencies of the voices; their middle, in octaves above the origin.
+
+METHOD:: asPattern
+The frequencies of each chord as a word goes by: first the chord the walker stands on, then one step for each name.
+argument:: word
+A pattern of names, or an Array taken once. The pattern ends when the word does.

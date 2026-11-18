@@ -27,6 +27,23 @@ RLChordSpace {
 		^this.new(system, [[\major, [z, a, b]], [\minor, [z, system.pcSub(b, a), b]]])
 	}
 
+	// A chord type and the same turned upside down between its root and its top tone: what an RLChordContext
+	// asks for, with chords of any size.
+	*pair { |system, name, pattern, inverseName|
+		var top = pattern.last;
+		^this.new(system, [[name, pattern], [inverseName, pattern.reverse.collect { |x| system.pcSub(top, x) }]])
+	}
+
+	// The tetrad nearest 4:5:6:7 (otonal) and its inversion (utonal): in 12 steps a dominant seventh and a
+	// half-diminished seventh. On a lattice the prime 7 is needed: RLJust([3, 5, 7]).
+	*tetrads { |system|
+		^this.pair(system, \otonal,
+			[system.pcZero, system.interval([5, 4]), system.interval([3, 2]), system.interval([7, 4])], \utonal)
+	}
+
+	otonal { |root| ^this.chord(root ?? { system.pcZero }, \otonal) }
+	utonal { |root| ^this.chord(root ?? { system.pcZero }, \utonal) }
+
 	typeNames { ^types.collect(_[0]) }
 	typeIndex { |name| ^types.detectIndex { |t| t[0] == name } }
 	typeAt { |index| ^types[index][0] }

@@ -92,6 +92,100 @@ TestRLExtension : UnitTest {
 	}
 }
 
+// More than Z_n by Z_2: any number of types in a cycle, the just lattice as roots, any finite group of types.
+TestRLExtensionGeneral : UnitTest {
+
+	// the two conditions are exactly what associativity asks, checked over every triple of small structures
+	test_valid_means_associative {
+		var bad = 0, count = 0, groups = 0;
+		[[6, 2], [8, 2], [6, 3], [7, 3], [5, 4], [4, 4]].do { |nm|
+			var n = nm[0], m = nm[1];
+			n.do { |p|
+				n.do { |q|
+					var ext = RLExtension.cyclic(RLEDO(n), m, p, q, false);
+					count = count + 1;
+					if(ext.isGroup) { groups = groups + 1 };
+					if(ext.isGroup != RLExtension.isValid(n, p, q, m)) { bad = bad + 1 };
+					if(ext.isGroup != ext.isAssociative) { bad = bad + 1 };
+					if(ext.isGroup) {
+						ext.elements.do { |g|
+							if((ext.mul(g, ext.inv(g)) != [0, 0]) or: { ext.mul(ext.inv(g), g) != [0, 0] }) { bad = bad + 1 };
+						};
+					};
+				};
+			};
+		};
+		this.assertEquals(bad, 0, "% structures on 2, 3 and 4 types: a group by the two conditions exactly when associative, each element then undone by its inverse".format(count));
+		this.assert(groups > 40, "% of them are groups".format(groups));
+	}
+
+	test_three_and_four_types {
+		var frob = RLExtension.cyclic(RLEDO(7), 3, 0, 2), z44 = RLExtension.cyclic(RLEDO(4), 4, 0, 3);
+		var space = RLChordSpace(RLEDO(7), [[\a, [0, 2, 4]], [\b, [0, 2, 5]], [\c, [0, 3, 5]]]), base = space.chord(0, \a);
+		this.assertEquals(frob.orders, [[1, 1], [3, 14], [7, 6]], "Z7 by three types, q = 2: the group of order 21 with 14 elements of order 3");
+		this.assertEquals(z44.orders, [[1, 1], [2, 3], [4, 12]], "Z4 by four types, q = 3: three involutions, twelve elements of order 4");
+		this.assertEquals(frob.types, 3, "three types");
+		this.assertEquals(frob.elements.collect { |g| frob.right(g, base, base) }.asSet.size, 21, "its right action takes the base chord to each of the 21 chords");
+		this.assertEquals(frob.elements.collect { |g| frob.left(g, base, base) }.asSet.size, 21, "so does its left action");
+		this.assertEquals(frob.element(frob.chordOf([3, 2], space.chord(1, \b)), space.chord(1, \b)), [3, 2], "a chord as an element and back, from any base");
+		this.assertEquals(RLExtension.valid(7, 3).size, 9, "nine valid pairs for 7 steps and three types: q = 1 with any p, q = 2 and 4 with p = 0");
+		this.assertException({ RLExtension.cyclic(RLEDO(7), 3, 0, 3) }, Error, "q = 3 is refused: three times is not the identity");
+	}
+
+	test_on_the_just_lattice {
+		var just = RLJust([3, 5]), jctx = RLChordContext(RLChordSpace.triads(just)), base = jctx.space.major;
+		var dihedral = RLExtension.cyclic(just), swap = RLExtension.cyclic(just, 2, [1, 1], [[0, 1], [1, 0]]), bad = 0;
+		var patch = [-2, -1, 0, 1, 2].collect { |x| [-1, 0, 1].collect { |y| [jctx.space.major([x, y]), jctx.space.minor([x, y])] } }.flat;
+		this.assert(dihedral.isGroup, "the lattice by two types with inversion: a group");
+		patch.do { |c|
+			if(dihedral.right([[0, 1], 1], c, base) != jctx.l.(c)) { bad = bad + 1 };
+			if(dihedral.right([[0, 0], 1], c, base) != jctx.p.(c)) { bad = bad + 1 };
+			if(dihedral.right([[-1, 1], 1], c, base) != jctx.r.(c)) { bad = bad + 1 };
+			if(dihedral.left([[1, 0], 0], c, base) != jctx.t([1, 0]).(c)) { bad = bad + 1 };
+		};
+		this.assertEquals(bad, 0, "it is the chord context of the lattice: right P, L, R, left T, on a patch of 30 triads");
+		this.assertEquals([dihedral.order([[0, 1], 1]), dihedral.order([[1, 0], 0])], [2, nil], "an inversion has order 2, a transposition never comes back");
+		this.assert(swap.isGroup, "thirds and fifths exchanged, with p = 15/8 that the exchange keeps: another group on the just triads");
+		thisThread.randSeed = 11;
+		bad = 0;
+		200.do {
+			var a = [[5.rand2, 5.rand2], 2.rand], b = [[5.rand2, 5.rand2], 2.rand], c = [[5.rand2, 5.rand2], 2.rand];
+			if(swap.mul(swap.mul(a, b), c) != swap.mul(a, swap.mul(b, c))) { bad = bad + 1 };
+			if(swap.mul(a, swap.inv(a)) != swap.identity) { bad = bad + 1 };
+			if(swap.left(a, swap.right(b, base, base), base) != swap.right(b, swap.left(a, base, base), base)) { bad = bad + 1 };
+		};
+		this.assertEquals(bad, 0, "associative, with inverses, its two actions commuting, on 200 random triples");
+		this.assertEquals(swap.right([[0, 0], 1], base, base), jctx.space.minor([0, 0]), "its simplest contextual move from 1/1 major");
+		this.assertEquals(swap.right([[0, 0], 1], jctx.space.minor([0, 0]), base), jctx.space.major([1, 1]), "and back: not to 1/1 but to 15/8 major");
+		this.assertException({ RLExtension.cyclic(just, 2, [0, 0], [[1, 1], [0, 1]]) }, Error, "a matrix that is not its own inverse is refused");
+		this.assertException({ RLExtension.cyclic(just, 2, [1, 0], [[0, 1], [1, 0]]) }, Error, "and a p the exchange does not keep");
+		this.assertException({ swap.elements }, Error, "a lattice has no list of all its elements");
+	}
+
+	// the 48 affine maps of twelve pitch classes as an extension: Z12 by the four-group of its multipliers
+	test_any_group_of_types {
+		var klein = [[0, 1, 2, 3], [1, 0, 3, 2], [2, 3, 0, 1], [3, 2, 1, 0]], units = [1, 11, 5, 7];
+		var hol = RLExtension.general(RLEDO(12), klein, units, { 0 });
+		var affine = Dictionary.new, order, space, base;
+		// the same group made by hand: x -> kx + c composed until the identity
+		order = { |k, c|
+			var kk = k, cc = c, count = 1;
+			while { (kk != 1) or: { cc != 0 } } { cc = ((k * cc) + c) % 12; kk = (k * kk) % 12; count = count + 1 };
+			count
+		};
+		units.do { |k| 12.do { |c| var o = order.(k, c); affine[o] = (affine[o] ? 0) + 1 } };
+		this.assert(hol.isGroup and: { hol.elements.size == 48 }, "a group of 48");
+		this.assertEquals(hol.orders, affine.asSortedArray, "with the element orders of the 48 affine maps");
+		this.assert(hol.isAssociative, "associative over every triple");
+		space = RLChordSpace(RLEDO(12), [[\dom7, [0, 4, 7, 10]], [\min7, [0, 3, 7, 10]], [\hdim7, [0, 3, 6, 10]], [\maj7, [0, 4, 7, 11]]]);
+		base = space.chord(0, \dom7);
+		this.assertEquals(hol.elements.collect { |g| hol.right(g, base, base) }.asSet.size, 48, "it moves four types of seventh chords simply transitively");
+		this.assertException({ RLExtension.general(RLEDO(12), klein, [1, 11, 5, 5], { 0 }) }, Error, "multipliers that do not follow the table are refused");
+		this.assertException({ RLExtension.general(RLEDO(12), klein, units, { |h, k| if((h == 1) and: { k == 1 }) { 1 } { 0 } }) }, Error, "and a zeta that is no cocycle");
+		this.assert(RLExtension.general(RLEDO(12), klein, units, { |h, k| if((h == 1) and: { k == 1 }) { 1 } { 0 } }, false).isAssociative.not, "taken on request, it is not associative");
+	}
+}
+
 TestRLWreath : UnitTest {
 	var space, ctx, w;
 

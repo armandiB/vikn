@@ -26,27 +26,46 @@
 // fifth, R root and third.
 
 RLChordContext {
-	var <space, <system, third, fifth, named;
+	var <space, <system, fifth, named, generatorNames, aliases;
 
 	*new { |space| ^super.new.prInit(space) }
 
+	// The second type must be the first turned upside down between its root and its top tone. Each pair of
+	// tones i, j of a chord of the first type gives one contextual inversion, the one that exchanges them:
+	// K01, K02 ... For triads K02 is P, K12 is L, K01 is R.
 	prInit { |sp|
-		var major, minor;
+		var first, second, size, pairs = Array.new;
 		space = sp;
 		system = sp.system;
 		if(sp.types.size != 2) { Error("RLChordContext: a space of two chord types is needed, not %".format(sp.typeNames)).throw };
-		major = sp.types[0][1];
-		minor = sp.types[1][1];
-		if(major.size != 3) { Error("RLChordContext: chords of three tones are needed").throw };
-		third = major[1];
-		fifth = major[2];
-		if(minor != [system.pcZero, system.pcSub(fifth, third), fifth]) {
-			Error("RLChordContext: the second type % is not the inversion of the first %".format(minor, major)).throw
+		first = sp.types[0][1];
+		second = sp.types[1][1];
+		size = first.size;
+		if(size < 2) { Error("RLChordContext: chords of two tones or more are needed").throw };
+		fifth = first.last;
+		if(second != first.reverse.collect { |x| system.pcSub(fifth, x) }) {
+			Error("RLChordContext: the second type % is not the inversion of the first %".format(second, first)).throw
 		};
 		named = IdentityDictionary.new;
-		named[\P] = RLTransform(this, nil, [system.pcZero, 1], "P");
-		named[\L] = RLTransform(this, nil, [third, 1], "L");
-		named[\R] = RLTransform(this, nil, [system.pcSub(third, fifth), 1], "R");
+		aliases = IdentityDictionary.new;
+		size.do { |i|
+			Array.series(size - i - 1, i + 1).do { |j|
+				var name = "K%%".format(i, j).asSymbol;
+				named[name] = RLTransform(this, nil, [system.pcSub(system.pcAdd(first[i], first[j]), fifth), 1], name.asString);
+				pairs = pairs.add(name);
+			};
+		};
+		generatorNames = pairs;
+		if(size == 3) {
+			// the usual names only: K02, K12, K01 stay readable as other spellings of P, L, R
+			named = IdentityDictionary[
+				\P -> RLTransform(this, nil, named[\K02].right, "P"),
+				\L -> RLTransform(this, nil, named[\K12].right, "L"),
+				\R -> RLTransform(this, nil, named[\K01].right, "R")
+			];
+			aliases = IdentityDictionary[\K02 -> \P, \K12 -> \L, \K01 -> \R];
+			generatorNames = #[\P, \L, \R];
+		};
 	}
 
 	// the group, on elements [v, e]
@@ -84,8 +103,14 @@ RLChordContext {
 
 	// A transformation by its Symbol: \P, \L, \R, or a name given with define.
 	transform { |name|
-		^named[name.asSymbol] ?? { Error("RLChordContext: no transformation named %".format(name)).throw }
+		var key = name.asSymbol;
+		^named[aliases[key] ? key] ?? { Error("RLChordContext: no transformation named %".format(name)).throw }
 	}
+
+	// The contextual inversion that exchanges tones i and j of a chord of the first type (counted from 0 in its
+	// pattern). On a chord of the second type it exchanges the tones that answer them upside down, counted
+	// from the top: L keeps the third and fifth of a major triad, the root and third of a minor one.
+	k { |i, j| ^this.transform("K%%".format(min(i, j), max(i, j))) }
 
 	// Name the transformation that a word does: define(\N, [\R, \L, \P]) for R, then L, then P.
 	define { |name, word|
@@ -98,7 +123,7 @@ RLChordContext {
 
 	prResolve { |w| ^if(w.isKindOf(RLTransform)) { w } { this.transform(w) } }
 
-	generators { ^#[\P, \L, \R] }
+	generators { ^generatorNames }
 	names { ^named.keys.asArray.sort }
 
 	// What a named transformation makes of a chord: a list (here always of one chord).
