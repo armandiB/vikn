@@ -100,6 +100,23 @@ argument:: zeta
 code::zeta[h][k]::, a pitch class for each pair, or a Function code::(h, k) -> pitch class::.
 argument:: strict
 
+discussion::
+strong::Roots that do not commute.:: code::system:: may be an link::Classes/RLTableGroup::: phi is then a list of automorphisms, each the images of the elements, and zeta a table of elements. The product is the same, code::[n1 phi(h1)(n2) zeta(h1, h2), h1 h2]::, and the conditions for a group are Schreier's: each phi(h) an automorphism, phi(h) phi(k) equal to phi(h k) followed by the conjugation by zeta(h, k), and zeta a cocycle. An element is then no chord (link::#-element:: and the actions on chords do not apply): the group acts on its own elements. See link::Classes/RLTableGroup:: for the 48 transformations of 24 quarter-tones as T and I of 12 notes by two types.
+
+METHOD:: all
+Every extension of an equal division's roots by a group of types (its table): one for each action and each class of cocycles. Two cocycles that differ by a coboundary give one group, read from other base points, so one of each class is kept.
+code::
+RLExtension.all(RLEDO(12), [[0, 1], [1, 0]]).collect(_.orders);      // the eight groups of 12 steps and two types
+RLExtension.all(RLEDO(4), [[0, 1], [1, 0]]).size;                    // 4: Z4 x Z2, Z8, the dihedral and the quaternion group
+RLExtension.all(RLEDO(8), [[0, 1], [1, 0]]).size;                    // 6, of which two have the same element orders
+::
+
+METHOD:: actions
+Every way a group of types can act on the roots of an equal division: one multiplier for each type element, products going to products.
+
+METHOD:: cocycles
+Every cocycle for an action: the lists code::zeta[h][k]::, zero on the identity, with phi(h)(zeta(k, l)) + zeta(h, k l) = zeta(h, k) + zeta(h k, l). An Error past code::max:: of them.
+
 METHOD:: isValid
 Whether (p, q) gives a group on n steps with types in a cycle (two when not said).
 

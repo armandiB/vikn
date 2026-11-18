@@ -1,0 +1,119 @@
+TITLE:: RLTempered
+summary:: A temperament: just intonation with some commas tempered out, between the lattice and the equal divisions
+categories:: Libraries>reLation
+related:: Classes/RLJust, Classes/RLEDO, Classes/RLPitchSystem, Classes/RLMorphism, Classes/RLChordContext, Guides/reLation
+
+DESCRIPTION::
+Tempering a comma out folds the lattice of link::Classes/RLJust:: along it. With one comma of the lattice of 3 and 5 gone, the plane of fifths and thirds becomes a chain (meantone: 81/80, so that four fifths make a major third); with two it becomes a ring, an equal division. So the temperaments stand between the lattice and the divisions: the val of 12, 19 or 31 steps goes through meantone, and what all meantones share (the pump closes, the three cycles of P, L, R all drift by one and the same diesis) is seen once, here.
+
+A strong::pitch class:: is still written as a point of the lattice, the one of its class that the echelon form of the commas picks (for meantone: 0 to 3 fifths, any number of thirds), so it reads as a ratio: 5/4, 15/8, 25/16. A strong::pitch:: has the exponent of 2 in front, as in RLJust.
+
+The commas fix which notes are the same, not how large the steps are. That is the strong::tuning::: a size for each prime under which every comma is nothing. Given none, it is the one nearest the just sizes of the primes (least squares); code::pure:: names intervals to keep exact instead, as many as the temperament leaves free.
+
+code::
+~mt = RLTempered.meantone;                       // quarter-comma: 81/80 gone, 5/4 pure
+~mt.interval([3, 2]);  ~mt.interval([5, 4]);     // [1, 0] and [0, 1]
+~mt.pcScale([1, 0], 4);                          // [0, 1]: four fifths are a major third
+~mt.pcHeight([1, 0]) * 1200;                     // 696.58: its fifth, in cents
+~mt.supports(RLEDO(31));                         // true: 31 steps are a meantone
+~mt.divisions(34);                               // [5, 7, 12, 19, 24, 26, 31]
+
+// walks: the pump closes; the three cycles end on one pitch class, the diesis
+~ctx = RLChordContext(RLChordSpace.triads(~mt));
+RLWalk(~ctx, ~ctx.space.major, [\R, \L, \R, \P, \R, \L, \R, \L]).isClosed;     // true
+~hex = RLWalk(~ctx, ~ctx.space.major, [\P, \L, \P, \L, \P, \L]);
+~hex.drift;  ~mt.cents(~hex.drift);  ~mt.commaName(~hex.drift);               // [0, -3], 41.06, diesis 128/125
+
+// between the lattice and the divisions
+~just = RLChordContext(RLChordSpace.triads(RLJust([3, 5])));
+~edo = RLChordContext(RLChordSpace.triads(RLEDO(31)));
+RLMorphism.temper(~just, ~ctx).isValid;          // true
+RLMorphism.temper(~ctx, ~edo).isValid;           // true
+
+RLTempered(RLJust([3, 5]), [[81, 80], [128, 125]]).size;      // 12: two commas gone, a division
+RLTempered.named(\pajara).divisions(60);                      // [10, 12, 20, 22, 32, 44, 54]
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: just
+An link::Classes/RLJust:: (the lattice of 3 and 5 when nil).
+argument:: commas
+The ratios tempered out, code::[numerator, denominator]:: each. A comma said twice, or one that follows from the others, counts once; commas that would make the octave nothing are refused.
+argument:: pure
+Ratios to keep exact, as many as the temperament leaves free (link::#-rank::). nil: the tuning nearest the just sizes.
+argument:: sizes
+Or the tuning itself: the size of each prime of the just system, in octaves. Refused when a comma is not nothing under it.
+
+METHOD:: meantone
+Meantone (81/80 gone) with its fifth narrowed by a fraction of the syntonic comma: 1/4 (major thirds pure, the default), 1/3 (minor thirds pure), 0 (pure fifths, the third four of them)...
+
+METHOD:: named
+A temperament by its name, in the tuning nearest just or with pure intervals: code::\meantone, \augmented, \diminished, \schismatic, \porcupine, \magic, \kleismic:: (the lattice of 3 and 5), code::\septimalMeantone, \marvel, \pajara:: (3, 5 and 7).
+
+METHOD:: known
+The names and their commas.
+
+INSTANCEMETHODS::
+
+METHOD:: just
+METHOD:: commas
+METHOD:: basis
+The lattice, the ratios tempered out, and those commas as pitches of the lattice in echelon form (what link::#-reduce:: uses).
+
+METHOD:: sizes
+The tuning: the size of each prime, in octaves.
+
+METHOD:: rank
+The directions left free among the pitch classes: 1 for meantone (a chain), 0 for a division.
+
+METHOD:: reduce
+METHOD:: reducePc
+The pitch (the pitch class) that stands for the class of a pitch (a pitch class) of the lattice.
+
+METHOD:: tempers
+Whether an interval, a ratio, is nothing here.
+
+METHOD:: commaName
+The name of the comma or small step a pitch class is here, nil for the zero. Several just commas are one pitch class once a comma is tempered out (in meantone the diesis 128/125, the major diesis 648/625, the diaschisma and the schisma): the one whose just size is nearest the size it has in this tuning is named.
+
+METHOD:: halves
+The pitch classes other than zero that are their own opposite: a tritone, when the temperament has one. They are central in a link::Classes/RLChordContext::.
+
+METHOD:: supports
+Whether an equal division tempers out every comma of this temperament: it is then one of its tunings.
+
+METHOD:: divisions
+The equal divisions up to a number of steps that do.
+
+METHOD:: temperPc
+METHOD:: temperPitch
+A pitch class or a pitch in an equal division this temperament supports, through the division's val.
+
+METHOD:: isFinite
+METHOD:: size
+METHOD:: pcs
+When the commas leave no direction free the pitch classes are a ring: an equal division, written in ratios.
+
+METHOD:: label
+A name to print.
+
+METHOD:: primes
+Those of the lattice.
+
+METHOD:: pcZero
+METHOD:: pcAdd
+METHOD:: pcNeg
+METHOD:: pcScale
+METHOD:: pc
+METHOD:: pcHeight
+METHOD:: height
+METHOD:: nearest
+METHOD:: interval
+METHOD:: pitchInterval
+METHOD:: pitchAdd
+METHOD:: pitchNeg
+METHOD:: octave
+METHOD:: name
+What every link::Classes/RLPitchSystem:: answers; pitch classes and pitches are always the reduced ones.

@@ -38,11 +38,11 @@ A Function, chord of the source -> chord of the target.
 argument:: label
 
 METHOD:: temper
-The temperament from a just context to an equal division's: roots through the val, types kept. Any other pair of systems is an Error.
+A temperament, types kept: from a just context to an equal division's (roots through the val), from a just context to a temperament's (link::Classes/RLTempered::: roots reduced by its commas), or from a temperament's to an equal division it supports. So the val of 12, 19 or 31 steps is two morphisms in a row, through meantone. Any other pair of systems is an Error.
 argument:: source
-A context on an link::Classes/RLJust::.
+A context on an link::Classes/RLJust:: or an link::Classes/RLTempered::.
 argument:: target
-A context on an link::Classes/RLEDO::.
+A context on an link::Classes/RLTempered:: of the same lattice, or on an link::Classes/RLEDO::.
 
 INSTANCEMETHODS::
 

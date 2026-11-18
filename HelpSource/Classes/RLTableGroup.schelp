@@ -1,0 +1,76 @@
+TITLE:: RLTableGroup
+summary:: A finite group given by its table: the roots of an extension when they do not commute
+categories:: Libraries>reLation
+related:: Classes/RLExtension, Classes/RLCategory, Classes/RLWreath, Guides/reLation
+
+DESCRIPTION::
+The elements are the places code::0 .. size - 1::, 0 the identity; code::table[a][b]:: is the product a b. The group answers what link::Classes/RLExtension:: asks of the roots (code::pcZero::, code::pcAdd::, code::pcNeg::...: the "sum" is the product, in that order), so a group of transformations can be the roots of a larger group. An automorphism is the list of the images of the elements, in their order.
+
+code::
+~ti = RLTableGroup.of(RLRelationContext.pitchClasses(RLEDO(12)).category);     // T and I on 12 notes
+~ti.size;  ~ti.isAbelian;                 // 24, false
+~ti.automorphisms.size;                   // 48
+~ti.center.collect { |a| ~ti.name(a) };   // the identity and the tritone
+
+RLTableGroup.dihedral(4).orders;          // [[1, 1], [2, 5], [4, 2]]
+RLTableGroup.quaternion.automorphisms.size;       // 24
+
+// T and I of 24 quarter-tones as T and I of 12 notes by two types
+~d = RLTableGroup.dihedral(12);           // r^i is T_i, s r^i is I_-i
+~quarter = Array.series(12) ++ Array.fill(12) { |i| 12 + ((i - 1) % 12) };     // every inversion moved by one
+~ext = RLExtension.general(~d, [[0, 1], [1, 0]], [~d.pcs, ~quarter], [[0, 0], [0, 1]]);
+~ext.orders == RLTableGroup.dihedral(24).orders;          // true
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: table
+The products: code::table[a][b]:: is a b. Refused when it is no group's table with its identity first.
+argument:: names
+A name for each element, for printing (their places when nil).
+
+METHOD:: cyclic
+METHOD:: dihedral
+METHOD:: quaternion
+The cyclic group of n elements; the dihedral group of 2n (code::r^i:: is i, code::s r^i:: is n + i); the quaternion group (1, -1, i, -i, j, -j, k, -k).
+
+METHOD:: of
+The group an link::Classes/RLCategory:: is, when it is one: its arrows in their order, the identity moved to the front, each named by its word.
+
+INSTANCEMETHODS::
+
+METHOD:: table
+METHOD:: names
+METHOD:: name
+METHOD:: size
+METHOD:: pcs
+The table; the names; the name of an element; how many elements; their places.
+
+METHOD:: mul
+METHOD:: inv
+METHOD:: order
+METHOD:: orders
+METHOD:: isAbelian
+METHOD:: center
+The product and the inverse; the order of an element; how many elements have each order, as code::[order, count]:: pairs; whether the group commutes; the elements that commute with all.
+
+METHOD:: inner
+The automorphism x -> a x a^-1, as the list of the images.
+
+METHOD:: isAutomorphism
+Whether a list of images is one to one and keeps the products.
+
+METHOD:: automorphisms
+Every automorphism: the images of a few generators are tried among the elements of the same order, and each choice that extends to the whole table is kept.
+
+METHOD:: generators
+METHOD:: span
+A few elements that generate the group, taken greedily; what a list of elements generates.
+
+METHOD:: pcZero
+METHOD:: pcAdd
+METHOD:: pcNeg
+METHOD:: pcSub
+METHOD:: isFinite
+What link::Classes/RLExtension:: asks of the roots: the identity, the product, the inverse.

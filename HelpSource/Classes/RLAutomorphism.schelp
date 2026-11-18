@@ -52,6 +52,15 @@ Every pitch class x of every chord turned into k - x.
 METHOD:: affine
 On pitch classes: x -> kx + c.
 
+METHOD:: all
+METHOD:: count
+Every automorphism of a context, and their number: for each automorphism N of its monoid (or for those given as code::arrowMaps::, as link::Classes/RLCategory#-automorphisms:: lists them), the one-to-one maps of the objects that turn each generator g into N(g). The images are tried object by object and a choice kept only while every pair already placed agrees; nil past code::max::.
+code::
+RLAutomorphism.count(RLRelationContext.pitchClasses(RLEDO(12)));     // 48: the maps x -> kx + c
+RLAutomorphism.count(RLRelationContext.cubeDance);                   // 7776 (some seconds): 648 for each of 12
+RLAutomorphism.all(RLRelationContext.pitchClasses(RLEDO(12))).first; // an RLAutomorphism
+::
+
 METHOD:: extend
 From a few objects and their images, the rest filled by what the invertible relations force: code::nu(m(x)) = N(m)(nu(x)):: for every relation m that can be undone.
 argument:: context

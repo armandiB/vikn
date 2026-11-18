@@ -58,13 +58,17 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
 `Math/Category_Theory/`. Start with `HelpSource/Guides/reLation.schelp`.
 
 - `reLation/Pitch`: RLPitchSystem, RLEDO (an equal division and its val), RLJust (just intonation as a
-  lattice, its commas, its maps to equal divisions), RLVoiceLeading (the least motion between voicings)
+  lattice, its commas, its maps to equal divisions), RLTempered (the lattice with some commas tempered out:
+  meantone and the other temperaments between the lattice and the divisions, with their tunings),
+  RLVoiceLeading (the least motion between voicings)
 - `reLation/Chords`: RLChordSpace (a system and its chord types), RLChord
 - `reLation/Contexts`: RLChordContext (triads moved by T, I on the left and P, L, R on the right),
   RLTransform, RLMorphism (maps between contexts: temperaments, pushed and lifted walks)
 - `reLation/Walks`: RLWalk (a start and a word; its chords, its drift, its voices, its frequencies), RLWalker
   (a chord and its voices taking one step at a time, for walks without an end: the `\freq` of a beat of reCurrent),
-  RLLattice (a walk sent to HomewareVisuals' lattice page: the plane of fifths and thirds, the torus of a division)
+  RLLattice (a walk sent to HomewareVisuals' lattice page: the plane of fifths and thirds, the torus of a division,
+  the cylinder of a temperament of one comma),
+  RLChordGraph (a graph of chords and a walk on it, with its voices, sent to the chord graph page)
 - `reLation/Relations`: RLQuantale (the values of a relation: boolean, costs, strengths), RLRelation (a
   relation between two lists, composed, compared, closed into a distance), RLCategory (what named arrows
   generate, each with a shortest word: monoids of relations, groups of transformations), RLRelationContext
@@ -73,13 +77,19 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
 - `reLation/Networks`: RLNetwork (nodes holding objects, arrows labelled with transformations or relations:
   validity, the networks of one structure, local isographies; Klumpenhouwer networks on
   `RLRelationContext.pitchClasses`), RLAutomorphism (a map of a context's objects that its relations go
-  through: a complete isography; applied again and again to a cell it makes a sequence)
+  through: a complete isography; applied again and again to a cell it makes a sequence; `all` and `count`
+  find every one of a context: 7776 for Cube Dance), RLNetworkPage (networks sent to HomewareVisuals' network
+  page, side by side)
 - `reLation/Groups`: RLExtension (chords as elements of a group once a base chord is chosen: the eight
   extensions of Z12 by Z2, two in a prime division; left and right actions, a movable base chord; other
-  (p, q) on request; also any pitch system, any number of types in a cycle, any finite type group),
-  RLWreath (Hook's uniform transformations: 288 in 12 steps for two types)
-- `reLation/Time`: RLTimeSpans (time-spans moved from both sides, after Lewin: a rhythm is a walk), RLMetre
-  (metre as a relation on a cycle of pulses; rhythmic canons)
+  (p, q) on request; also any pitch system, any number of types in a cycle, any finite type group; `all`
+  lists every extension of a division's roots by a group of types; roots that do not commute as an
+  RLTableGroup), RLTableGroup (a finite group by its table, its automorphisms),
+  RLWreath (Hook's uniform transformations: 288 in 12 steps for two types; the 17 single-voice swaps between
+  five types of seventh chords)
+- `reLation/Time`: RLTimeSpans (time-spans moved from both sides, after Lewin: a rhythm is a walk; the voices of
+  a canon as left steps), RLMetre (metre as a relation on a cycle of pulses; rhythmic canons, tilings by
+  augmentation), RLCanonPage (a canon sent to HomewareVisuals' canon page: one row of bars for each voice)
 
 Chords of any size have a context (tetrads 4:5:6:7 by `RLChordSpace.tetrads`); `RLRelationContext.preserving`
 gives Noll's monoid of a chord and the graded belonging of each pitch class to it.

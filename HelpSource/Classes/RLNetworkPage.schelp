@@ -1,0 +1,32 @@
+TITLE:: RLNetworkPage
+summary:: Networks shown on HomewareVisuals' network page: side by side, nodes holding an object and arrows with their labels
+categories:: Libraries>reLation
+related:: Classes/RLNetwork, Classes/RLAutomorphism, Classes/RCVisuals, Classes/RLChordGraph, Classes/RLLattice, Classes/RLCanonPage, Guides/reLation
+
+DESCRIPTION::
+The network page of HomewareVisuals (code::/network/::) draws transformational networks side by side, each in a frame: nodes holding an object, arrows with their labels. A network moved again and again by an automorphism (link::Classes/RLNetwork#-iterate::) is a row of frames: the same arrows, other chords in the nodes; where the automorphism changes the labels, one sees that too. The page only draws. Messages go through link::Classes/RCVisuals::.
+
+code::
+~cd = RLRelationContext.cubeDance;  ~sp = ~cd.space;
+~cell = RLNetwork.chain(~cd, [~sp.major(2), ~sp.chord(2, \aug), ~sp.minor(7)], [\U, \U]);
+~cells = ~cell.iterate(RLAutomorphism.transposition(~cd, 5), 11);          // "Take a Bow": a fourth up, 12 cells
+RLNetworkPage.show(~cells, "Take a Bow", captions: ~cells.collect { |c, k| "cell " ++ (k + 1) });
+RLNetworkPage.at(3);                                                        // the frame that plays
+::
+
+CLASSMETHODS::
+
+METHOD:: show
+argument:: networks
+One link::Classes/RLNetwork:: or a list of them, one frame each.
+argument:: title
+argument:: places
+One code::[x, y]:: for each node, between -1 and 1, y downwards, the same in every frame; round a circle when nil (link::#*places::).
+argument:: captions
+One text for each frame.
+
+METHOD:: at
+The frame that plays; nil for none.
+
+METHOD:: places
+The places of n nodes round a circle, the first at the top (three make a triangle).

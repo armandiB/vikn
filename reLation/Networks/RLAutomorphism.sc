@@ -72,6 +72,67 @@ RLAutomorphism {
 		^this.new(context, pairs, label)
 	}
 
+	// Every automorphism of a context: for each automorphism N of its monoid (or for those given, as
+	// RLCategory:automorphisms lists them), the one-to-one maps of the objects that turn each generator g into
+	// N(g). all gives them, count their number; nil past `max`. Cube Dance has 7776, 648 for each of the 12
+	// automorphisms of its monoid.
+	*all { |context, max = 20000, arrowMaps|
+		var lists = this.prSearch(context, max, arrowMaps, false), objs = context.objects;
+		^lists !? { lists.collect { |img| this.new(context, objs.collect { |x, i| [x, objs[img[i]]] }) } }
+	}
+	*count { |context, max = 1000000, arrowMaps| ^this.prSearch(context, max, arrowMaps, true) }
+
+	// The images are tried object by object, in an order where each new object is next to one already placed,
+	// and a choice is kept only while every pair of objects already placed agrees with it.
+	*prSearch { |context, max, arrowMaps, countOnly|
+		var cat = context.category, objs = context.objects, n = objs.size, names = cat.names, zero = context.quantale.zero;
+		var gens = names.collect { |g| cat.generator(g).rows }, order = [0], out = Array.new, count = 0, head = 0;
+		while { order.size < n } {
+			if(head < order.size) {
+				n.do { |y|
+					if(order.includes(y).not and: { gens.any { |m| (m[order[head]][y] != zero) or: { m[y][order[head]] != zero } } }) { order = order.add(y) };
+				};
+				head = head + 1;
+			} { order = order.add(Array.series(n).detect { |y| order.includes(y).not }) };
+		};
+		(arrowMaps ?? { cat.automorphisms }).do { |auto|
+			var targets = names.collect { |g| cat.imageOf(auto, cat.generator(g)).rows };
+			var img = Array.newClear(n), used = Array.fill(n, false), try;
+			try = { |k|
+				if(k == n) {
+					count = count + 1;
+					if(countOnly.not) { out = out.add(img.copy) };
+					if(count > max) { ^nil };
+				} {
+					var x = order[k];
+					n.do { |y|
+						if(used[y].not) {
+							var ok = true;
+							gens.do { |m, g|
+								var t = targets[g];
+								if(ok and: { m[x][x] != t[y][y] }) { ok = false };
+								if(ok) {
+									k.do { |kk|
+										var z = order[kk], w = img[z];
+										if(ok and: { (m[x][z] != t[y][w]) or: { m[z][x] != t[w][y] } }) { ok = false };
+									};
+								};
+							};
+							if(ok) {
+								img[x] = y;
+								used[y] = true;
+								try.value(k + 1);
+								used[y] = false;
+							};
+						};
+					};
+				};
+			};
+			try.value(0);
+		};
+		^if(countOnly) { count } { out }
+	}
+
 	value { |x| ^images[indexOf[x] ?? { Error("RLAutomorphism: % is not one of the context's objects".format(x)).throw }] }
 
 	// What a relation becomes: the pairs (nu(x), nu(y)) for the pairs (x, y) of the relation.

@@ -85,6 +85,26 @@ The transformation that moves nothing.
 METHOD:: k
 The contextual inversion that exchanges tones i and j of a chord of the first type (counted from 0 in its pattern).
 
+METHOD:: closedWords
+Every way round: the words of the generators, at most code::max:: long, that bring every chord back. Each is reduced (no step twice in a row, its first and last steps different), listed once among its rotations and its reading backwards, and is not a shorter one repeated; the shortest first. The same word on the lattice ends on the comma it hides.
+code::
+~ctx = RLChordContext(RLChordSpace.triads(RLEDO(12)));
+~ctx.closedWords(8).collect(_.join);       // LPLPLP, LPRLPR, LPLPRPLR, LRLRLRPR (the pump), PRPRPRPR
+~just = RLChordContext(RLChordSpace.triads(RLJust([3, 5])));
+~ctx.closedWords(8).collect { |w| ~just.system.commaName(RLWalk(~just, ~just.space.major, w).drift) };
+// diesis, nil (L P R twice closes everywhere), diesis, syntonic comma, major diesis
+RLChordContext(RLChordSpace.triads(RLEDO(31))).closedWords(8).collect(_.join);       // LPRLPR, LRLRLRPR
+::
+
+METHOD:: schritt
+METHOD:: wechsel
+Riemann's two kinds of step, by number (Hook's S and W). A schritt moves a chord of the first type up by v and a chord of the second type down by v; a wechsel sends the chord of the first type on r to the chord of the second type on r + v, and back. Both act on the right, so they commute with T and I. P, L, R and the contextual inversions are wechsels; two wechsels in a row are a schritt.
+code::
+~sevenths = RLChordContext(RLChordSpace.pair(RLEDO(12), \dom7, [0, 4, 7, 10], \hdim7));
+~sevenths.k(1, 2) == ~sevenths.wechsel(1);         // true: C7 to C# half-diminished (Childs's S3(2))
+~sevenths.schritt(3).(~sevenths.space.chord(0, \dom7));     // Eb dom7: two voices by a semitone, opposite ways (his C3(4))
+::
+
 METHOD:: define
 Names the transformation a word does.
 argument:: name

@@ -60,6 +60,15 @@ The objects next to one; how many; for every object.
 METHOD:: cost
 The cost of the edge from x to y, nil when there is none.
 
+METHOD:: cycles
+Every cycle of at most code::max:: vertices that passes no vertex twice, each once: it starts on its first vertex in the order of the vertices and, where every edge goes both ways, is listed in one direction. Cube Dance has 24 of four chords, 64 of six, 24 of eight.
+
+METHOD:: indexOf
+The place of an object among the vertices, nil when it is not one.
+
+METHOD:: edges
+Every edge as code::[i, j, cost, both ways]::, i and j places among the vertices. An edge that goes both ways is listed once, the smaller place first. What link::Classes/RLChordGraph:: sends to the chord graph page.
+
 METHOD:: distances
 The least cost from an object to every object, in the order of link::#-objects:: (inf where no walk leads).
 

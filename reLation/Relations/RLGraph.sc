@@ -59,6 +59,38 @@ RLGraph {
 	edgeCount { ^adjacency.sum(_.size).div(if(this.isSymmetric) { 2 } { 1 }) }
 	isSymmetric { ^adjacency.every { |adj, i| adj.every { |j| adjacency[j].includes(i) } } }
 
+	// The place of an object among the vertices (nil when it is not one); and every edge as
+	// [i, j, cost, both ways], i and j places among the vertices. An edge that goes both ways is listed once,
+	// the smaller place first.
+	indexOf { |x| ^index[x] }
+	edges {
+		var out = Array.new;
+		adjacency.do { |adj, i|
+			adj.do { |j, k|
+				var back = adjacency[j].includes(i);
+				if(back.not or: { i < j }) { out = out.add([i, j, costs[i][k], back]) };
+			};
+		};
+		^out
+	}
+
+	// Every cycle of at most `max` vertices that passes no vertex twice, each once: it starts on its first
+	// vertex in the order of the vertices and, where every edge goes both ways, is listed in one direction.
+	cycles { |max = 6|
+		var out = Array.new, sym = this.isSymmetric, least = if(sym) { 3 } { 2 }, go;
+		go = { |start, path|
+			adjacency[path.last].do { |j|
+				if(j == start) {
+					if((path.size >= least) and: { sym.not or: { path[1] < path.last } }) { out = out.add(path.collect { |i| objects[i] }) };
+				} {
+					if((j > start) and: { path.includes(j).not } and: { path.size < max }) { go.value(start, path ++ [j]) };
+				};
+			};
+		};
+		objects.size.do { |s| go.value(s, [s]) };
+		^out
+	}
+
 	neighbours { |x| ^adjacency[this.prIndex(x)].collect { |j| objects[j] } }
 	degree { |x| ^adjacency[this.prIndex(x)].size }
 	degrees { ^adjacency.collect(_.size) }

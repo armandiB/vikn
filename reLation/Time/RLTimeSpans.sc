@@ -22,6 +22,8 @@
 //   ~time.word([1, 0.5, 0.5, 1, 1]);                // the steps of a list of durations
 //   ~time.interval([0, 1], [3, 2]);                 // [3, 2]: three of my durations later, twice as long
 //   ~time.wait([2, 0.5], 3);                        // 2: the cue at 3 is two of this span's durations away
+//   ~time.canon(~walk.chords, [[0, 1], [0, 2]]);    // two voices: the rhythm, and the same twice as slow
+//   ~time.endTogether(~walk.chords, 0.5);           // [2, 0.5]: twice as fast, entering at 2, ends with the leader
 //
 // Transformations are RLTransforms and walks are RLWalks (their chords are the spans).
 
@@ -93,6 +95,16 @@ RLTimeSpans {
 		var out = Array.new;
 		points.doAdjacentPairs { |a, b| out = out.add([a, b - a]) };
 		^out
+	}
+
+	// A canon: one list of spans per left element [u, d], the leader's spans shifted by u and d times as slow.
+	// Every voice keeps the leader's word (the right steps between its notes).
+	canon { |spans, lefts| ^lefts.collect { |g| spans.collect { |s| this.mul(g, s) } } }
+
+	// The left element of a voice d times as slow (or as fast) that ends when the leader ends.
+	endTogether { |spans, d|
+		var end = spans.last[0] + spans.last[1];
+		^[(end * (1 - d)).round(1e-10), d]
 	}
 
 	// How long until a cue, counted in the span's own durations (the truth value of "after the cue" for

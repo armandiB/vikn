@@ -83,6 +83,15 @@ The spans between successive time points (the points of an link::Classes/RCSieve
 METHOD:: events
 Spans as code::[delta, sustain]:: pairs, the time to the next onset and the duration: what a Pbind takes.
 
+METHOD:: canon
+A canon: one list of spans per left element code::[u, d]::, the leader's spans shifted by u and d times as slow. Every voice keeps the leader's word.
+code::
+~time.canon(~time.spans([1, 0.5, 0.5, 1, 1]), [[0, 1], [0, 2], [2, 0.5]]);     // the leader, twice as slow, twice as fast from 2
+::
+
+METHOD:: endTogether
+The left element of a voice d times as slow (or as fast) that ends when the leader ends.
+
 METHOD:: wait
 How long until a cue, counted in the span's own durations; negative once the cue is past. The truth value of "after the cue" for time-spans.
 

@@ -22,10 +22,10 @@ Coordinates are plain data, read by the system they belong to; everything with r
 
 table::
 ## what || how it is written || its rules
-## a pitch class || an Integer in RLEDO (code::7::), an Array of exponents in RLJust (code::[1, 0]::, one per odd prime) || belongs to one system; add and compare through it (code::pcAdd::, code::cents::)
-## a pitch || an Integer of steps in RLEDO, code::[e2, e3, e5]:: in RLJust || code::system.height(pitch):: is its place in octaves above the origin
+## a pitch class || an Integer in RLEDO (code::7::), an Array of exponents in RLJust (code::[1, 0]::, one per odd prime), the same in RLTempered, reduced by its commas || belongs to one system; add and compare through it (code::pcAdd::, code::cents::), never with code::+::
+## a pitch || an Integer of steps in RLEDO, code::[e2, e3, e5]:: in RLJust and RLTempered || code::system.height(pitch):: is its place in octaves above the origin
 ## a voicing || an Array of pitches, one per voice || voice i stays voice i; never sorted
-## a pitch system || code::RLEDO(19)::, code::RLJust([3, 5]):: || a value
+## a pitch system || code::RLEDO(19)::, code::RLJust([3, 5])::, code::RLTempered.meantone:: || a value
 ## a chord || link::Classes/RLChord::: a root (a pitch class) and a type || the type is one of its space's; no octave, no voicing; prints as its name
 ## a chord space || link::Classes/RLChordSpace::: a system and its chord types || a type is a name and a pattern, root first
 ## a context || link::Classes/RLChordContext:: || needs a triad and its inversion
@@ -100,6 +100,19 @@ code::
 ~hexatonic = RLWalk.cycle(~ctx, ~c, [\P, \L]);
 ~temper.lift(~hexatonic).drift;                  // [0, -3]: the diesis
 ~just.system.kernel(RLEDO(12), 4).collect { |x| ~just.system.commaName(x) };
+::
+
+link::Classes/RLChordContext#-closedWords:: lists every way round of a context up to a length: in 12 steps and at most eight, the hexatonic cycle, L P R twice, one more word, the pump and the octatonic cycle; in 19 and 31 only L P R twice and the pump. The same words on the lattice end on the commas each division hides, except L P R twice, which closes everywhere.
+
+Between the lattice and a division stand the temperaments that give up some commas and not all (link::Classes/RLTempered::). Meantone gives up the syntonic comma: the plane of fifths and thirds becomes a chain of fifths, of which 12, 19 and 31 steps are tunings. What they share is seen there once: the pump closes whatever the fifth, and the three cycles all end on one pitch class, the diesis, which is one step in 19 and in 31 and nothing in 12.
+
+code::
+~mt = RLChordContext(RLChordSpace.triads(RLTempered.meantone));         // quarter-comma
+RLMorphism.temper(~just, ~mt).isValid;                                  // true: the lattice to meantone
+RLMorphism.temper(~mt, ~ctx).isValid;                                   // true: meantone to 12 steps
+~drift = RLWalk(~mt, ~mt.space.major, [\P, \L, \P, \L, \P, \L]).drift;  // [0, -3]
+~mt.system.cents(~drift);  ~mt.system.commaName(~drift);                // 41.06 cents, the diesis 128/125
+RLTempered.meantone.divisions(34);                                      // [5, 7, 12, 19, 24, 26, 31]
 ::
 
 section:: Voices
@@ -220,6 +233,16 @@ code::
 ~w.order([[9, 8], [1, 0]]);                           // 24: R and L in turn, through every triad
 ::
 
+The eight groups need not be given: link::Classes/RLExtension#*all:: lists every extension of a division's roots by a group of types, each action with each class of cocycles. And the roots themselves may be a group that does not commute, given by its table (link::Classes/RLTableGroup::): the 48 transformations of 24 quarter-tones are T and I of 12 notes by two types, "on the grid" and "a quarter-tone off".
+
+code::
+RLExtension.all(RLEDO(12), [[0, 1], [1, 0]]).collect(_.orders);      // eight lists of orders: the eight groups
+~d = RLTableGroup.dihedral(12);                                      // T and I of 12 notes
+~quarter = Array.series(12) ++ Array.fill(12) { |i| 12 + ((i - 1) % 12) };
+~q = RLExtension.general(~d, [[0, 1], [1, 0]], [~d.pcs, ~quarter], [[0, 0], [0, 1]]);
+~q.order([0, 1]);                                                    // 24: a quarter-tone
+::
+
 section:: Chords of four tones
 
 A chord context takes a chord type of any size with its inversion. link::Classes/RLChordSpace#*tetrads:: is the tetrad nearest 4:5:6:7 and the same upside down: a dominant and a half-diminished seventh in 12 steps, exact on the lattice of 3, 5 and 7. Each pair of tones gives one contextual inversion (K01, K02...; P, L, R are the three of a triad), and two in a row transpose a chord, so the commas of the 7-limit are short walks.
@@ -234,6 +257,17 @@ RLWalk(~t12, ~t12.space.otonal(0), ~word).isClosed;  // true
 RLRelationContext.powerTowers.graph.size;    // 39 seventh chords, one voice by a semitone
 ::
 
+In 12 steps the moves between a dominant and a half-diminished seventh that keep two tones and move two by a semitone are Childs's operations. They are steps of this context on the right: six wechsels (five contextual inversions, and the sixth after a tritone) when the two voices go the same way, three schritts (by 3, 6, 9) when they go opposite ways (link::Classes/RLChordContext#-wechsel::). Together they are the nine edges at each chord of Pipeline (link::Classes/RLRelationContext#*pipeline::).
+
+The other seventh chords (major, minor, diminished) are their own inversions, so they have no chord context. They come as relations (Power Towers above) and as uniform transformations: link::Classes/RLWreath#-census:: finds, between five types, the 17 swaps that move one voice by one or two semitones (Cannas, Antonini and Pernazza), which generate every permutation of the types with every list of shifts that sums to zero.
+
+code::
+~t12.k(1, 2) == ~t12.wechsel(1);             // true: C7 to C# half-diminished
+~t12.schritt(3).(~t12.space.otonal(0));      // Eb7: two voices by a semitone, opposite ways
+RLRelationContext.pipeline.graph.degrees.asSet;     // Set[9]
+RLWreath(12, 5).census(RLChordSpace.sevenths).size; // 17
+::
+
 section:: Time
 
 Time-spans (link::Classes/RLTimeSpans::) are moved from both sides as triads are: on the left everything is stretched and shifted, on the right each span moves by its own duration. A rhythm is a walk, and the same word from another span is the same rhythm at another time and tempo. Metre is a relation (link::Classes/RLMetre::), with shifts and dilations as its automorphisms, and a canon a pair of sets that tile the cycle.
@@ -244,6 +278,14 @@ code::
 ~rhythm.chords;                                            // [0, 1], [1, 0.5], [1.5, 0.5], [2, 1], [3, 2]
 RLWalk(~time, [0, 1.5], ~rhythm.word).chords;              // the same, one and a half times slower
 RLMetre(12).complements([0, 1, 5]);                        // [[0, 3, 6, 9]]
+::
+
+The voices of a canon are one rhythm under several left steps: code::[u, d]:: is the rhythm shifted by u and d times as slow. A canon by augmentation can tile the pulses too, each voice at its own speed.
+
+code::
+~time.canon(~rhythm.chords, [[0, 1], [0, 2]]);             // two voices: the rhythm, and the same twice as slow
+~time.endTogether(~rhythm.chords, 0.5);                    // [2.5, 0.5]: twice as fast, entering at 2.5, ends with it
+RLMetre.perfect([0, 1, 2], 5);                             // 15 pulses, three notes in a row at the stretches 1, 2, 4, 5, 7
 ::
 
 section:: Graded belonging
@@ -274,7 +316,26 @@ code::
 ~beat.set(\dur_flex, ~rhythm.chords.collect(_[1]));
 ::
 
-HomewareSC's code::Math/Category_Theory/studies/:: holds the studies rendered offline and measured (one walk in 12, 19, 31 steps and just intonation; walks on chord graphs; networks moved by automorphisms; tetrads).
+HomewareSC's code::Math/Category_Theory/studies/:: holds the studies rendered offline and measured (one walk in 12, 19, 31 steps and just intonation; walks on chord graphs; networks moved by automorphisms; tetrads; canons).
+
+section:: Pictures
+
+Pages of HomewareVisuals draw what the classes compute, fed through link::Classes/RCVisuals:: (at once, or from a beat as each chord sounds):
+
+list::
+## the canon page (code::/canon/::, link::Classes/RLCanonPage::): a canon as bars, one row for each voice, and which voice starts a note on each pulse;
+## the network page (code::/network/::, link::Classes/RLNetworkPage::): networks side by side, a network moved again and again by an automorphism as a row of frames;
+## the lattice page (code::/lattice/::, link::Classes/RLLattice::): a walk of triads on the plane of fifths and major thirds, and wrapped into the torus of an equal division;
+## the chord graph page (code::/chordgraph/::, link::Classes/RLChordGraph::): any link::Classes/RLGraph:: laid out here (by voice-leading zones, on a circle...), a walk lighting its edges, the voices below.
+::
+
+code::
+RLLattice.show(~pump);
+~cd = RLRelationContext.cubeDance;  ~g = RLGraph.voiceLeading(~cd.union);
+RLChordGraph.show(~g, \zones, "Cube Dance", ~cd);
+~path = ~g.hamiltonianCycle;
+RLChordGraph.walk(~g, ~path, RLVoiceLeading.through(~path, [60, 64, 67]));
+::
 
 section:: Tests
 

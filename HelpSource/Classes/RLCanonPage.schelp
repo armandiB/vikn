@@ -1,0 +1,44 @@
+TITLE:: RLCanonPage
+summary:: A canon shown on HomewareVisuals' canon page: one row of bars for each voice
+categories:: Libraries>reLation
+related:: Classes/RLTimeSpans, Classes/RLMetre, Classes/RCVisuals, Classes/RLChordGraph, Classes/RLLattice, Guides/reLation
+
+DESCRIPTION::
+The canon page of HomewareVisuals (code::/canon/::) draws a canon as bars: each voice a row, each note a bar from its onset to its end, at a height inside the row when one is given. With a count of pulses, a line under the rows shows which voice starts a note on each pulse: a tiling canon fills it, one voice per pulse, and a pulse sounded by none or by several is marked. The page only draws; the spans are computed here (link::Classes/RLTimeSpans#-canon::). Messages go through link::Classes/RCVisuals::.
+
+code::
+~time = RLTimeSpans.new;
+~subject = ~time.spans([1, 0.5, 0.5, 1, 1, 0.5, 0.5, 1, 2]);
+RLCanonPage.canon(~subject, [[0, 1], [8, 1], [0, 2]], title: "a canon in augmentation");
+
+~pair = RLMetre.perfect([0, 1, 2], 5).first;            // [stretches, entries]
+RLCanonPage.canon([[0, 1], [1, 1], [2, 1]], ~pair[1].collect { |u, i| [u, ~pair[0][i]] }, pulses: 15);
+RLCanonPage.head(4);                                     // a line at beat 4
+::
+
+CLASSMETHODS::
+
+METHOD:: canon
+One rhythm under several left steps code::[u, d]:: of the time-spans group: each voice the spans shifted by u and d times as slow, its row named by its step.
+argument:: spans
+The rhythm, code::[onset, duration]:: each, in beats.
+argument:: lefts
+One left step for each voice.
+argument:: heights
+argument:: pulses
+argument:: title
+As for link::#*show::.
+
+METHOD:: show
+argument:: voices
+For each voice its spans.
+argument:: names
+A name for each row.
+argument:: heights
+For each voice one number for each note (pitches, for one), scaled together to the height of a row; nil for bars in the middle of their rows.
+argument:: pulses
+How many pulses the line of pulses has, or code::[count, beats in a pulse]::; nil for no line.
+argument:: title
+
+METHOD:: head
+A line at a beat, where the playing is; nil takes it away.

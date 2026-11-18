@@ -79,11 +79,20 @@ RLChordContext {
 	center {
 		^if(system.isFinite) {
 			system.pcs.select { |v| (v != system.pcZero) and: { this.isCentral([v, 0]) } }.collect { |v| [v, 0] }
-		} { [] }
+		} {
+			// a temperament that is not finite can still have a tritone (RLTempered:halves)
+			if(system.respondsTo(\halves)) { system.halves.collect { |v| [v, 0] } } { [] }
+		}
 	}
 
-	// An order on the elements of a finite system, for a transformation's canonical form.
-	prBefore { |g, h| ^(g[1] < h[1]) or: { (g[1] == h[1]) and: { g[0] < h[0] } } }
+	// An order on the elements, for a transformation's canonical form: by type, then by root (a root that is
+	// an Array, coordinate by coordinate).
+	prBefore { |g, h|
+		var a = g[0].asArray, b = h[0].asArray, i;
+		if(g[1] != h[1]) { ^g[1] < h[1] };
+		i = a.detectIndex { |x, k| x != b[k] };
+		^i.notNil and: { a[i] < b[i] }
+	}
 
 	// chords as elements, and back
 	element { |chord| ^[chord.root, chord.typeIndex] }
@@ -95,6 +104,13 @@ RLChordContext {
 	p { ^named[\P] }
 	l { ^named[\L] }
 	r { ^named[\R] }
+
+	// Riemann's two kinds of step, by number (Hook's S and W): a schritt moves a chord of the first type up by
+	// v and a chord of the second type down by v; a wechsel sends the chord of the first type on r to the
+	// chord of the second type on r + v, and back. Both act on the right: they commute with T and I. P, L, R
+	// and the contextual inversions K are wechsels, their products two by two schritts.
+	schritt { |v| ^RLTransform(this, nil, [v, 0], "S" ++ this.prLabel(v)) }
+	wechsel { |v| ^RLTransform(this, nil, [v, 1], "W" ++ this.prLabel(v)) }
 
 	prLabel { |v| ^if(v.isKindOf(SequenceableCollection)) { "(" ++ v.join(" ") ++ ")" } { v.asString } }
 
@@ -122,6 +138,40 @@ RLChordContext {
 	}
 
 	prResolve { |w| ^if(w.isKindOf(RLTransform)) { w } { this.transform(w) } }
+
+	// Every way round: the words of the generators, at most `max` long, that bring every chord back. Each is
+	// reduced (no step twice in a row, its first and last steps different), listed once among its rotations
+	// and its reading backwards, and is not a shorter one repeated; the shortest first. In 12 steps: P L three
+	// times, P R four times, the pump ... Their lifts to the lattice end on the commas the division tempers
+	// out; L P R twice closes in every system and hides none.
+	closedWords { |max = 8|
+		var gens = generatorNames.copy.sort, rights = gens.collect { |g| named[g].right }, id = this.identity;
+		var found = Array.new, keys = Set.new, key, grow;
+		key = { |w|
+			var all = Array.new;
+			[w, w.reverse].do { |v| v.size.do { |i| all = all.add(v.rotate(i.neg).join(",")) } };
+			all.minItem
+		};
+		grow = { |word, g, length|
+			if(word.size == length) {
+				if((g == id) and: { word.first != word.last }) {
+					var k = key.(word), repeated = false;
+					Array.series((length - 2).max(0), 2).do { |part|
+						if(((length % part) == 0) and: { word == word.keep(part).wrapExtend(length) } and: { keys.includes(key.(word.keep(part))) }) { repeated = true };
+					};
+					if(repeated.not and: { keys.includes(k).not }) { keys.add(k); found = found.add([length, k]) };
+				};
+			} {
+				gens.size.do { |i|
+					if(word.isEmpty or: { word.last != i }) { grow.value(word ++ [i], this.mul(g, rights[i]), length) };
+				};
+			};
+		};
+		Array.series((max - 1).max(0), 2).do { |length| grow.value([], id, length) };
+		^found.sort { |a, b| (a[0] < b[0]) or: { (a[0] == b[0]) and: { a[1] <= b[1] } } }.collect { |pair|
+			pair[1].split($,).collect { |i| gens[i.asInteger] }
+		}
+	}
 
 	generators { ^generatorNames }
 	names { ^named.keys.asArray.sort }
