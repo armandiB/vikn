@@ -102,6 +102,8 @@ code::
 ~just.system.kernel(RLEDO(12), 4).collect { |x| ~just.system.commaName(x) };
 ::
 
+link::Classes/RLChordContext#-closedWords:: lists every way round of a context up to a length: in 12 steps and at most eight, the hexatonic cycle, L P R twice, one more word, the pump and the octatonic cycle; in 19 and 31 only L P R twice and the pump. The same words on the lattice end on the commas each division hides, except L P R twice, which closes everywhere.
+
 Between the lattice and a division stand the temperaments that give up some commas and not all (link::Classes/RLTempered::). Meantone gives up the syntonic comma: the plane of fifths and thirds becomes a chain of fifths, of which 12, 19 and 31 steps are tunings. What they share is seen there once: the pump closes whatever the fifth, and the three cycles all end on one pitch class, the diesis, which is one step in 19 and in 31 and nothing in 12.
 
 code::

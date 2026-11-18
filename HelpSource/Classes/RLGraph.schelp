@@ -60,6 +60,9 @@ The objects next to one; how many; for every object.
 METHOD:: cost
 The cost of the edge from x to y, nil when there is none.
 
+METHOD:: cycles
+Every cycle of at most code::max:: vertices that passes no vertex twice, each once: it starts on its first vertex in the order of the vertices and, where every edge goes both ways, is listed in one direction. Cube Dance has 24 of four chords, 64 of six, 24 of eight.
+
 METHOD:: indexOf
 The place of an object among the vertices, nil when it is not one.
 

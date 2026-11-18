@@ -139,6 +139,40 @@ RLChordContext {
 
 	prResolve { |w| ^if(w.isKindOf(RLTransform)) { w } { this.transform(w) } }
 
+	// Every way round: the words of the generators, at most `max` long, that bring every chord back. Each is
+	// reduced (no step twice in a row, its first and last steps different), listed once among its rotations
+	// and its reading backwards, and is not a shorter one repeated; the shortest first. In 12 steps: P L three
+	// times, P R four times, the pump ... Their lifts to the lattice end on the commas the division tempers
+	// out; L P R twice closes in every system and hides none.
+	closedWords { |max = 8|
+		var gens = generatorNames.copy.sort, rights = gens.collect { |g| named[g].right }, id = this.identity;
+		var found = Array.new, keys = Set.new, key, grow;
+		key = { |w|
+			var all = Array.new;
+			[w, w.reverse].do { |v| v.size.do { |i| all = all.add(v.rotate(i.neg).join(",")) } };
+			all.minItem
+		};
+		grow = { |word, g, length|
+			if(word.size == length) {
+				if((g == id) and: { word.first != word.last }) {
+					var k = key.(word), repeated = false;
+					Array.series((length - 2).max(0), 2).do { |part|
+						if(((length % part) == 0) and: { word == word.keep(part).wrapExtend(length) } and: { keys.includes(key.(word.keep(part))) }) { repeated = true };
+					};
+					if(repeated.not and: { keys.includes(k).not }) { keys.add(k); found = found.add([length, k]) };
+				};
+			} {
+				gens.size.do { |i|
+					if(word.isEmpty or: { word.last != i }) { grow.value(word ++ [i], this.mul(g, rights[i]), length) };
+				};
+			};
+		};
+		Array.series((max - 1).max(0), 2).do { |length| grow.value([], id, length) };
+		^found.sort { |a, b| (a[0] < b[0]) or: { (a[0] == b[0]) and: { a[1] <= b[1] } } }.collect { |pair|
+			pair[1].split($,).collect { |i| gens[i.asInteger] }
+		}
+	}
+
 	generators { ^generatorNames }
 	names { ^named.keys.asArray.sort }
 
