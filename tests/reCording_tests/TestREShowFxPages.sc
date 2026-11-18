@@ -300,7 +300,7 @@ TestREShowFxPages : UnitTest {
 	test_graph {
 		var p = REShowFxPages((device: "No Such Device", chain: ["comp", "warp", "blur2"],
 			nodes: (cut: "alpha", comp: "blend", blur2: "blur"),
-			inputs: (setting: "main", clip: "video:/recordings/x.mp4"),
+			inputs: (setting: "main", clip: "video:/recordings/x.mp4:follow:1.5"),
 			wires: ('comp.b': "cut", 'cut.in': "setting"),
 			out: "blur2", look: (layers: 1),
 			set: (kaleidoscope: (seam: 1), comp: (mix: 1)),
@@ -317,7 +317,7 @@ TestREShowFxPages : UnitTest {
 		at = { |path| paths.indexOfEqual(path) };
 		this.assertEquals(sent.first, ["/fx/clear"]);
 		this.assertEquals(sent.select { |m| m[0] == "/fx/node" }, [["/fx/node", "blur2", "blur"], ["/fx/node", "comp", "blend"], ["/fx/node", "cut", "alpha"]], "the nodes, by name");
-		this.assertEquals(sent.select { |m| m[0] == "/fx/input" }, [["/fx/input", "clip", "video", "/recordings/x.mp4"], ["/fx/input", "setting", "main"]]);
+		this.assertEquals(sent.select { |m| m[0] == "/fx/input" }, [["/fx/input", "clip", "video", "/recordings/x.mp4", "follow", 1.5], ["/fx/input", "setting", "main"]], "a video that follows: its mode and its offset after the path");
 		this.assertEquals(sent.select { |m| m[0] == "/fx/wire" }, [["/fx/wire", "comp", "b", "cut"], ["/fx/wire", "cut", "in", "setting"]]);
 		this.assertEquals(sent.select { |m| m[0] == "/fx/out" }, [["/fx/out", "blur2"]]);
 		this.assertEquals(sent.select { |m| m[0] == "/fx/look" }, [["/fx/look", "layers", 1]]);

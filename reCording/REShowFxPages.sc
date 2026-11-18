@@ -52,7 +52,8 @@
 // The graph (the effects engine's w1), each sent before the chain with every state:
 //   "nodes": { "blur2": "blur" }               /fx/node: nodes of one's own; a page or a chain names them as effects,
 //                                              and a node without a layout of its own takes its effect's
-//   "inputs": { "setting": "main", "clip": "video:/recordings/x.mp4" }      /fx/input: source nodes
+//   "inputs": { "setting": "main", "clip": "video:/recordings/x.mp4" }      /fx/input: source nodes (a video held to
+//                                              the page's own: "video:/recordings/x.mp4:follow:0", the offset in seconds)
 //   "wires": { "comp.b": "cut", "cut.in": "colours" }                       /fx/wire <node> <port> <source>
 //   "out": "comp"                              /fx/out
 //   "look": { "layers": 1 }                    /fx/look
@@ -124,9 +125,9 @@ REShowFxPages {
 		var sorted = { |d| (d ? ()).keys.asArray.collect(_.asString).sort.collect { |k| [k, (d ? ())[k.asSymbol]] } };
 		var split = { |k| var i = k.findBackwards("."); if(i.isNil) { [k, ""] } { [k.copyRange(0, i - 1), k.copyToEnd(i + 1)] } };
 		nodes = sorted.(spec[\nodes]).collect { |p| [p[0], p[1].asString] };
-		inputs = sorted.(spec[\inputs]).collect { |p|
-			var s = p[1].asString, i = s.find(":");
-			if(i.isNil) { [p[0], s] } { [p[0], s.copyRange(0, i - 1), s.copyToEnd(i + 1)] }
+		inputs = sorted.(spec[\inputs]).collect { |p|   // "kind", "kind:address", a video's "kind:address:follow:offset"
+			var parts = p[1].asString.split($:);
+			[p[0]] ++ parts.collect { |x, i| if(i == 3) { x.asFloat } { x } }
 		};
 		wires = sorted.(spec[\wires]).collect { |p| split.(p[0]) ++ [p[1].asString] };
 		looks = sorted.(spec[\look]);
