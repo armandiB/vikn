@@ -63,10 +63,10 @@ RLWalker {
 	}
 
 	// A shadow on the just lattice that takes every step the walker takes, from 1/1 (or from a chord given):
-	// where the walk really goes, for the lattice page (RLLattice). For walkers of a chord context of triads,
-	// stepped by names.
+	// where the walk really goes, for the lattice page (RLLattice). For walkers of a chord context of triads
+	// (the lattice of 3 and 5) or of the tetrads 4:5:6:7 (the lattice of 3, 5 and 7), stepped by names.
 	follow { |start|
-		var just = RLChordContext(RLChordSpace.triads(RLJust([3, 5])));
+		var just = RLLattice.just(chord);
 		shadow = RLWalker(just, start ?? { just.space.chord(just.system.pcZero, chord.type) });
 	}
 	// The walker's chord on the lattice: its shadow's, or its own when it stands there itself.

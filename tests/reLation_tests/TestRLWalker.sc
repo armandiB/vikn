@@ -60,7 +60,7 @@ TestRLWalker : UnitTest {
 		var got = Array.new, saved = RCVisuals.sink, walker, up, mean;
 		RCVisuals.sink = { |path, args| got = got.add([path] ++ args) };
 		up = RLLattice.show(RLWalk(ctx, c, pump));
-		this.assertEquals(got[0], ['/lattice/config', 12, 7, 4], "the division: its steps, its fifth, its major third");
+		this.assertEquals(got[0], ['/lattice/config', 12, 7, 4, 10], "the division: its steps, its fifth, its major third, its harmonic seventh");
 		this.assertEquals(got[1], ['/lattice/clear'], "then a clear");
 		this.assertEquals(got.drop(2).size, 9, "then the nine chords of the lift");
 		this.assertEquals(got.last, ['/lattice/chord', -4, 1, 0, 8], "the last one four fifths down and a third up: a syntonic comma from the start");
@@ -77,6 +77,29 @@ TestRLWalker : UnitTest {
 		this.assertEquals(got[0], ['/lattice/comma', 4, -1], "a temperament of one comma: the comma, for the cylinder");
 		this.assertEquals(got.last, ['/lattice/chord', -4, 1, 0, 8], "then the lift, as for a division");
 		this.assertException({ RLLattice.config(RLTempered.named(\pajara)) }, Error, "a temperament the page cannot draw is refused");
+		RCVisuals.sink = saved;
+	}
+
+	// tetrads on the lattice of 3, 5 and 7: the page's third axis (PROGRESS.md, "Seventh chords and 7-limit
+	// tetrads": the marvel walk ends 225/224 from its start)
+	test_tetrads_on_the_lattice_page {
+		var got = Array.new, saved = RCVisuals.sink, four = RLChordContext(RLChordSpace.tetrads(RLEDO(31))), up, walker;
+		var marvel = [\K12, \K01, \K12, \K01, \K12, \K02, \K12, \K02, \K01, \K13];
+		RCVisuals.sink = { |path, args| got = got.add([path] ++ args) };
+		up = RLLattice.show(RLWalk(four, four.space.otonal, marvel));
+		this.assertEquals(got[0], ['/lattice/config', 31, 18, 10, 25], "31 steps: its fifth, its major third, its harmonic seventh");
+		this.assertEquals(got.drop(2).size, 11, "the eleven chords of the lift");
+		this.assertEquals(got[2], ['/lattice/tetrad', 0, 0, 0, 0, 0], "the otonal tetrad on 1/1");
+		this.assertEquals(got[3], ['/lattice/tetrad', 1, 1, -1, 1, 1], "K12: the utonal tetrad whose root is 15/14");
+		this.assertEquals(got[4], ['/lattice/tetrad', 1, 0, 0, 0, 2], "then K01: a fifth up");
+		this.assertEquals(got.last, ['/lattice/tetrad', 2, 2, -1, 0, 10], "the last one two fifths and two thirds up, a seventh down: 225/224");
+		this.assertEquals(up.drift, [2, 2, -1], "the lift is returned");
+		walker = RLWalker(four, four.space.otonal).follow;
+		marvel.do { |name| walker.step(name) };
+		this.assertEquals([walker.chord, walker.latticeChord.root], [four.space.otonal, [2, 2, -1]], "a walker's shadow: back on its chord in 31 steps, a comma away on the lattice");
+		this.assertEquals(RLLattice.args(walker.latticeChord, walker.count), [2, 2, -1, 0, 10], "what a beat sends for it");
+		this.assertEquals(RLLattice.path(walker.latticeChord), '/lattice/tetrad', "to the tetrads' message");
+		this.assertException({ RLLattice.args(four.space.otonal) }, Error, "a tetrad that is not on the lattice is refused");
 		RCVisuals.sink = saved;
 	}
 
