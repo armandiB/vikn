@@ -68,6 +68,19 @@ RLRelationContext {
 		^this.new(chords, [[\U, u], [\P, p], [\L, l]].collect { |pair| [pair[0], RLRelation.fromPairs(chords, chords, pair[1])] }, nil, sp)
 	}
 
+	// The chords of a space, each once, joined when the voices of one reach the other by these moves ([1]: one
+	// voice by one step of the division): the relation is named S. The graphs of Douthett and Steinbach.
+	*singleStep { |space, moves = #[1], name = \S|
+		var chords = space.distinct;
+		^this.new(chords, [[name, RLRelation.voiceMoves(chords, moves)]], nil, space)
+	}
+
+	// Power Towers: the 36 dominant, minor and half-diminished seventh chords of 12 steps and the 3 diminished
+	// sevenths, one voice by one semitone.
+	*powerTowers {
+		^this.singleStep(RLChordSpace(RLEDO(12), [[\dom7, [0, 4, 7, 10]], [\min7, [0, 3, 7, 10]], [\hdim7, [0, 3, 6, 10]], [\dim7, [0, 3, 6, 9]]]))
+	}
+
 	// The pitch classes of an equal division under transposition and inversion: T0, T1 ... and I0, I1 ...
 	// by name (I5 sends x to 5 - x), T1 and I0 as generators. Klumpenhouwer networks live here.
 	*pitchClasses { |system|

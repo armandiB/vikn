@@ -56,6 +56,15 @@ Cube Dance in an link::Classes/RLEDO:: of 3k steps (12 when none is given), with
 METHOD:: triads
 The 2n triads nearest 4:5:6 of an equal division under P, L, R, each a relation with one image: the chicken-wire graph in 12 steps.
 
+METHOD:: singleStep
+The chords of a space, each once, joined when the voices of one reach the other by given moves (code::[1]::, one voice by one step, when not said); the relation is named S. Douthett and Steinbach's graphs for any family of chords.
+argument:: space
+argument:: moves
+argument:: name
+
+METHOD:: powerTowers
+Power Towers: the 36 dominant, minor and half-diminished seventh chords of 12 steps and the 3 diminished sevenths, one voice by one semitone. 39 chords, 72 edges; the steps between two chords are their least voice leading, for all 741 pairs.
+
 METHOD:: pitchClasses
 The pitch classes of an equal division under transposition and inversion, named code::\T0::, code::\T1::... and code::\I0::, code::\I1::... (I5 sends x to 5 - x), with T1 and I0 as generators. Klumpenhouwer networks live here (link::Classes/RLNetwork::).
 

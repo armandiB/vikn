@@ -24,7 +24,8 @@ RLJust : RLPitchSystem {
 			[[25, 24], "chromatic semitone"], [[16, 15], "diatonic semitone"], [[10, 9], "minor tone"],
 			[[9, 8], "major tone"], [[250, 243], "porcupine comma"], [[3125, 3072], "magic comma"],
 			[[15625, 15552], "kleisma"], [[64, 63], "septimal comma"], [[36, 35], "septimal quarter tone"],
-			[[225, 224], "marvel comma"], [[126, 125], "starling comma"], [[2401, 2400], "breedsma"]
+			[[225, 224], "marvel comma"], [[126, 125], "starling comma"], [[2401, 2400], "breedsma"],
+			[[50, 49], "jubilisma"], [[49, 48], "slendro diesis"], [[21, 20], "minor semitone"], [[28, 27], "septimal third tone"]
 		];
 	}
 

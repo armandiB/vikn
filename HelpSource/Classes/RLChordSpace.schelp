@@ -42,10 +42,25 @@ A just ratio, 5/4 by default.
 argument:: fifth
 3/2 by default.
 
+METHOD:: pair
+A chord type and the same turned upside down between its root and its top tone: what an link::Classes/RLChordContext:: asks for, with chords of any size.
+argument:: system
+argument:: name
+argument:: pattern
+The pitch classes of the first type above its root, root first.
+argument:: inverseName
+
+METHOD:: tetrads
+The tetrad nearest 4:5:6:7, named code::\otonal::, and its inversion, code::\utonal::: in 12 steps a dominant seventh code::[0, 4, 7, 10]:: and a half-diminished seventh code::[0, 3, 6, 10]::; on code::RLJust([3, 5, 7]):: 1/1, 5/4, 3/2, 7/4 and 1/1, 7/6, 7/5, 7/4. A lattice without the prime 7 is an Error.
+
 INSTANCEMETHODS::
 
 METHOD:: system
 METHOD:: types
+
+METHOD:: otonal
+METHOD:: utonal
+The chord of that type on a root (the origin when none is given), in a space of tetrads.
 
 METHOD:: typeNames
 METHOD:: typeIndex
