@@ -231,6 +231,16 @@ code::
 ~w.order([[9, 8], [1, 0]]);                           // 24: R and L in turn, through every triad
 ::
 
+The eight groups need not be given: link::Classes/RLExtension#*all:: lists every extension of a division's roots by a group of types, each action with each class of cocycles. And the roots themselves may be a group that does not commute, given by its table (link::Classes/RLTableGroup::): the 48 transformations of 24 quarter-tones are T and I of 12 notes by two types, "on the grid" and "a quarter-tone off".
+
+code::
+RLExtension.all(RLEDO(12), [[0, 1], [1, 0]]).collect(_.orders);      // eight lists of orders: the eight groups
+~d = RLTableGroup.dihedral(12);                                      // T and I of 12 notes
+~quarter = Array.series(12) ++ Array.fill(12) { |i| 12 + ((i - 1) % 12) };
+~q = RLExtension.general(~d, [[0, 1], [1, 0]], [~d.pcs, ~quarter], [[0, 0], [0, 1]]);
+~q.order([0, 1]);                                                    // 24: a quarter-tone
+::
+
 section:: Chords of four tones
 
 A chord context takes a chord type of any size with its inversion. link::Classes/RLChordSpace#*tetrads:: is the tetrad nearest 4:5:6:7 and the same upside down: a dominant and a half-diminished seventh in 12 steps, exact on the lattice of 3, 5 and 7. Each pair of tones gives one contextual inversion (K01, K02...; P, L, R are the three of a triad), and two in a row transpose a chord, so the commas of the 7-limit are short walks.

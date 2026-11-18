@@ -17,6 +17,18 @@
 //                                               number of types. q is a multiplier, or on a lattice a matrix; a
 //                                               group when q taken `types` times is the identity and q keeps p.
 //   RLExtension.general(system, table, phi, zeta)   any finite group of types, by its table.
+//   RLExtension.all(RLEDO(12), table)           every extension of a division's roots by a group of types: each
+//                                               action with each class of cocycles (the eight groups come out).
+//
+// The roots may also be a group that does not commute, given by its table (RLTableGroup), with phi a list of
+// automorphisms (each the images of the elements) and zeta elements: the product is the same,
+// [n1 phi(h1)(n2) zeta(h1, h2), h1 h2], and the conditions are Schreier's. An element is then no chord: the group
+// acts on its own elements. The 48 transformations of 24 quarter-tones are T and I of 12 notes by two types:
+//
+//   ~ti = RLTableGroup.dihedral(12);          // r^i is T_i, s r^i is I_-i
+//   ~quarter = Array.series(12) ++ Array.fill(12) { |i| 12 + ((i - 1) % 12) };      // I_k to I_k+1: a quarter-tone up, then back
+//   ~ext = RLExtension.general(~ti, [[0, 1], [1, 0]], [~ti.pcs, ~quarter], [[0, 0], [0, 1]]);
+//   ~ext.orders == RLTableGroup.dihedral(24).orders;          // true
 //
 //   ~ext = RLExtension(12, 2, 7);
 //   ~ext.orders;                              // [[1, 1], [2, 1], [3, 2], [4, 6], [6, 2], [12, 12]]: Z3 x Q8
@@ -63,6 +75,78 @@ RLExtension {
 		^out
 	}
 
+	// Every way a group of types (its table) can act on the roots of an equal division: one multiplier for each
+	// type element, products going to products.
+	*actions { |system, table|
+		var n = system.steps, m = table.size, units = Array.series(n).select { |u| u.gcd(n) == 1 }, out = Array.new, hs = Array.series(m);
+		if(m == 1) { ^[[1 % n]] };
+		(units ! (m - 1)).allTuples.do { |tuple|
+			var act = [1 % n] ++ tuple;
+			if(hs.every { |h| hs.every { |k| ((act[h] * act[k]) % n) == act[table[h][k]] } }) { out = out.add(act) };
+		};
+		^out
+	}
+
+	// Every cocycle for an action: the lists zeta[h][k], zero on the identity, with
+	// phi(h)(zeta(k, l)) + zeta(h, k l) = zeta(h, k) + zeta(h k, l). An Error past `max` of them.
+	*cocycles { |system, table, action, max = 100000|
+		var n = system.steps, m = table.size, count = (m - 1).squared, z = Array.fill(m) { 0 ! m }, out = Array.new;
+		var place = { |h, k| if((h == 0) or: { k == 0 }) { -1 } { ((h - 1) * (m - 1)) + (k - 1) } }, eqs, try, rest = Array.series(m - 1, 1);
+		// each equation waits at the place of its last unknown: it is checked as soon as it can be
+		eqs = Array.fill(count) { Array.new };
+		rest.do { |h| rest.do { |k| rest.do { |l|
+			var last = [place.(k, l), place.(h, table[k][l]), place.(h, k), place.(table[h][k], l)].maxItem;
+			eqs[last] = eqs[last].add([h, k, l]);
+		} } };
+		try = { |i|
+			if(i == count) {
+				out = out.add(z.collect(_.copy));
+				if(out.size > max) { Error("RLExtension.cocycles: more than % cocycles".format(max)).throw };
+			} {
+				var h = i.div(m - 1) + 1, k = (i % (m - 1)) + 1;
+				n.do { |v|
+					z[h][k] = v;
+					if(eqs[i].every { |e|
+						(((action[e[0]] * z[e[1]][e[2]]) + z[e[0]][table[e[1]][e[2]]] - z[e[0]][e[1]] - z[table[e[0]][e[1]]][e[2]]) % n) == 0
+					}) { try.value(i + 1) };
+				};
+				z[h][k] = 0;
+			};
+		};
+		try.value(0);
+		^out
+	}
+
+	// The cocycles that change nothing: zeta(h, k) = f(h) + phi(h)(f(k)) - f(h k) for a choice f of other base
+	// points, each as a flat list.
+	*prCoboundaries { |n, table, action|
+		var m = table.size, out = Set.new;
+		if(m == 1) { ^[[0]] };
+		(Array.series(n) ! (m - 1)).allTuples.do { |tuple|
+			var f = [0] ++ tuple;
+			out.add(Array.fill(m) { |h| Array.fill(m) { |k| (f[h] + (action[h] * f[k]) - f[table[h][k]]) % n } }.flat);
+		};
+		^out.asArray
+	}
+
+	// Every extension of an equal division's roots by a group of types (its table): one for each action and
+	// each class of cocycles. Two cocycles that differ by a coboundary give one group, read from other base
+	// points, so one of each class is kept. For 12 steps and two types: the eight groups.
+	*all { |system, table|
+		var n = system.steps, out = Array.new;
+		this.actions(system, table).do { |action|
+			var seen = Set.new, same = this.prCoboundaries(n, table, action);
+			this.cocycles(system, table, action).do { |z|
+				var key = z.flat;
+				if(seen.includes(key).not) {
+					out = out.add(this.general(system, table, action, z));
+					same.do { |b| seen.add((key + b) % n) };
+				};
+			};
+		};
+		^out
+	}
+
 	*isValid { |n, p, q, types = 2|
 		var power = 1;
 		types.do { power = (power * q) % n };
@@ -105,17 +189,21 @@ RLExtension {
 	}
 
 	// An automorphism of the roots is kept as the images of the generators: for an equal division the image of
-	// one step, for a lattice the image of each unit vector.
+	// one step, for a lattice the image of each unit vector; for a group given by its table (RLTableGroup), the
+	// images of all its elements.
+	prTabled { ^system.isKindOf(RLTableGroup) }
 	prRank { ^if(system.isFinite) { nil } { system.pcZero.size } }
 	prAuto { |x|
 		var rank = this.prRank;
+		if(this.prTabled) { ^x };
 		^if(rank.isNil) { x % system.steps } {
 			if(x.isKindOf(SequenceableCollection)) { x.flop } { Array.fill(rank) { |i| Array.fill(rank) { |j| if(i == j) { x } { 0 } } } }
 		}
 	}
-	prIdentityAuto { ^this.prAuto(1) }
+	prIdentityAuto { ^if(this.prTabled) { system.pcs } { this.prAuto(1) } }
 	prApply { |auto, pc|
 		var out;
+		if(this.prTabled) { ^auto[pc] };
 		^if(this.prRank.isNil) { (auto * pc) % system.steps } {
 			out = system.pcZero;
 			pc.do { |e, i| out = out + (auto[i] * e) };
@@ -123,21 +211,31 @@ RLExtension {
 		}
 	}
 	prCompose { |a, b|        // a after b
+		if(this.prTabled) { ^b.collect { |image| a[image] } };
 		^if(this.prRank.isNil) { (a * b) % system.steps } { b.collect { |image| this.prApply(a, image) } }
 	}
 
 	types { ^table.size }
-	n { ^if(system.isFinite) { system.steps } }
+	n { ^if(system.isKindOf(RLEDO)) { system.steps } }
 
 	// Whether the data give a group: the table is a group's, phi sends products to composites and the identity
-	// to the identity, zeta is zero on the identity and a cocycle.
+	// to the identity, zeta is zero on the identity and a cocycle. When the roots do not commute (RLTableGroup)
+	// the conditions are Schreier's: each phi(h) an automorphism of the roots, and phi(h) phi(k) equal to
+	// phi(h k) followed by the conjugation by zeta(h, k).
 	isGroup {
 		^valid ?? {
-			var m = table.size, zero = system.pcZero, ok = true, hs = Array.series(m);
+			var m = table.size, zero = system.pcZero, ok = true, hs = Array.series(m), tabled = this.prTabled;
 			ok = table[0] == hs and: { table.every { |row, h| (row[0] == h) and: { row.asSet.size == m } } };
 			if(ok) { hs.do { |h| hs.do { |k| hs.do { |l| if(table[table[h][k]][l] != table[h][table[k][l]]) { ok = false } } } } };
 			if(ok) { ok = phi[0] == this.prIdentityAuto };
-			if(ok) { hs.do { |h| hs.do { |k| if(this.prCompose(phi[h], phi[k]) != phi[table[h][k]]) { ok = false } } } };
+			if(ok and: { tabled }) { ok = phi.every { |a| system.isAutomorphism(a) } };
+			if(ok) {
+				hs.do { |h| hs.do { |k|
+					var hk = phi[table[h][k]];
+					if(tabled) { hk = this.prCompose(system.inner(zeta[h][k]), hk) };
+					if(this.prCompose(phi[h], phi[k]) != hk) { ok = false };
+				} };
+			};
 			if(ok) { hs.do { |h| if((zeta[0][h] != zero) or: { zeta[h][0] != zero }) { ok = false } } };
 			if(ok) {
 				hs.do { |h| hs.do { |k| hs.do { |l|
@@ -168,7 +266,12 @@ RLExtension {
 		var hi, id = this.identity;
 		^if(this.isGroup) {
 			hi = table[g[1]].indexOf(0);
-			[this.prApply(phi[hi], system.pcNeg(system.pcAdd(g[0], zeta[g[1]][hi]))), hi]
+			if(this.prTabled) {
+				// n phi(h)(m) zeta(h, h^-1) = 1: m is phi(h) undone on n^-1 zeta(h, h^-1)^-1
+				[phi[g[1]].indexOf(system.pcAdd(system.pcNeg(g[0]), system.pcNeg(zeta[g[1]][hi]))), hi]
+			} {
+				[this.prApply(phi[hi], system.pcNeg(system.pcAdd(g[0], zeta[g[1]][hi]))), hi]
+			}
 		} {
 			if(system.isFinite) { this.elements.detect { |h| (this.mul(g, h) == id) and: { this.mul(h, g) == id } } }
 		}
