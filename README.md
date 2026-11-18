@@ -77,7 +77,9 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
 - `reLation/Networks`: RLNetwork (nodes holding objects, arrows labelled with transformations or relations:
   validity, the networks of one structure, local isographies; Klumpenhouwer networks on
   `RLRelationContext.pitchClasses`), RLAutomorphism (a map of a context's objects that its relations go
-  through: a complete isography; applied again and again to a cell it makes a sequence)
+  through: a complete isography; applied again and again to a cell it makes a sequence; `all` and `count`
+  find every one of a context: 7776 for Cube Dance), RLNetworkPage (networks sent to HomewareVisuals' network
+  page, side by side)
 - `reLation/Groups`: RLExtension (chords as elements of a group once a base chord is chosen: the eight
   extensions of Z12 by Z2, two in a prime division; left and right actions, a movable base chord; other
   (p, q) on request; also any pitch system, any number of types in a cycle, any finite type group; `all`

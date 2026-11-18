@@ -324,6 +324,7 @@ Pages of HomewareVisuals draw what the classes compute, fed through link::Classe
 
 list::
 ## the canon page (code::/canon/::, link::Classes/RLCanonPage::): a canon as bars, one row for each voice, and which voice starts a note on each pulse;
+## the network page (code::/network/::, link::Classes/RLNetworkPage::): networks side by side, a network moved again and again by an automorphism as a row of frames;
 ## the lattice page (code::/lattice/::, link::Classes/RLLattice::): a walk of triads on the plane of fifths and major thirds, and wrapped into the torus of an equal division;
 ## the chord graph page (code::/chordgraph/::, link::Classes/RLChordGraph::): any link::Classes/RLGraph:: laid out here (by voice-leading zones, on a circle...), a walk lighting its edges, the voices below.
 ::
