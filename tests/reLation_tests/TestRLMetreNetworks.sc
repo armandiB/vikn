@@ -181,6 +181,110 @@ TestRLMetreNetworks : UnitTest {
 	}
 }
 
+// The article itself (Popoff and Yust, "Meter networks: a categorical framework for metrical analysis",
+// J. Math. Music 2020; the accepted manuscript, read Nov 18 2026): its propositions, its figures 2 and 5, the
+// morphisms of its section 3.3, with its own time points (the second half of bar 7 of "Auf dem See" at 0:
+// A''7 = 0, B''7 = C''7 = 1/12, A'''7 = C'''7 = 1/3, A8 = 1/2, B8 = C8 = 7/12).
+TestRLMeterNetworksArticle : UnitTest {
+	var time, periods;
+
+	setUp {
+		time = RLTimePoints.new;
+		periods = [1, 1/2, 1/3, 1/4, 1/6, 1/12, 3/2, 5, 4];
+	}
+
+	// 2.5 inclusion, 3.2 composition, 3.3 idempotence, 3.6 intersection, 3.13 stretches: over every pair
+	test_the_propositions {
+		var twelfths = { |d| (d * 12).round.asInteger }, ok = [true, true, true, true];
+		periods.do { |d1|
+			periods.do { |d2|
+				var a = RLPulse(d1), b = RLPulse(d2), whole = ((d1 / d2) - (d1 / d2).round).abs < 1e-9;
+				if((a <= b) != whole) { ok[0] = false };
+				if((b <> a) != RLPulse(twelfths.(d1).gcd(twelfths.(d2)) / 12)) { ok[1] = false };
+				if((b & a) != RLPulse(twelfths.(d1).lcm(twelfths.(d2)) / 12)) { ok[2] = false };
+				[1/2, 3, 5/4].do { |lambda| if((b.scaled(lambda) <> a.scaled(lambda)) != (b <> a).scaled(lambda)) { ok[3] = false } };
+			};
+		};
+		this.assert(ok[0], "2.5: M(d1) is included in M(d2) exactly when d1 is a whole multiple of d2");
+		this.assert(ok[1], "3.2: M(d2) after M(d1) is M(gcd)");
+		this.assert(ok[2], "3.6: M(d2) and M(d1) meet in M(lcm)");
+		this.assert(ok[3], "3.13: a stretch goes through the gcd");
+		this.assert(periods.every { |d| (RLPulse(d) <> RLPulse(d)) == RLPulse(d) }, "3.3: every pulse is its own square");
+		this.assert(periods.every { |d| ((RLPulse(d) <> RLPulse(0)) == RLPulse(d)) and: { RLPulse(0) <= RLPulse(d) } },
+			"M0 is the identity; as a relation it is included in every pulse (2.5 as stated leaves it out)");
+	}
+
+	// section 2.2: the inclusion diagram of Brahms's op. 78, bar 235, the bar as the unit; section 3.1
+	test_figure_2_the_ski_hill_of_op_78 {
+		this.assertEquals(RLPulse.skiHill(1, 1/12), [1, 1/2, 1/3, 1/4, 1/6, 1/12], "the six relations of the diagram");
+		this.assertEquals(RLPulse.paths(1, 1/12), [[1, 1/2, 1/4, 1/12], [1, 1/2, 1/6, 1/12], [1, 1/3, 1/6, 1/12]],
+			"three paths from M1 to M1/12: by the right hand's small arpeggios (M1/4), by the left hand's quarters (M1/6), by the violin's slurs (M1/3)");
+		this.assertEquals(RLPulse(1/3) <> RLPulse(1/2), RLPulse(1/6), "M1/3 after M1/2 is M1/6: where the violin and the left hand come together");
+	}
+
+	// figure 5 (a): one network with the beat and its division between the same two points
+	test_figure_5_as_a_free_network {
+		var fig = RLNetwork(time, [[\A2, 0], [\A3, 1/3], [\A8, 1/2], [\C2, 1/12], [\C3, 1/3], [\C8, 7/12]], [
+			[\A2, \A3, 1/6], [\A3, \A8, 1/6], [\A2, \A8, 1/6], [\A2, \A8, 1/2],
+			[\C2, \C3, 1/4], [\C3, \C8, 1/4], [\C2, \C8, 1/4], [\C2, \C8, 1/2],
+			[\A2, \C2, 1/12], [\A3, \C3, 0], [\A8, \C8, 1/12]]);
+		this.assert(fig.isValid.not, "read strictly it is not valid: M1/2 and M1/6 both go from A''7 to A8");
+		this.assert(fig.free.isValid, "read as a free diagram it is: every relation fits its two time points");
+		this.assertEquals(fig.free.ways(\A2, \A8), [RLPulse(1/6), RLPulse(1/2)], "two ways from A''7 to A8: the eighths and the beat");
+		this.assert(fig.free.isFree and: { fig.isFree.not } and: { fig.free.strict == fig } and: { fig.free != fig }, "free and strict are two readings of one diagram");
+		this.assert(fig.free.transformedBy(time.shift(1)).isFree, "a free network moved is free");
+		this.assert(RLNetwork(time, [[\a, 0], [\b, 1/3]], [[\a, \b, 1/2]]).free.isValid.not, "a relation that misses its point is still seen");
+		this.assertEquals([RLPulse(1/6) <> RLPulse(1/4), RLPulse(1/6) & RLPulse(1/4)], [RLPulse(1/12), RLPulse(1/2)],
+			"the two metres share the sixteenth below them and the half bar above");
+	}
+
+	// section 3.3.1: the piano's half bar is the voice's a sixteenth later
+	test_the_displacement {
+		var voice = RLNetwork(time, [[\A2, 0], [\A8, 1/2]], [[\A2, \A8, 1/2]]);
+		var piano = RLNetwork(time, [[\B2, 1/12], [\B8, 7/12]], [[\B2, \B8, 1/2]]), map = [[\A2, \B2], [\A8, \B8]];
+		this.assert(voice.isMorphismTo(piano, map, time.shift(1/12)), "by the map of time t + 1/12");
+		this.assert(voice.isMorphismTo(piano, map).not, "not without it");
+		// 3.16 and the last diagram: the same recast with no map of time, M1/12 at each node
+		this.assert(voice.isMorphismTo(piano, map, nil, 1/12), "or with no map of time, when M1/12 joins each point to its image");
+		this.assert(voice.isMorphismTo(piano, map, nil, [[\A2, 1/12], [\A8, 'M1/12']]), "the links node by node");
+		this.assert(voice.isMorphismTo(piano, map, nil, 1/5).not, "M1/5 does not join 0 to 1/12");
+		this.assert([0, 1/3, 5/2].every { |t| RLPulse(1/12).relates(t, time.shift(1/12).value(t)) }, "3.16: a shift by u is included in M(u)");
+	}
+
+	// section 3.3.2: the half bar divided by A'''7, arrows both ways, M0 at each node
+	test_the_inclusion {
+		var beat = RLNetwork(time, [[\X, 0], [\Y, 1/2]], [[\X, \Y, 1/2], [\Y, \X, 1/2]]);
+		var eighths = RLNetwork(time, [[\X, 0], [\Y, 1/3], [\Z, 1/2]], [[\X, \Y, 1/6], [\Y, \X, 1/6], [\Y, \Z, 1/6], [\Z, \Y, 1/6]]);
+		var dotted = RLNetwork(time, [[\X, 1/12], [\Y, 1/3], [\Z, 7/12]], [[\X, \Y, 1/4], [\Y, \X, 1/4], [\Y, \Z, 1/4], [\Z, \Y, 1/4]]);
+		this.assert(beat.isValid and: { eighths.isValid } and: { dotted.isValid }, "three valid networks");
+		this.assert(beat.isMorphismTo(eighths, [[\Y, \Z]], nil, 0), "X to X', Y to Z', M0 at each node: M1/2 is included in M1/6");
+		this.assert(beat.isMorphismTo(eighths, [[\Y, \Z]]), "the same with no link named");
+		this.assert(eighths.isMorphismTo(beat, [[\Z, \Y]]).not, "and not the other way");
+		this.assert(beat.isMorphismTo(dotted, [[\Y, \Z]], time.shift(1/12)), "the half bar a sixteenth later, divided in two dotted eighths");
+		this.assert(RLNetwork(time, [[\P, 1/3]], []).isMorphismTo(eighths, [[\P, \Y]]) and: { RLNetwork(time, [[\P, 1/3]], []).isMorphismTo(dotted, [[\P, \Y]]) },
+			"the weak beat A'''7 = C'''7 goes into both: the point the two metres share");
+	}
+
+	// section 2.4: Ligeti's sixth study, the sixteenth as the unit
+	test_ligeti_s_layers {
+		this.assertEquals([RLPulse(4) <> RLPulse(5), RLPulse(4) & RLPulse(5)], [RLPulse(1), RLPulse(20)], "M4 and M5 compose to M1 and meet in M20");
+		this.assert((RLPulse(4) <= RLPulse(5)).not and: { (RLPulse(5) <= RLPulse(4)).not }, "neither is included in the other");
+		this.assertEquals(time.dissonance([4, 0], [5, 0]), \grouping, "the ostinato against the upper line");
+		this.assertEquals(time.dissonance([4, 0], [4, -1]), \displacement, "the ostinato against itself a sixteenth earlier");
+		this.assertEquals(time.common([4, -1], [5, 0]), [20, 15], "that second ostinato and the upper line share a point every 20 sixteenths");
+	}
+
+	// links in another context: the local isographies of Webern's two networks (TestRLNetwork) are morphisms
+	test_links_are_local_isographies {
+		var pcs = RLRelationContext.pitchClasses, labels = [[\x, \y, \I8], [\y, \z, \I9], [\x, \z, \T1]];
+		var w1 = RLNetwork(pcs, [[\x, 9], [\y, 11], [\z, 10]], labels), w2 = RLNetwork(pcs, [[\x, 1], [\y, 7], [\z, 2]], labels);
+		this.assert(w1.isMorphismTo(w2, nil, nil, [[\x, \T4], [\y, \T8], [\z, \T4]]), "T4, T8, T4, node by node");
+		this.assert(w1.isMorphismTo(w2, nil, nil, [[\x, \I10], [\y, \I6], [\z, \I0]]), "I10, I6, I0");
+		this.assert(w1.isMorphismTo(w2, nil, nil, \T4).not, "T4 at every node is not one");
+		this.assert(w1.isMorphismTo(w2).not, "nor the identity");
+	}
+}
+
 // Networks carried into one another in the other contexts: a progression filled in, and moved on the way.
 TestRLNetworkMorphisms : UnitTest {
 

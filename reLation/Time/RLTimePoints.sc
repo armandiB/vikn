@@ -17,6 +17,10 @@
 //
 // Shifting and stretching time are the automorphisms (RLTimeMap). A label is a pulse, its period, or a name
 // such as 'M1/6'. On a cycle of n pulses, RLMetre has the same relations as finite ones.
+//
+// Against the article (Popoff and Yust 2020): a node here holds one time point, not a set; and the article's
+// networks may join two points by a beat and by its division at once (its figure 5), which is a free network
+// here (RLNetwork:free). Its morphisms carry a relation at each node: the `links` of RLNetwork:isMorphismTo.
 
 RLTimePoints {
 

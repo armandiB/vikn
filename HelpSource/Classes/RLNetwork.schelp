@@ -106,18 +106,35 @@ code::
 ~w.isographiesTo(~w.transformedBy(RLAutomorphism.affine(~pcs, 11, 8))) == [~pcs.isography([\T11, \I4])];    // true: <I4>
 ::
 
+METHOD:: free
+METHOD:: strict
+METHOD:: isFree
+The same network read as a free diagram: every arrow is an arrow of its own, so an arrow and a route between the same nodes (or two arrows) need not have the same label, and the network is valid when each label fits its two nodes. Popoff and Yust's metre networks are read this way: in their figure of Brahms's "Auf dem See" the beat M1/2 and its division M1/6, M1/6 join the same two time points. code::strict:: gives back the usual reading, where two routes compose alike.
+code::
+~time = RLTimePoints.new;
+~bar = RLNetwork(~time, [[\a, 0], [\b, 1/3], [\c, 1/2]], [[\a, \b, 1/6], [\b, \c, 1/6], [\a, \c, 1/2]]);
+~bar.isValid;                 // false: M1/6 twice is M1/6, and the arrow across says M1/2
+~bar.free.isValid;            // true
+~bar.free.ways(\a, \c);       // [RLPulse(1/2), RLPulse(1/6)]
+::
+
+METHOD:: ways
+Every label the network gives the way from one node to another, each once: those of their arrows, then the composites of the routes between them; the identity alone from a node to itself when nothing else goes there. One label in a valid network that is not free.
+
 METHOD:: labelBetween
-The label the network gives the way from one node to another: that of their arrow, else the composite of a route between them; the identity from a node to itself; nil when nothing joins them.
+The first of link::#-ways::; nil when nothing joins the two nodes.
 
 METHOD:: isMorphismTo
 METHOD:: morphismProblems
-Whether this network is carried into another, and what is in the way (an empty list when nothing is): what each node holds, moved, is what its image holds; and each label, moved, is included in the label that network gives the way between the images of its nodes (relations and pulses, by code::<=::; a transformation must be that label). Several nodes may go to one, and that network may have more nodes: a pulse refined into shorter ones (link::Classes/RLTimePoints::), a chord progression filled in.
+Whether this network is carried into another, and what is in the way (an empty list when nothing is). A morphism of networks after Popoff, Andreatta and Ehresmann, with one object for a node: what each node holds, moved, is joined by the node's link to what its image holds (is that object, with no link); and for each arrow, the head's link after the moved label is included in some way between the images of its nodes after the tail's link (relations and pulses, by code::<=::; transformations must be equal). Several nodes may go to one, and that network may have more nodes: a pulse refined into shorter ones (link::Classes/RLTimePoints::), a chord progression filled in. With links and the same shape it is a local isography (link::#-localIsographies::).
 argument:: that
 The network to go into.
 argument:: nodeMap
 code::[[node, its node in that], ...]::; nodes left out keep their names.
 argument:: automorphism
 How the context is moved on the way: an link::Classes/RLAutomorphism::, an link::Classes/RLTimeMap::; nil for nothing.
+argument:: links
+An arrow of the context at each node: code::[[node, label], ...]::, or one label for every node; nil, and at the nodes left out, the identity. In metre a shift by u can be said this way with no map of time: M(u) at each node.
 code::
 ~cd = RLRelationContext.cubeDance;  ~sp = ~cd.space;
 ~far = RLNetwork(~cd, [[\x, ~sp.major(0)], [\y, ~sp.major(4)]], [[\x, \y, [\U, \U]]]);

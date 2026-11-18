@@ -325,6 +325,14 @@ code::
 ~points.dissonance([1/6, 5/2], [1/4, 31/12]);              // grouping
 ~points.common([1/6, 5/2], [1/4, 31/12]);                  // [0.5, 2.8333333333]: the two layers meet on F
 RLPulse.paths(6, 1);                                       // [6, 3, 1] and [6, 2, 1]: the two metres of a hemiola
+
+// the article's own networks join two points by a beat and by its division at once: a free network
+~both = RLNetwork(~points, [[\E, 5/2], [\F, 17/6], [\G, 3]], [[\E, \F, 1/6], [\F, \G, 1/6], [\E, \G, 1/2]]);
+~both.isValid;                                             // false: read strictly, two routes must compose alike
+~both.free.isValid;                                        // true
+// and its morphisms carry a relation at each node: a displacement said with M1/12 there, and no map of time
+~later = RLNetwork(~points, [[\E, 31/12], [\G, 37/12]], [[\E, \G, 1/2]]);
+~top.isMorphismTo(~later, nil, nil, 1/12);                 // true
 ::
 
 section:: Graded belonging
