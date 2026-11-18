@@ -6,12 +6,19 @@ related:: Classes/RLWalk, Classes/RLWalker, Classes/RCVisuals, Classes/RLJust, G
 DESCRIPTION::
 HomewareVisuals' page code::/lattice/:: draws a walk on triads twice: on the left on the lattice of fifths and major thirds, where it really goes; on the right on the torus an equal division folds that lattice into, one cell whose sides are two commas the division tempers out. A walk that closes in the division comes back to its triangle on the right, and has moved by a comma on the left.
 
-The page is sent triads of code::RLJust([3, 5])::. A walk of an equal division is shown by its lift from 1/1 (link::#*show:: does it); a walker takes a shadow on the lattice (link::Classes/RLWalker#-follow::). Messages go through link::Classes/RCVisuals:: (code::/lattice/config::, code::/lattice/clear::, code::/lattice/chord::; the page's engine, code::public/lib/lattice-viz.js:: in HomewareVisuals, has the protocol).
+The page is sent triads of code::RLJust([3, 5])::, or tetrads of code::RLJust([3, 5, 7]):: (4:5:6:7 and its inversion, link::Classes/RLChordSpace#*tetrads::). For tetrads the lattice has a third, short axis for the harmonic seventh, a tetrad is a triangle with its fourth point joined to the three others, and the right panel shows the division's steps round a circle with the chord's four tones: the torus of that lattice has three dimensions and is not drawn.
+
+A walk of an equal division is shown by its lift from 1/1 (link::#*show:: does it); a walker takes a shadow on the lattice (link::Classes/RLWalker#-follow::). Messages go through link::Classes/RCVisuals:: (code::/lattice/config::, code::/lattice/clear::, code::/lattice/chord::, code::/lattice/tetrad::; the page's engine, code::public/lib/lattice-viz.js:: in HomewareVisuals, has the protocol).
 
 code::
 ~ctx = RLChordContext(RLChordSpace.triads(RLEDO(12)));
 ~pump = RLWalk(~ctx, ~ctx.space.major(0), [\R, \L, \R, \P, \R, \L, \R, \L]);
 RLLattice.show(~pump);                     // the division, then the nine chords of the lift
+
+// tetrads: two fifths and two major thirds up, a harmonic seventh down. 31 steps close it; on the lattice
+// it ends 225/224 from its start
+~four = RLChordContext(RLChordSpace.tetrads(RLEDO(31)));
+RLLattice.show(RLWalk(~four, ~four.space.otonal, [\K12, \K01, \K12, \K01, \K12, \K02, \K12, \K02, \K01, \K13]));
 
 // a walker in a beat of reCurrent: each chord reaches the page when its sound starts
 ~walker = RLWalker(~ctx, ~ctx.space.major(0), [60, 64, 67], 8.1757989156, 0.75).follow;
@@ -23,7 +30,7 @@ RLLattice.config(~ctx.system);  RLLattice.clear;
 CLASSMETHODS::
 
 METHOD:: config
-Tell the page what folds the lattice: an link::Classes/RLEDO:: (its steps, those of its fifth and of its major third: the torus), an link::Classes/RLTempered:: of one comma of the lattice of 3 and 5 (the comma: the cylinder, meantone's a strip along the fifths with its notes spelled along that chain), or nil (the right panel stays empty).
+Tell the page what folds the lattice: an link::Classes/RLEDO:: (its steps, those of its fifth, of its major third and of its harmonic seventh: the torus, or the circle for tetrads), an link::Classes/RLTempered:: of one comma of the lattice of 3 and 5 (the comma: the cylinder, meantone's a strip along the fifths with its notes spelled along that chain), or nil (the right panel stays empty).
 code::
 ~mean = RLChordContext(RLChordSpace.triads(RLTempered.meantone));
 RLLattice.show(RLWalk(~mean, ~mean.space.major, [\P, \L, \P, \L, \P, \L]));     // ends on Dbb major, a diesis above C
@@ -33,14 +40,23 @@ METHOD:: clear
 Forget the walk drawn.
 
 METHOD:: chord
-Send one triad of the lattice.
+Send one chord of the lattice.
 argument:: chord
-A triad of code::RLJust([3, 5])::; anything else is an Error.
+A triad of code::RLJust([3, 5]):: or a tetrad of code::RLJust([3, 5, 7])::; anything else is an Error.
 argument:: k
 The number of the step.
 
 METHOD:: args
-The arguments of code::/lattice/chord:: for a triad: code::[fifths, thirds, type, step]::.
+The arguments of the page's message for a chord: code::[fifths, thirds, type, step]:: for a triad (code::/lattice/chord::), code::[fifths, thirds, sevenths, type, step]:: for a tetrad (code::/lattice/tetrad::).
+
+METHOD:: path
+The page's message for a chord: code::'/lattice/chord':: or, for a chord of four tones, code::'/lattice/tetrad'::.
+
+METHOD:: isTetrad
+Whether a chord has four tones.
+
+METHOD:: just
+The context of the lattice that lifts a chord's walks: triads on code::RLJust([3, 5])::, tetrads on code::RLJust([3, 5, 7])::.
 
 METHOD:: show
 A whole walk at once: the division, a clear, then every chord. A walk of an equal division is lifted to the lattice from 1/1; a walk of the lattice is shown as it is, with the division given. Returns the walk shown.

@@ -1,7 +1,7 @@
 title:: reLation
 summary:: Musical objects and the relations that move them: pitch systems, chords, transformations, walks, and maps between contexts
 categories:: Libraries>reLation
-related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism, Classes/RLExtension, Classes/RLWreath, Classes/RLTimeSpans, Classes/RLMetre
+related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism, Classes/RLExtension, Classes/RLWreath, Classes/RLTimeSpans, Classes/RLMetre, Classes/RLPulse, Classes/RLTimePoints, Classes/RLTimeMap
 
 section:: What it is
 
@@ -43,6 +43,11 @@ table::
 ## a group element || an Array code::[z, h]:: read by an link::Classes/RLExtension:: (root difference and type difference from a base chord) || means a chord only once the base chord is named
 ## a uniform transformation || an Array code::[shifts, types]:: read by an link::Classes/RLWreath:: || one shift and one new type for each chord type
 ## a time-span || an Array code::[onset, duration]:: read by an link::Classes/RLTimeSpans:: || the duration above zero; also an element of the group that moves the spans
+## a time point || a number read by an link::Classes/RLTimePoints:: (bars, beats, seconds) || compared within a billionth; fractions written as divisions, code::17/6::
+## a pulse || link::Classes/RLPulse::: a period, code::RLPulse(1/6)::; as a label also the period alone or code::'M1/6':: || the period is a fraction; code::<>:: is the gcd, code::<=:: the inclusion
+## a pulse layer || an Array code::[period, phase]::, or a period alone, read by an link::Classes/RLTimePoints:: || the points phase + k period
+## a map of time || link::Classes/RLTimeMap::: code::RLTimeMap(a, b)::, t to a t + b || a is not 0
+## a network of networks || an link::Classes/RLNetwork:: on the context link::Classes/RLRelationContext#*networks:: makes || its nodes hold networks of one shape, its labels are the names of the moves
 ::
 
 Sizes are always in cents (intervals, drifts, voice motions), so that numbers from different systems compare.
@@ -213,6 +218,25 @@ code::
 ~cd.category.automorphisms.size;                 // 12 ways of changing the labels
 ::
 
+A network is a value, so a node of another network can hold it. link::Classes/RLRelationContext#*networks:: makes the context of that other network: the networks one network becomes under some moves, and the moves as relations between them. A network on it is a network of networks, checked as any network is, and the same step again gives the level above. A move is an automorphism of the first context (notes and labels together), or an isography alone (Lewin's <T1>, <I5>, named by link::Classes/RLRelationContext#-isography::: the labels move and the notes are free).
+
+code::
+// a cell, C#, Eb, G under I4, I10, T6, and a plan with the cell's own labels: the notes are moved by I2, I5
+// and T3, which move the labels as <I4>, <I10> and <T6> do
+~cell = RLNetwork(~pcs, [[\x, 1], [\y, 3], [\z, 7]], [[\x, \y, \I4], [\y, \z, \I10], [\x, \z, \T6]]);
+~moves = [[\i2, RLAutomorphism.affine(~pcs, 11, 2)], [\i5, RLAutomorphism.affine(~pcs, 11, 5)], [\t3, RLAutomorphism.affine(~pcs, 1, 3)]];
+~hyper = RLRelationContext.networks(~cell, ~moves);                   // 8 networks, moved by a group of 8
+~plan = RLNetwork(~hyper, [\x, \y, \z].collect { |n| [n, ~cell] }, [[\x, \y, \i2], [\y, \z, \i5], [\x, \z, \t3]]);
+~top = ~plan.fillings(\x, ~cell).first;                               // the network of networks that starts on the cell
+~top.objects.collect(_.objects);                                      // [[1, 3, 7], [1, 11, 7], [4, 6, 10]]
+~moves.collect { |m| m[1].arrowMap } == [~pcs.isography([\T11, \I4]), ~pcs.isography([\T11, \I10]), ~pcs.isography([\T1, \I6])];   // true
+
+// one level up: the moves carried to the networks, and the plan again. 27 notes
+~up = ~moves.collect { |m| [m[0], RLAutomorphism.onNetworks(~hyper, m[1])] };
+~hyper2 = RLRelationContext.networks(~top, ~up);
+~top3 = RLNetwork(~hyper2, [\x, \y, \z].collect { |n| [n, ~top] }, [[\x, \y, \i2], [\y, \z, \i5], [\x, \z, \t3]]).fillings(\x, ~top).first;
+::
+
 section:: Other groups on the triads
 
 T, I, P, L, R come from one group, the dihedral one. link::Classes/RLExtension:: gives the others that move the 2n triads as well: once a base chord is chosen every triad is an element code::[root, type]::, and two numbers (p, q) say how elements multiply. In 12 steps there are eight such groups, in a prime division two. Multiplying on the left or on the right gives the two kinds of move, and the base chord can itself be moved.
@@ -288,6 +312,21 @@ code::
 RLMetre.perfect([0, 1, 2], 5);                             // 15 pulses, three notes in a row at the stretches 1, 2, 4, 5, 7
 ::
 
+On the line of time a pulse (link::Classes/RLPulse::) is the relation between time points a whole number of periods apart. Pulses compose to their greatest common divisor, and one is included in another when its period is a whole multiple of the other's: a metre is a chain of pulses each included in the next. A metre network (Popoff and Yust) is a network of time points on link::Classes/RLTimePoints::, and metre is at odds with itself in the two ways one network is carried into another (link::Classes/RLNetwork#-isMorphismTo::): a pulse included in a finer one (a grouping), and a shift of time (a displacement).
+
+code::
+// Brahms, "Auf dem See", bars 7 and 8, the bar as the unit
+~points = RLTimePoints.new;
+~top = RLNetwork(~points, [[\E, 5/2], [\G, 3]], [[\E, \G, 1/2]]);
+~voice = RLNetwork(~points, [[\E, 5/2], [\F, 17/6], [\G, 3]], [[\E, \F, 1/6], [\F, \G, 1/6]]);
+~piano = RLNetwork(~points, [[\E, 31/12], [\F, 17/6], [\G, 37/12]], [[\E, \F, 1/4], [\F, \G, 1/4]]);
+~top.isMorphismTo(~voice);                                 // true: the half bar in three eighths
+~top.isMorphismTo(~piano, nil, ~points.shift(1/12));       // true: a sixteenth later, in two dotted eighths
+~points.dissonance([1/6, 5/2], [1/4, 31/12]);              // grouping
+~points.common([1/6, 5/2], [1/4, 31/12]);                  // [0.5, 2.8333333333]: the two layers meet on F
+RLPulse.paths(6, 1);                                       // [6, 3, 1] and [6, 2, 1]: the two metres of a hemiola
+::
+
 section:: Graded belonging
 
 For a monoid of maps that keep a chord, "this note belongs to the chord" has more answers than yes and no: the maps that bring the note into it (link::Classes/RLRelationContext#*preserving::, Noll's monoid). Their share is a number between 0 and 1 for every pitch class, to use as control data.
@@ -316,16 +355,16 @@ code::
 ~beat.set(\dur_flex, ~rhythm.chords.collect(_[1]));
 ::
 
-HomewareSC's code::Math/Category_Theory/studies/:: holds the studies rendered offline and measured (one walk in 12, 19, 31 steps and just intonation; walks on chord graphs; networks moved by automorphisms; tetrads; canons).
+HomewareSC's code::Math/Category_Theory/studies/:: holds the studies rendered offline and measured (one walk in 12, 19, 31 steps and just intonation; walks on chord graphs; networks moved by automorphisms; tetrads; canons; networks of networks; metres).
 
 section:: Pictures
 
 Pages of HomewareVisuals draw what the classes compute, fed through link::Classes/RCVisuals:: (at once, or from a beat as each chord sounds):
 
 list::
-## the canon page (code::/canon/::, link::Classes/RLCanonPage::): a canon as bars, one row for each voice, and which voice starts a note on each pulse;
-## the network page (code::/network/::, link::Classes/RLNetworkPage::): networks side by side, a network moved again and again by an automorphism as a row of frames;
-## the lattice page (code::/lattice/::, link::Classes/RLLattice::): a walk of triads on the plane of fifths and major thirds, and wrapped into the torus of an equal division;
+## the canon page (code::/canon/::, link::Classes/RLCanonPage::): a canon as bars, one row for each voice, and which voice starts a note on each pulse; the pulse layers of a metre as rows (code::RLCanonPage.layers::);
+## the network page (code::/network/::, link::Classes/RLNetworkPage::): networks side by side, a network moved again and again by an automorphism as a row of frames; a network of networks as its networks, then its plan (code::RLNetworkPage.nested::);
+## the lattice page (code::/lattice/::, link::Classes/RLLattice::): a walk of triads on the plane of fifths and major thirds, and wrapped into the torus of an equal division or the cylinder of a temperament of one comma; a walk of the tetrads 4:5:6:7 with the seventh as a third axis;
 ## the chord graph page (code::/chordgraph/::, link::Classes/RLChordGraph::): any link::Classes/RLGraph:: laid out here (by voice-leading zones, on a circle...), a walk lighting its edges, the voices below.
 ::
 

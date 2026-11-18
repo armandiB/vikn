@@ -91,6 +91,41 @@ METHOD:: fillings
 Every valid network with the same shape and labels: each object of the context is tried at a node, and the others follow along the arrows (a relation may offer several). The space of networks of one structure.
 argument:: node
 The node to start from (the first when nil).
+argument:: object
+Only the networks with this object at that node (every object of the context when nil).
+
+METHOD:: isographs
+What an isography offers: every valid network of the same shape whose labels are this one's moved by an automorphism of the context's category (one of code::context.category.automorphisms::; link::Classes/RLRelationContext#-isography:: names one). The contents are free: T and I on twelve pitch classes offer twelve networks.
+
+METHOD:: isographiesTo
+The isographies from this network to another of the same shape: the automorphisms of the category that send each label of this one to the label of that one. Empty when the two are not isographic.
+code::
+~pcs = RLRelationContext.pitchClasses;
+~w = RLNetwork(~pcs, [[\x, 9], [\y, 11], [\z, 10]], [[\x, \y, \I8], [\y, \z, \I9], [\x, \z, \T1]]);
+~w.isographs(~pcs.isography([\T1, \I1])).collect(_.objects);     // twelve networks labelled I9, I10, T1
+~w.isographiesTo(~w.transformedBy(RLAutomorphism.affine(~pcs, 11, 8))) == [~pcs.isography([\T11, \I4])];    // true: <I4>
+::
+
+METHOD:: labelBetween
+The label the network gives the way from one node to another: that of their arrow, else the composite of a route between them; the identity from a node to itself; nil when nothing joins them.
+
+METHOD:: isMorphismTo
+METHOD:: morphismProblems
+Whether this network is carried into another, and what is in the way (an empty list when nothing is): what each node holds, moved, is what its image holds; and each label, moved, is included in the label that network gives the way between the images of its nodes (relations and pulses, by code::<=::; a transformation must be that label). Several nodes may go to one, and that network may have more nodes: a pulse refined into shorter ones (link::Classes/RLTimePoints::), a chord progression filled in.
+argument:: that
+The network to go into.
+argument:: nodeMap
+code::[[node, its node in that], ...]::; nodes left out keep their names.
+argument:: automorphism
+How the context is moved on the way: an link::Classes/RLAutomorphism::, an link::Classes/RLTimeMap::; nil for nothing.
+code::
+~cd = RLRelationContext.cubeDance;  ~sp = ~cd.space;
+~far = RLNetwork(~cd, [[\x, ~sp.major(0)], [\y, ~sp.major(4)]], [[\x, \y, [\U, \U]]]);
+~filled = RLNetwork(~cd, [[\x, ~sp.major(0)], [\m, ~sp.chord(0, \aug)], [\y, ~sp.major(4)]], [[\x, \m, \U], [\m, \y, \U]]);
+~far.isMorphismTo(~filled);                                   // true: the leap goes into the progression that fills it
+~t5 = RLAutomorphism.transposition(~cd, 5);
+~far.isMorphismTo(~filled.transformedBy(~t5), nil, ~t5);      // true: moved a fourth up on the way
+::
 
 METHOD:: hasSameLabels
 Whether another network of the same shape has the same labels: a strong isography.

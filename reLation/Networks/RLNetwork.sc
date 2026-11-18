@@ -18,7 +18,9 @@
 //   ~cell.iterate(RLAutomorphism.transposition(~cd, 5), 2).collect(_.objects);     // "Take a Bow"
 //
 // A label is given as an arrow, a name of the context, or a word (an Array of names in the order of time).
-// A network is a value.
+// A network is a value: it can be the object another network holds. RLRelationContext.networks makes the
+// context whose objects are networks and whose relations are the moves between them; a network on it is a
+// network of networks.
 
 RLNetwork {
 	var <context, <nodes, contents, <arrows;
@@ -108,6 +110,56 @@ RLNetwork {
 	}
 	isValid { ^this.problems.isEmpty }
 
+	// The label the network gives the way from one node to another: that of their arrow, else the composite of
+	// a route between them; the identity from a node to itself; nil when nothing joins them.
+	labelBetween { |from, to|
+		var direct = this.label(from, to), route;
+		if(direct.notNil) { ^direct };
+		if(from == to) { ^context.identityTransform };
+		route = this.prRoutes.detect { |r| (r[0] == from) and: { r[1] == to } };
+		^route !? { route[2] }
+	}
+
+	// What keeps this network from being carried into another: an empty list when it is, a morphism of
+	// networks. nodeMap: [[node, its node in that], ...] (nodes left out keep their names); automorphism: how
+	// the context is moved on the way (contents by its map, labels by what it makes of them), nil for nothing.
+	//   - what each node holds, moved, is what its image holds;
+	//   - each label, moved, is included in the label that network gives the way between the images of its
+	//     nodes (relations and pulses, by <=; a transformation must be that label).
+	// Several nodes may go to one, and that network may have more nodes: a pulse refined into shorter ones,
+	// a chord progression filled in.
+	morphismProblems { |that, nodeMap, automorphism|
+		var out = Array.new, image = Dictionary.new, same;
+		same = { |x, y| if(x.isNumber and: { y.isNumber }) { (x - y).abs < 1e-9 } { x == y } };
+		nodes.do { |n| image[n] = n };
+		nodeMap.do { |p| image[p[0]] = p[1] };
+		nodes.do { |n|
+			var moved = if(automorphism.isNil) { contents[n] } { automorphism.value(contents[n]) };
+			if(that.nodes.includes(image[n]).not) {
+				out = out.add("% goes to %, which is not a node there".format(n, image[n]));
+			} {
+				if(same.(moved, that.at(image[n])).not) {
+					out = out.add("% (at %) becomes %, and % holds %".format(contents[n], n, moved, image[n], that.at(image[n])));
+				};
+			};
+		};
+		arrows.do { |a|
+			var moved = if(automorphism.isNil) { a[2] } { automorphism.onArrow(a[2]) }, target;
+			if(that.nodes.includes(image[a[0]]) and: { that.nodes.includes(image[a[1]]) }) {
+				target = that.labelBetween(image[a[0]], image[a[1]]);
+				if(target.isNil) {
+					out = out.add("nothing joins % to % there".format(image[a[0]], image[a[1]]));
+				} {
+					if(if(moved.respondsTo('<=')) { (moved <= target).not } { moved != target }) {
+						out = out.add("% (from % to %) is not included in %".format(this.prName(moved), a[0], a[1], that.prName(target)));
+					};
+				};
+			};
+		};
+		^out
+	}
+	isMorphismTo { |that, nodeMap, automorphism| ^this.morphismProblems(that, nodeMap, automorphism).isEmpty }
+
 	// The network moved by an automorphism of the context: contents by its map, labels by what it makes of them.
 	transformedBy { |automorphism|
 		^RLNetwork(context, nodes.collect { |n| [n, automorphism.value(contents[n])] },
@@ -121,10 +173,11 @@ RLNetwork {
 		^out
 	}
 
-	// Every valid network with the same shape and labels: each object the context offers is tried at a node,
-	// and the others follow along the arrows (a relation may offer several).
-	fillings { |node|
+	// Every valid network with the same shape and labels: each object the context offers is tried at a node
+	// (or only the object given), and the others follow along the arrows (a relation may offer several).
+	fillings { |node, object|
 		var start = node ? nodes.first, out = Array.new, order = [start], grow = true, fill;
+		if(nodes.isEmpty) { ^[this] };
 		while { grow } {
 			grow = false;
 			arrows.do { |a|
@@ -152,8 +205,25 @@ RLNetwork {
 				};
 			};
 		};
-		context.objects.do { |x| fill.value(1, Dictionary[start -> x]) };
+		(if(object.notNil) { [object] } { context.objects }).do { |x| fill.value(1, Dictionary[start -> x]) };
 		^out.select(_.isValid)
+	}
+
+	// What an isography offers: every valid network of the same shape whose labels are this one's moved by an
+	// automorphism of the context's category (one of context.category.automorphisms; RLRelationContext:isography
+	// names one). The contents are free: T and I on twelve pitch classes offer twelve networks.
+	isographs { |arrowMap|
+		var cat = context.category;
+		^RLNetwork(context, nodes.collect { |n| [n, contents[n]] },
+			arrows.collect { |a| [a[0], a[1], cat.imageOf(arrowMap, a[2])] }).fillings
+	}
+
+	// The isographies from this network to another of the same shape: the automorphisms of the category that
+	// send each label of this one to the label of that one. Empty when the two are not isographic.
+	isographiesTo { |that|
+		var cat = context.category;
+		if(this.prSameShape(that).not) { Error("RLNetwork: two networks of different shapes").throw };
+		^cat.automorphisms.select { |am| arrows.every { |a, i| cat.imageOf(am, a[2]) == that.arrows[i][2] } }
 	}
 
 	// Whether another network of the same shape has the same labels (a strong isography); the pairs

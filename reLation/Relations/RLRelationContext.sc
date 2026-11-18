@@ -110,6 +110,54 @@ RLRelationContext {
 		^this.new(all, rels).prSystem(sys)
 	}
 
+	// Networks as objects: the networks a network becomes under some moves, and the moves as the relations
+	// between them. A network on this context is a network of networks, valid as any network is (each move
+	// takes the network at its tail to the one at its head, and two routes compose alike); and since the
+	// result is a context like another, a network of networks of networks is one step more.
+	//   moves: [[name, move], ...]. A move is an RLAutomorphism of the seed's context (contents and labels
+	//   move together: one image), or anything else RLNetwork:transformedBy takes (an RLTimeMap for a metre
+	//   network); or an automorphism of the seed's category alone, an Array as RLCategory:automorphisms lists
+	//   them and isography names one (Lewin's <T1>, <I5>: the labels move, and every valid network with the
+	//   new labels is an image: twelve for T and I).
+	//   generators: the names that generate the category (all the moves when nil).
+	// More than max networks is an Error: the moves must bring the seed back after some steps (a shift of
+	// time never does).
+	*networks { |seed, moves, max = 600, generators|
+		var objs = [seed], index = Dictionary[seed -> 0], pairs = moves.collect { Array.new }, head = 0, rows, out;
+		moves.do { |m| if(m[1].isNil) { Error("RLRelationContext.networks: the move % is nil (no such isography?)".format(m[0])).throw } };
+		while { head < objs.size } {
+			moves.do { |m, k|
+				var images = if(m[1].isKindOf(SequenceableCollection)) { objs[head].isographs(m[1]) } { [objs[head].transformedBy(m[1])] };
+				images.do { |img|
+					var j = index[img];
+					if(j.isNil) {
+						if(objs.size >= max) {
+							Error("RLRelationContext.networks: more than % networks; raise max if that is meant".format(max)).throw
+						};
+						j = objs.size;
+						objs = objs.add(img);
+						index[img] = j;
+					};
+					pairs[k] = pairs[k].add([head, j]);
+				};
+			};
+			head = head + 1;
+		};
+		out = this.new(objs, moves.collect { |m, k|
+			rows = { 0 ! objs.size } ! objs.size;
+			pairs[k].do { |p| rows[p[0]][p[1]] = 1 };
+			[m[0], RLRelation(objs, objs, rows)]
+		});
+		if(generators.notNil) { out.prGenerators(generators.collect(_.asSymbol)) };
+		^out
+	}
+
+	// The automorphism of the category that sends the generators, in their order, to these arrows (names,
+	// words or relations), as one of category.automorphisms; nil when there is none. On pitch classes, where
+	// T1 and I0 generate: isography([\T1, \I1]) is Lewin's <T1> (every I(n) becomes I(n + 1)),
+	// isography([\T11, \I5]) his <I5> (T(n) becomes T(-n), I(n) becomes I(5 - n)).
+	isography { |images| ^this.category.automorphism(images.collect { |l| this.arrow(l) }) }
+
 	// How far each object belongs to a set the relations keep: for each object, in their order, the arrows of
 	// the category that bring it into the set (truthValues), and their share of all the arrows, 1 for the
 	// members of the set (belonging): a graded membership, to use as control data.

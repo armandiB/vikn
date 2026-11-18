@@ -21,9 +21,15 @@ argument:: networks
 One link::Classes/RLNetwork:: or a list of them, one frame each.
 argument:: title
 argument:: places
-One code::[x, y]:: for each node, between -1 and 1, y downwards, the same in every frame; round a circle when nil (link::#*places::).
+One code::[x, y]:: for each node, between -1 and 1, y downwards, the same in every frame; round a circle when nil (link::#*places::). Or a Function code::(network, frame) -> places::, for frames of different sizes.
 argument:: captions
 One text for each frame.
+
+METHOD:: nested
+A network of networks (a network on link::Classes/RLRelationContext#*networks::): the networks its nodes hold, each in its frame under its node's name and the moves that reach it, then the plan in a last frame, each of its nodes showing the notes of its network. code::places:: are for the nodes of the networks it holds, code::planPlaces:: for its own (round a circle when nil).
+
+METHOD:: text
+What a node shows: a chord by its short name, a pitch class by its note's name, a network by what its own nodes show, anything else as it prints.
 
 METHOD:: at
 The frame that plays; nil for none.

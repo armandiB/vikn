@@ -52,6 +52,9 @@ Every pitch class x of every chord turned into k - x.
 METHOD:: affine
 On pitch classes: x -> kx + c.
 
+METHOD:: onNetworks
+An automorphism carried to a context of networks (link::Classes/RLRelationContext#*networks::): every network moved by it. The networks it makes must all be among that context's objects (they are when it is one of the moves). With it the moves of a network of networks become the moves of the level above.
+
 METHOD:: all
 METHOD:: count
 Every automorphism of a context, and their number: for each automorphism N of its monoid (or for those given as code::arrowMaps::, as link::Classes/RLCategory#-automorphisms:: lists them), the one-to-one maps of the objects that turn each generator g into N(g). The images are tried object by object and a choice kept only while every pair already placed agrees; nil past code::max::.

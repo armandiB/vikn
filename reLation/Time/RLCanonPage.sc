@@ -37,6 +37,18 @@ RLCanonPage {
 		^this.show(RLTimeSpans.new.canon(spans, lefts), lefts.collect { |g| "[%, %]".format(g[0], g[1]) }, heights, pulses, title)
 	}
 
+	// Pulse layers as rows (metre: RLTimePoints): each layer, [period, phase] or a period, by its points from
+	// `from` up to `to`, a bar half a period long from each point. Under the rows, the finest pulse all the
+	// points fall on, and which layers sound on each of its points: where two layers meet, and where they
+	// never do.
+	*layers { |layers, from = 0, to = 1, names, title|
+		var time = RLTimePoints.new, list = layers.collect { |l| if(l.isNumber) { [l.abs, 0] } { [l[0].abs, l[1] ? 0] } }, unit = 0;
+		list.do { |l| unit = RLPulse.gcd(RLPulse.gcd(unit, l[0]), (l[1] - from).abs) };
+		^this.show(list.collect { |l| time.layer(l, from, to).collect { |t| [(t - from).round(1e-10), l[0] / 2] } },
+			names ?? { list.collect { |l| RLPulse(l[0]).name } }, nil,
+			if(unit > 0) { [((to - from) / unit).round.asInteger, unit] }, title)
+	}
+
 	// A line at a beat (where the playing is); nil takes it away.
 	*head { |beat| ^RCVisuals.send('/canon/head', beat ? -1) }
 }

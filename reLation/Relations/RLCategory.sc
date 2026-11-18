@@ -199,6 +199,22 @@ RLCategory {
 		^out
 	}
 
+	// The automorphism that sends the generators, in the order of names, to these arrows: an Array as
+	// automorphisms lists them, or nil when no automorphism sends them there.
+	automorphism { |images|
+		var gens = images.collect { |a| index[a] }, n = arrows.size, img, ok = true;
+		if(this.isMonoid.not) { Error("RLCategory: automorphisms are searched for a monoid (one list of objects)").throw };
+		if((gens.size != names.size) or: { gens.includes(nil) }) { ^nil };
+		img = this.extendMap(gens);
+		if(img.includes(nil) or: { img.asSet.size != n }) { ^nil };
+		n.do { |j|
+			names.size.do { |g|
+				if(ok and: { img[steps[j][g]] != this.composeIndex(gens[g], img[j]) }) { ok = false };
+			};
+		};
+		^if(ok) { img } { nil }
+	}
+
 	// From where the generators go (the index of each one's image, in the order of names), where every arrow
 	// goes, along its word. Nothing is checked.
 	extendMap { |generatorImages|

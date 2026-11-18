@@ -68,7 +68,7 @@ METHOD:: moveTo
 Put the walker on a chord: with a voicing of it, or by the least motion from where the voices are.
 
 METHOD:: follow
-Gives the walker a shadow on the just lattice that takes every step it takes, from 1/1 (or from a chord given): where the walk really goes, for the lattice page (link::Classes/RLLattice::). For walkers of a chord context of triads, stepped by names. Returns the walker.
+Gives the walker a shadow on the just lattice that takes every step it takes, from 1/1 (or from a chord given): where the walk really goes, for the lattice page (link::Classes/RLLattice::). For walkers of a chord context of triads (the lattice of 3 and 5) or of the tetrads 4:5:6:7 (the lattice of 3, 5 and 7), stepped by names. Returns the walker.
 
 METHOD:: shadow
 METHOD:: latticeChord
