@@ -246,6 +246,14 @@ RLWalk(~time, [0, 1.5], ~rhythm.word).chords;              // the same, one and 
 RLMetre(12).complements([0, 1, 5]);                        // [[0, 3, 6, 9]]
 ::
 
+The voices of a canon are one rhythm under several left steps: code::[u, d]:: is the rhythm shifted by u and d times as slow. A canon by augmentation can tile the pulses too, each voice at its own speed.
+
+code::
+~time.canon(~rhythm.chords, [[0, 1], [0, 2]]);             // two voices: the rhythm, and the same twice as slow
+~time.endTogether(~rhythm.chords, 0.5);                    // [2.5, 0.5]: twice as fast, entering at 2.5, ends with it
+RLMetre.perfect([0, 1, 2], 5);                             // 15 pulses, three notes in a row at the stretches 1, 2, 4, 5, 7
+::
+
 section:: Graded belonging
 
 For a monoid of maps that keep a chord, "this note belongs to the chord" has more answers than yes and no: the maps that bring the note into it (link::Classes/RLRelationContext#*preserving::, Noll's monoid). Their share is a number between 0 and 1 for every pitch class, to use as control data.
@@ -274,7 +282,24 @@ code::
 ~beat.set(\dur_flex, ~rhythm.chords.collect(_[1]));
 ::
 
-HomewareSC's code::Math/Category_Theory/studies/:: holds the studies rendered offline and measured (one walk in 12, 19, 31 steps and just intonation; walks on chord graphs; networks moved by automorphisms; tetrads).
+HomewareSC's code::Math/Category_Theory/studies/:: holds the studies rendered offline and measured (one walk in 12, 19, 31 steps and just intonation; walks on chord graphs; networks moved by automorphisms; tetrads; canons).
+
+section:: Pictures
+
+Two pages of HomewareVisuals draw what the classes compute, fed through link::Classes/RCVisuals:: (at once, or from a beat as each chord sounds):
+
+list::
+## the lattice page (code::/lattice/::, link::Classes/RLLattice::): a walk of triads on the plane of fifths and major thirds, and wrapped into the torus of an equal division;
+## the chord graph page (code::/chordgraph/::, link::Classes/RLChordGraph::): any link::Classes/RLGraph:: laid out here (by voice-leading zones, on a circle...), a walk lighting its edges, the voices below.
+::
+
+code::
+RLLattice.show(~pump);
+~cd = RLRelationContext.cubeDance;  ~g = RLGraph.voiceLeading(~cd.union);
+RLChordGraph.show(~g, \zones, "Cube Dance", ~cd);
+~path = ~g.hamiltonianCycle;
+RLChordGraph.walk(~g, ~path, RLVoiceLeading.through(~path, [60, 64, 67]));
+::
 
 section:: Tests
 

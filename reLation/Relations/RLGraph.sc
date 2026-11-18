@@ -59,6 +59,21 @@ RLGraph {
 	edgeCount { ^adjacency.sum(_.size).div(if(this.isSymmetric) { 2 } { 1 }) }
 	isSymmetric { ^adjacency.every { |adj, i| adj.every { |j| adjacency[j].includes(i) } } }
 
+	// The place of an object among the vertices (nil when it is not one); and every edge as
+	// [i, j, cost, both ways], i and j places among the vertices. An edge that goes both ways is listed once,
+	// the smaller place first.
+	indexOf { |x| ^index[x] }
+	edges {
+		var out = Array.new;
+		adjacency.do { |adj, i|
+			adj.do { |j, k|
+				var back = adjacency[j].includes(i);
+				if(back.not or: { i < j }) { out = out.add([i, j, costs[i][k], back]) };
+			};
+		};
+		^out
+	}
+
 	neighbours { |x| ^adjacency[this.prIndex(x)].collect { |j| objects[j] } }
 	degree { |x| ^adjacency[this.prIndex(x)].size }
 	degrees { ^adjacency.collect(_.size) }

@@ -1,0 +1,59 @@
+TITLE:: RLChordGraph
+summary:: A graph of chords and a walk on it, shown on HomewareVisuals' chord graph page
+categories:: Libraries>reLation
+related:: Classes/RLGraph, Classes/RLRelationContext, Classes/RLWalker, Classes/RLLattice, Classes/RCVisuals, Guides/reLation
+
+DESCRIPTION::
+The chord graph page of HomewareVisuals (code::/chordgraph/::) only draws: the vertices, their places, the edges and their costs are all sent from here, so that any link::Classes/RLGraph:: can be looked at (Cube Dance and its analogues, the triads under P, L, R, Power Towers...) and no rule is written twice. The walk lights the edges it takes; when it comes with its voices, a strip below the graph draws them, pitch against step. Messages go through link::Classes/RCVisuals::, as every page's do.
+
+code::
+~cd = RLRelationContext.cubeDance;
+~g = RLGraph.voiceLeading(~cd.union);
+RLChordGraph.show(~g, \zones, "Cube Dance", ~cd);        // the graph, by voice-leading zones
+~path = ~g.shortestPath(~cd.space.major(0), ~cd.space.major(2));
+RLChordGraph.walk(~g, ~path, RLVoiceLeading.through(~path, [60, 64, 67]));     // a walk, with its voices
+
+// in a beat: each chord reaches the page when its sound starts (put the key after freq)
+~walker = RLWalker(~cd, ~cd.space.major(0), [60, 64, 67]);
+~beat = ~song.layer(\core).addBeat(\harmony, [instrument: \default, dur_flex: 2,
+	freq: ~walker.asPattern(Pseq([\P, \L, \U, \U], inf)), graph: RLChordGraph.pfunc(~g, ~walker)]);
+::
+
+CLASSMETHODS::
+
+METHOD:: show
+Sends a graph: a clear, a title, each vertex (its place, the number of its type, its short name), each edge (its ends, its cost, whether it goes both ways, the names of the context's relations that hold there). Returns the places.
+argument:: graph
+An link::Classes/RLGraph::.
+argument:: layout
+code::\zones::, code::\circle::, code::\cycle::, a Function code::(object, index) -> [x, y]::, or the places themselves (see link::#*layout::).
+argument:: title
+argument:: context
+The link::Classes/RLRelationContext:: the graph comes from, for the names of the edges; nil for none.
+
+METHOD:: walk
+A whole walk at once: the last walk forgotten, then every chord, with its voices when voicings are given (link::Classes/RLVoiceLeading#*through::).
+
+METHOD:: at
+One chord of a walk: its place among the vertices, the number of the step, its voicing.
+
+METHOD:: pfunc
+For a beat or a Pbind: a key whose value sends the walker's chord and voices when each event's sound starts.
+
+METHOD:: args
+The arguments of code::/chordgraph/at::: the place of the chord among the vertices, the number of the step, then the heights of the voices in cents above the system's origin. A chord that is not a vertex is refused.
+
+METHOD:: layout
+The places of the vertices, code::[x, y]:: each, between -1 and 1, y downwards.
+table::
+## code::\zones:: || voice-leading zones: a chord at the angle of the sum of its pitch classes round the division (a voice moving by one step moves the chord to the next zone), the chords of one zone along one ray. Chords of an link::Classes/RLEDO::; a circle otherwise.
+## code::\circle:: || the vertices in their order, the first at the top, clockwise.
+## code::\cycle:: || in the order of a walk through all of them (link::Classes/RLGraph#-hamiltonianCycle::).
+::
+
+METHOD:: zones
+METHOD:: circle
+The first two layouts.
+
+METHOD:: label
+The short name of a vertex: for a chord its root and a suffix (C, Cm, C+, C7, Cm7, Cm7b5, Cdim7).
