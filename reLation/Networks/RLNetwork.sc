@@ -23,7 +23,7 @@
 // network of networks.
 
 RLNetwork {
-	var <context, <nodes, contents, <arrows;
+	var <context, <nodes, contents, <arrows, <isFree = false;
 
 	// contents: [[node, object], ...]; arrows: [[from, to, label], ...]
 	*new { |context, contents, arrows| ^super.new.prInit(context, contents, arrows) }
@@ -55,6 +55,14 @@ RLNetwork {
 	prName { |arrow|
 		^if(context.respondsTo(\nameOf)) { context.nameOf(arrow) ? arrow.label ? arrow.asString } { arrow.label ? arrow.asString }
 	}
+
+	// The same network read as a free diagram: every arrow is an arrow of its own, so an arrow and a route
+	// between the same nodes (or two arrows) need not have the same label. It is valid when each label fits its
+	// two nodes. Popoff and Yust's metre networks are read this way: the beat M(1/2) and its division M(1/6),
+	// M(1/6) join the same two time points. strict gives back the usual reading.
+	free { ^this.copy.prFree(true) }
+	strict { ^this.copy.prFree(false) }
+	prFree { |flag| isFree = flag }
 
 	at { |node| ^contents[node] }
 	objects { ^nodes.collect { |n| contents[n] } }
@@ -91,9 +99,10 @@ RLNetwork {
 		^out
 	}
 
-	// What is wrong with the network, in words: an empty list when it is valid.
+	// What is wrong with the network, in words: an empty list when it is valid. (A free network is only asked
+	// that each label fits its nodes.)
 	problems {
-		var out = Array.new, routes = this.prRoutes;
+		var out = Array.new, routes = if(isFree) { [] } { this.prRoutes };
 		arrows.do { |a|
 			if(a[2].relates(contents[a[0]], contents[a[1]]).not) {
 				out = out.add("% does not take % (at %) to % (at %)".format(this.prName(a[2]), contents[a[0]], a[0], contents[a[1]], a[1]));
@@ -112,58 +121,83 @@ RLNetwork {
 
 	// The label the network gives the way from one node to another: that of their arrow, else the composite of
 	// a route between them; the identity from a node to itself; nil when nothing joins them.
-	labelBetween { |from, to|
-		var direct = this.label(from, to), route;
-		if(direct.notNil) { ^direct };
-		if(from == to) { ^context.identityTransform };
-		route = this.prRoutes.detect { |r| (r[0] == from) and: { r[1] == to } };
-		^route !? { route[2] }
+	labelBetween { |from, to| ^this.ways(from, to).first }
+
+	// Every label the network gives the way from one node to another, each once: those of their arrows, then
+	// the composites of the routes between them; the identity alone from a node to itself when nothing else
+	// goes there. One label in a valid network that is not free; several in a free one.
+	ways { |from, to|
+		var out = Array.new, add = { |l| if(out.includesEqual(l).not) { out = out.add(l) } };
+		arrows.do { |a| if((a[0] == from) and: { a[1] == to }) { add.value(a[2]) } };
+		this.prRoutes.do { |r| if((r[0] == from) and: { r[1] == to }) { add.value(r[2]) } };
+		if(out.isEmpty and: { from == to }) { out = [context.identityTransform] };
+		^out
 	}
 
 	// What keeps this network from being carried into another: an empty list when it is, a morphism of
-	// networks. nodeMap: [[node, its node in that], ...] (nodes left out keep their names); automorphism: how
-	// the context is moved on the way (contents by its map, labels by what it makes of them), nil for nothing.
-	//   - what each node holds, moved, is what its image holds;
-	//   - each label, moved, is included in the label that network gives the way between the images of its
-	//     nodes (relations and pulses, by <=; a transformation must be that label).
-	// Several nodes may go to one, and that network may have more nodes: a pulse refined into shorter ones,
-	// a chord progression filled in.
-	morphismProblems { |that, nodeMap, automorphism|
-		var out = Array.new, image = Dictionary.new, same;
+	// networks (Popoff, Andreatta and Ehresmann's, with one object for a node).
+	//   nodeMap: [[node, its node in that], ...]; nodes left out keep their names.
+	//   automorphism: how the context is moved on the way (contents by its map, labels by what it makes of
+	//   them); nil for nothing.
+	//   links: an arrow of the context at each node, [[node, label], ...] or one label for every node; nil,
+	//   and at the nodes left out, the identity.
+	// Two things are asked:
+	//   - what each node holds, moved, is joined by the node's link to what its image holds (is that object,
+	//     with no link);
+	//   - for each arrow, the head's link after the moved label is included in some way between the images of
+	//     its nodes after the tail's link (relations and pulses, by <=; transformations must be equal).
+	// Several nodes may go to one, and that network may have more nodes: a pulse refined into shorter ones, a
+	// chord progression filled in. With links and the same shape it is a local isography.
+	morphismProblems { |that, nodeMap, automorphism, links|
+		var out = Array.new, image = Dictionary.new, link = Dictionary.new, same, fits;
 		same = { |x, y| if(x.isNumber and: { y.isNumber }) { (x - y).abs < 1e-9 } { x == y } };
+		fits = { |l, target| if(l.respondsTo('<=')) { l <= target } { l == target } };
 		nodes.do { |n| image[n] = n };
 		nodeMap.do { |p| image[p[0]] = p[1] };
+		if(links.notNil) {
+			if(links.isKindOf(SequenceableCollection) and: { links.isKindOf(String).not } and: { links.notEmpty }
+				and: { links.every { |p| p.isKindOf(SequenceableCollection) and: { p.isKindOf(String).not } and: { p.size == 2 } and: { nodes.includes(p[0]) } } }) {
+				links.do { |p| link[p[0]] = that.prArrow(p[1]) };
+			} {
+				nodes.do { |n| link[n] = that.prArrow(links) };
+			};
+		};
 		nodes.do { |n|
-			var moved = if(automorphism.isNil) { contents[n] } { automorphism.value(contents[n]) };
+			var moved = if(automorphism.isNil) { contents[n] } { automorphism.value(contents[n]) }, held, ok;
 			if(that.nodes.includes(image[n]).not) {
 				out = out.add("% goes to %, which is not a node there".format(n, image[n]));
 			} {
-				if(same.(moved, that.at(image[n])).not) {
-					out = out.add("% (at %) becomes %, and % holds %".format(contents[n], n, moved, image[n], that.at(image[n])));
+				held = that.at(image[n]);
+				ok = if(link[n].isNil) { same.value(moved, held) } { link[n].relates(moved, held) };
+				if(ok.not) {
+					out = out.add("% (at %) becomes %, and % holds %".format(contents[n], n, moved, image[n], held));
 				};
 			};
 		};
 		arrows.do { |a|
-			var moved = if(automorphism.isNil) { a[2] } { automorphism.onArrow(a[2]) }, target;
+			var moved = if(automorphism.isNil) { a[2] } { automorphism.onArrow(a[2]) }, targets, ok;
 			if(that.nodes.includes(image[a[0]]) and: { that.nodes.includes(image[a[1]]) }) {
-				target = that.labelBetween(image[a[0]], image[a[1]]);
-				if(target.isNil) {
+				targets = that.ways(image[a[0]], image[a[1]]);
+				if(link[a[1]].notNil) { moved = link[a[1]] <> moved };
+				if(targets.isEmpty) {
 					out = out.add("nothing joins % to % there".format(image[a[0]], image[a[1]]));
 				} {
-					if(if(moved.respondsTo('<=')) { (moved <= target).not } { moved != target }) {
-						out = out.add("% (from % to %) is not included in %".format(this.prName(moved), a[0], a[1], that.prName(target)));
+					ok = targets.any { |t| fits.value(moved, if(link[a[0]].notNil) { t <> link[a[0]] } { t }) };
+					if(ok.not) {
+						out = out.add("% (from % to %) is not included in %".format(this.prName(a[2]), a[0], a[1],
+							targets.collect { |t| that.prName(t) }.join(" or ")));
 					};
 				};
 			};
 		};
 		^out
 	}
-	isMorphismTo { |that, nodeMap, automorphism| ^this.morphismProblems(that, nodeMap, automorphism).isEmpty }
+	isMorphismTo { |that, nodeMap, automorphism, links| ^this.morphismProblems(that, nodeMap, automorphism, links).isEmpty }
 
 	// The network moved by an automorphism of the context: contents by its map, labels by what it makes of them.
 	transformedBy { |automorphism|
 		^RLNetwork(context, nodes.collect { |n| [n, automorphism.value(contents[n])] },
-			arrows.collect { |a| [a[0], a[1], automorphism.onArrow(a[2])] })
+			arrows.collect { |a| [a[0], a[1], automorphism.onArrow(a[2])] }).prFree(isFree)
 	}
 
 	// The network and what an automorphism makes of it, again and again: n + 1 networks.
@@ -189,7 +223,7 @@ RLNetwork {
 		fill = { |k, chosen|
 			var n, cands;
 			if(k == order.size) {
-				out = out.add(RLNetwork(context, nodes.collect { |name| [name, chosen[name]] }, arrows));
+				out = out.add(RLNetwork(context, nodes.collect { |name| [name, chosen[name]] }, arrows).prFree(isFree));
 			} {
 				n = order[k];
 				arrows.do { |a|
@@ -215,7 +249,7 @@ RLNetwork {
 	isographs { |arrowMap|
 		var cat = context.category;
 		^RLNetwork(context, nodes.collect { |n| [n, contents[n]] },
-			arrows.collect { |a| [a[0], a[1], cat.imageOf(arrowMap, a[2])] }).fillings
+			arrows.collect { |a| [a[0], a[1], cat.imageOf(arrowMap, a[2])] }).prFree(isFree).fillings
 	}
 
 	// The isographies from this network to another of the same shape: the automorphisms of the category that
@@ -259,12 +293,14 @@ RLNetwork {
 
 	== { |that|
 		^that.isKindOf(RLNetwork) and: { nodes == that.nodes } and: { this.objects == that.objects } and: { arrows == that.arrows }
+		and: { isFree == that.isFree }
 	}
 	!= { |that| ^(this == that).not }
 	hash { ^[\RLNetwork, nodes, this.objects].hash }
 
 	printOn { |stream|
 		stream << "RLNetwork(" << this.objects.collect(_.asString).join(", ") << "; ";
-		stream << arrows.collect { |a| "% -%-> %".format(a[0], this.prName(a[2]), a[1]) }.join(", ") << ")";
+		stream << arrows.collect { |a| "% -%-> %".format(a[0], this.prName(a[2]), a[1]) }.join(", ");
+		stream << if(isFree) { "; free)" } { ")" };
 	}
 }
