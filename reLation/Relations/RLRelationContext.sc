@@ -90,6 +90,26 @@ RLRelationContext {
 		^this.new(pcs, rels).prGenerators([\T1, \I0]).prSystem(sys)
 	}
 
+	// Noll's monoid of a chord: the maps x -> ux + v of an equal division's pitch classes that send a set of
+	// them into itself, each named as '3x+7'. Eight maps for C major in 12 steps.
+	*preserving { |system, pcs|
+		var sys = system ?? { RLEDO(12) }, all = sys.pcs, n = sys.steps, rels = Array.new;
+		n.do { |u|
+			n.do { |v|
+				if(pcs.every { |x| pcs.includes(((u * x) + v) % n) }) {
+					rels = rels.add(["%x+%".format(u, v).asSymbol, RLRelation.ofFunction(all, { |x| ((u * x) + v) % n })]);
+				};
+			};
+		};
+		^this.new(all, rels).prSystem(sys)
+	}
+
+	// How far each object belongs to a set the relations keep: for each object, in their order, the arrows of
+	// the category that bring it into the set (truthValues), and their share of all the arrows, 1 for the
+	// members of the set (belonging): a graded membership, to use as control data.
+	truthValues { |subset| ^objects.collect { |x| this.category.truthValue(x, subset) } }
+	belonging { |subset| ^this.truthValues(subset).collect { |tv| tv.size / this.category.size } }
+
 	prGenerators { |list| generatorNames = list; categoryCache = nil }
 	prSystem { |sys| pitchSystem = sys }
 

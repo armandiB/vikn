@@ -124,6 +124,29 @@ RLCategory {
 	// The arrows that take x to y (for relations: that relate them).
 	relating { |x, y| ^arrows.select { |a| a.relates(x, y) } }
 
+	// Truth values (THEORY.md § 1.8). For a set the arrows keep (they send it into itself), "x belongs to the
+	// set" has more answers than yes and no: the arrows that bring x into it, as their indices. The more arrows,
+	// the nearer x is to belonging.
+	truthValue { |x, subset|
+		^Array.series(arrows.size).select { |i|
+			var im = arrows[i].images(x);
+			im.notEmpty and: { im.every { |y| subset.includesEqual(y) } }
+		}
+	}
+
+	// The sets of arrows that stay inside themselves when any arrow is applied after: the left ideals, all the
+	// truth values a monoid allows (by trying every subset: for monoids of 16 arrows at most).
+	leftIdeals {
+		var n = arrows.size, table, out = Array.new;
+		if(n > 16) { Error("RLCategory: % arrows are too many to list the left ideals".format(n)).throw };
+		table = this.table;
+		(2 ** n).asInteger.do { |mask|
+			var members = Array.series(n).select { |i| mask.bitTest(i) };
+			if(members.every { |s| Array.series(n).every { |m| mask.bitTest(table[m][s]) } }) { out = out.add(members) };
+		};
+		^out
+	}
+
 	// The category's own instance of an arrow (the one that carries its word as label), or nil.
 	canonical { |arrow| ^index[arrow] !? { |i| arrows[i] } }
 

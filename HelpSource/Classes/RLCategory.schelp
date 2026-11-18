@@ -93,6 +93,12 @@ A monoid whose arrows can all be undone.
 METHOD:: relating
 The arrows that take x to y (for relations: that relate them).
 
+METHOD:: truthValue
+For a set the arrows keep (they send it into itself), the arrows that bring x into it, as their indices: a truth value of "x belongs to the set", with more answers than yes and no. A group gives only the two usual ones.
+
+METHOD:: leftIdeals
+The sets of arrows that stay inside themselves when any arrow is applied after: all the truth values a monoid allows (for monoids of 16 arrows at most). Noll's monoid of C major has six.
+
 METHOD:: canonical
 The category's own instance of an arrow (the one that carries its word as label), or nil.
 

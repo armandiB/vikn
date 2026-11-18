@@ -1,7 +1,7 @@
 title:: reLation
 summary:: Musical objects and the relations that move them: pitch systems, chords, transformations, walks, and maps between contexts
 categories:: Libraries>reLation
-related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism, Classes/RLExtension, Classes/RLWreath
+related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism, Classes/RLExtension, Classes/RLWreath, Classes/RLTimeSpans, Classes/RLMetre
 
 section:: What it is
 
@@ -42,6 +42,7 @@ table::
 ## an automorphism || link::Classes/RLAutomorphism::: a one-to-one map of a relation context's objects || valid when it turns every relation of the context into one of them
 ## a group element || an Array code::[z, h]:: read by an link::Classes/RLExtension:: (root difference and type difference from a base chord) || means a chord only once the base chord is named
 ## a uniform transformation || an Array code::[shifts, types]:: read by an link::Classes/RLWreath:: || one shift and one new type for each chord type
+## a time-span || an Array code::[onset, duration]:: read by an link::Classes/RLTimeSpans:: || the duration above zero; also an element of the group that moves the spans
 ::
 
 Sizes are always in cents (intervals, drifts, voice motions), so that numbers from different systems compare.
@@ -217,6 +218,41 @@ code::
 ~w = RLWreath(12, 2);
 ~w.of(RLChordContext(~space).r, ~space);              // [[9, 3], [1, 0]]: R = <9, 3, ->
 ~w.order([[9, 8], [1, 0]]);                           // 24: R and L in turn, through every triad
+::
+
+section:: Chords of four tones
+
+A chord context takes a chord type of any size with its inversion. link::Classes/RLChordSpace#*tetrads:: is the tetrad nearest 4:5:6:7 and the same upside down: a dominant and a half-diminished seventh in 12 steps, exact on the lattice of 3, 5 and 7. Each pair of tones gives one contextual inversion (K01, K02...; P, L, R are the three of a triad), and two in a row transpose a chord, so the commas of the 7-limit are short walks.
+
+code::
+~t12 = RLChordContext(RLChordSpace.tetrads(RLEDO(12)));
+~t12.neighbours(~t12.space.otonal(0));       // six half-diminished sevenths around C7
+~t7 = RLChordContext(RLChordSpace.tetrads(RLJust([3, 5, 7])));
+~word = [\K12, \K01, \K12, \K01, \K13, \K01];        // two fifths up, a harmonic seventh up
+RLWalk(~t12, ~t12.space.otonal(0), ~word).isClosed;  // true
+~t7.system.commaName(RLWalk(~t7, ~t7.space.otonal, ~word).drift);     // septimal comma 64/63
+RLRelationContext.powerTowers.graph.size;    // 39 seventh chords, one voice by a semitone
+::
+
+section:: Time
+
+Time-spans (link::Classes/RLTimeSpans::) are moved from both sides as triads are: on the left everything is stretched and shifted, on the right each span moves by its own duration. A rhythm is a walk, and the same word from another span is the same rhythm at another time and tempo. Metre is a relation (link::Classes/RLMetre::), with shifts and dilations as its automorphisms, and a canon a pair of sets that tile the cycle.
+
+code::
+~time = RLTimeSpans.new;
+~rhythm = RLWalk(~time, [0, 1], ~time.word([1, 0.5, 0.5, 1, 2]));
+~rhythm.chords;                                            // [0, 1], [1, 0.5], [1.5, 0.5], [2, 1], [3, 2]
+RLWalk(~time, [0, 1.5], ~rhythm.word).chords;              // the same, one and a half times slower
+RLMetre(12).complements([0, 1, 5]);                        // [[0, 3, 6, 9]]
+::
+
+section:: Graded belonging
+
+For a monoid of maps that keep a chord, "this note belongs to the chord" has more answers than yes and no: the maps that bring the note into it (link::Classes/RLRelationContext#*preserving::, Noll's monoid). Their share is a number between 0 and 1 for every pitch class, to use as control data.
+
+code::
+~noll = RLRelationContext.preserving(RLEDO(12), [0, 4, 7]);
+~noll.belonging([0, 4, 7]);          // C, E, G: 1; Eb: 0.875; Ab, B, C#, F#, A, Bb: 0.625; D, F: 0.375
 ::
 
 section:: Sound

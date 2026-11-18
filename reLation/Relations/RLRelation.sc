@@ -162,6 +162,13 @@ RLRelation {
 		^RLRelation.prMake(source, target, rows.collect { |r, i| r.collect { |v, j| quantale.join(v, that.rows[i][j]) } },
 			quantale, nil, sIndex, tIndex)
 	}
+	// Value by value: what two relations both hold (for values, the lower of the two in the quantale's order).
+	& { |that|
+		this.prSameShape(that);
+		^RLRelation.prMake(source, target, rows.collect { |r, i|
+			r.collect { |v, j| var w = that.rows[i][j]; if(quantale.leq(v, w)) { v } { w } }
+		}, quantale, nil, sIndex, tIndex)
+	}
 	without { |that|
 		var zero = quantale.zero;
 		this.prSameShape(that);
