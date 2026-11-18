@@ -110,6 +110,56 @@ RLNetwork {
 	}
 	isValid { ^this.problems.isEmpty }
 
+	// The label the network gives the way from one node to another: that of their arrow, else the composite of
+	// a route between them; the identity from a node to itself; nil when nothing joins them.
+	labelBetween { |from, to|
+		var direct = this.label(from, to), route;
+		if(direct.notNil) { ^direct };
+		if(from == to) { ^context.identityTransform };
+		route = this.prRoutes.detect { |r| (r[0] == from) and: { r[1] == to } };
+		^route !? { route[2] }
+	}
+
+	// What keeps this network from being carried into another: an empty list when it is, a morphism of
+	// networks. nodeMap: [[node, its node in that], ...] (nodes left out keep their names); automorphism: how
+	// the context is moved on the way (contents by its map, labels by what it makes of them), nil for nothing.
+	//   - what each node holds, moved, is what its image holds;
+	//   - each label, moved, is included in the label that network gives the way between the images of its
+	//     nodes (relations and pulses, by <=; a transformation must be that label).
+	// Several nodes may go to one, and that network may have more nodes: a pulse refined into shorter ones,
+	// a chord progression filled in.
+	morphismProblems { |that, nodeMap, automorphism|
+		var out = Array.new, image = Dictionary.new, same;
+		same = { |x, y| if(x.isNumber and: { y.isNumber }) { (x - y).abs < 1e-9 } { x == y } };
+		nodes.do { |n| image[n] = n };
+		nodeMap.do { |p| image[p[0]] = p[1] };
+		nodes.do { |n|
+			var moved = if(automorphism.isNil) { contents[n] } { automorphism.value(contents[n]) };
+			if(that.nodes.includes(image[n]).not) {
+				out = out.add("% goes to %, which is not a node there".format(n, image[n]));
+			} {
+				if(same.(moved, that.at(image[n])).not) {
+					out = out.add("% (at %) becomes %, and % holds %".format(contents[n], n, moved, image[n], that.at(image[n])));
+				};
+			};
+		};
+		arrows.do { |a|
+			var moved = if(automorphism.isNil) { a[2] } { automorphism.onArrow(a[2]) }, target;
+			if(that.nodes.includes(image[a[0]]) and: { that.nodes.includes(image[a[1]]) }) {
+				target = that.labelBetween(image[a[0]], image[a[1]]);
+				if(target.isNil) {
+					out = out.add("nothing joins % to % there".format(image[a[0]], image[a[1]]));
+				} {
+					if(if(moved.respondsTo('<=')) { (moved <= target).not } { moved != target }) {
+						out = out.add("% (from % to %) is not included in %".format(this.prName(moved), a[0], a[1], that.prName(target)));
+					};
+				};
+			};
+		};
+		^out
+	}
+	isMorphismTo { |that, nodeMap, automorphism| ^this.morphismProblems(that, nodeMap, automorphism).isEmpty }
+
 	// The network moved by an automorphism of the context: contents by its map, labels by what it makes of them.
 	transformedBy { |automorphism|
 		^RLNetwork(context, nodes.collect { |n| [n, automorphism.value(contents[n])] },

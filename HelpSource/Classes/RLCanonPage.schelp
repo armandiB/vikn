@@ -40,5 +40,12 @@ argument:: pulses
 How many pulses the line of pulses has, or code::[count, beats in a pulse]::; nil for no line.
 argument:: title
 
+METHOD:: layers
+Pulse layers as rows (metre: link::Classes/RLTimePoints::): each layer, code::[period, phase]:: or a period, by its points from code::from:: up to code::to::, a bar half a period long from each point. Under the rows, the finest pulse all the points fall on, and which layers sound on each of its points: where two layers meet, and where they never do.
+code::
+RLCanonPage.layers([[1/6, 5/2], [1/4, 31/12]], 5/2, 3.2, title: "eighths against dotted eighths");   // a grouping: they meet at 17/6
+RLCanonPage.layers([[1/2, 0], [1/2, 1/12]], 0, 2, title: "a sixteenth apart");                         // a displacement: never
+::
+
 METHOD:: head
 A line at a beat, where the playing is; nil takes it away.

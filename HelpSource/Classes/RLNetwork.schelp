@@ -106,6 +106,27 @@ code::
 ~w.isographiesTo(~w.transformedBy(RLAutomorphism.affine(~pcs, 11, 8))) == [~pcs.isography([\T11, \I4])];    // true: <I4>
 ::
 
+METHOD:: labelBetween
+The label the network gives the way from one node to another: that of their arrow, else the composite of a route between them; the identity from a node to itself; nil when nothing joins them.
+
+METHOD:: isMorphismTo
+METHOD:: morphismProblems
+Whether this network is carried into another, and what is in the way (an empty list when nothing is): what each node holds, moved, is what its image holds; and each label, moved, is included in the label that network gives the way between the images of its nodes (relations and pulses, by code::<=::; a transformation must be that label). Several nodes may go to one, and that network may have more nodes: a pulse refined into shorter ones (link::Classes/RLTimePoints::), a chord progression filled in.
+argument:: that
+The network to go into.
+argument:: nodeMap
+code::[[node, its node in that], ...]::; nodes left out keep their names.
+argument:: automorphism
+How the context is moved on the way: an link::Classes/RLAutomorphism::, an link::Classes/RLTimeMap::; nil for nothing.
+code::
+~cd = RLRelationContext.cubeDance;  ~sp = ~cd.space;
+~far = RLNetwork(~cd, [[\x, ~sp.major(0)], [\y, ~sp.major(4)]], [[\x, \y, [\U, \U]]]);
+~filled = RLNetwork(~cd, [[\x, ~sp.major(0)], [\m, ~sp.chord(0, \aug)], [\y, ~sp.major(4)]], [[\x, \m, \U], [\m, \y, \U]]);
+~far.isMorphismTo(~filled);                                   // true: the leap goes into the progression that fills it
+~t5 = RLAutomorphism.transposition(~cd, 5);
+~far.isMorphismTo(~filled.transformedBy(~t5), nil, ~t5);      // true: moved a fourth up on the way
+::
+
 METHOD:: hasSameLabels
 Whether another network of the same shape has the same labels: a strong isography.
 

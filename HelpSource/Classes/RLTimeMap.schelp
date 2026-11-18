@@ -1,0 +1,42 @@
+TITLE:: RLTimeMap
+summary:: A map of time, t to a t + b: a shift, a stretch
+categories:: Libraries>reLation
+related:: Classes/RLTimePoints, Classes/RLPulse, Classes/RLTimeSpans, Classes/RLNetwork, Guides/reLation
+
+DESCRIPTION::
+Every time point t sent to a t + b. A shift (a = 1) and a stretch (b = 0) are the automorphisms of the time points with their pulses (Popoff and Yust): a shift changes no pulse, a stretch by a multiplies every period by a. Applied to a metre network (link::Classes/RLNetwork#-transformedBy::) a shift is a displacement, a stretch an augmentation; given to link::Classes/RLNetwork#-isMorphismTo:: it is how the context is moved on the way.
+
+It is the left element code::[b, a]:: of link::Classes/RLTimeSpans::, acting on points in place of spans. A value.
+
+code::
+~later = RLTimeMap(1, 1/12);            // a sixteenth of a 6/8 bar later
+~later.value(5/2);                      // 31/12
+~later.onArrow(RLPulse(1/2));           // RLPulse(1/2)
+RLTimeMap(2, 0).onArrow(RLPulse(1/2));  // RLPulse(1): twice as slow
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: a
+The stretch; 0 is an Error. A negative one turns time round.
+argument:: b
+The shift.
+
+INSTANCEMETHODS::
+
+METHOD:: a
+METHOD:: b
+
+METHOD:: value
+The image of a time point.
+
+METHOD:: onArrow
+What a pulse becomes: its period times the size of a.
+
+METHOD:: <>
+This after that.
+
+METHOD:: inverse
+METHOD:: isIdentity
+METHOD:: label

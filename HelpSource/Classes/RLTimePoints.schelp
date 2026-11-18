@@ -1,0 +1,66 @@
+TITLE:: RLTimePoints
+summary:: Time points and the pulses between them: the context of metre networks
+categories:: Libraries>reLation
+related:: Classes/RLPulse, Classes/RLTimeMap, Classes/RLNetwork, Classes/RLMetre, Classes/RLTimeSpans, Guides/reLation
+
+DESCRIPTION::
+A time point is a number (a time in bars, in beats, in seconds). The arrows are pulses (link::Classes/RLPulse::): M(d) relates two points a whole number of d apart. A metre network (Popoff and Yust) is an link::Classes/RLNetwork:: on this context: its nodes hold time points, its arrows say which pulse joins them, and two routes compose alike.
+
+Networks are carried into one another (link::Classes/RLNetwork#-isMorphismTo::) in the two ways metre has of being at odds with itself: a pulse included in a finer one (a grouping), and a shift of time (a displacement). The maps of time, link::Classes/RLTimeMap::, are the automorphisms.
+
+code::
+// Brahms, "Auf dem See" op. 106 no. 2, bars 7 and 8, the bar as the unit
+~time = RLTimePoints.new;
+~top = RLNetwork(~time, [[\E, 5/2], [\G, 3]], [[\E, \G, 1/2]]);                              // a half bar
+~voice = RLNetwork(~time, [[\E, 5/2], [\F, 17/6], [\G, 3]], [[\E, \F, 1/6], [\F, \G, 1/6]]); // the voice: eighths
+~top.isMorphismTo(~voice);                               // true: M1/2 is included in M1/6
+~piano = RLNetwork(~time, [[\E, 31/12], [\G, 37/12]], [[\E, \G, 1/2]]);                      // the piano, a sixteenth later
+~top.isMorphismTo(~piano, nil, ~time.shift(1/12));       // true: a displacement
+~fine = RLNetwork(~time, [[\E, 31/12], [\F, 17/6], [\G, 37/12]], [[\E, \F, 'M1/4'], [\F, \G, 'M1/4']]);   // dotted eighths
+~piano.isMorphismTo(~fine);                              // true
+~voice.morphismProblems(~fine, nil, ~time.shift(1/12));  // what is in the way of eighths against dotted eighths
+
+~time.dissonance([1/6, 5/2], [1/4, 31/12]);              // grouping
+~time.common([1/6, 5/2], [1/4, 31/12]);                  // [0.5, 2.8333333333]: they meet every half bar, at 17/6 first
+::
+
+A name with a slash is written between quotes: code::'M1/4'::, not code::\M1/4::, which sclang reads as a division.
+
+CLASSMETHODS::
+
+METHOD:: new
+
+INSTANCEMETHODS::
+
+METHOD:: arrow
+A pulse from what names it: an link::Classes/RLPulse::, a period, a name (code::'M1/6'::, code::"1/6"::), or a word of them (their gcd).
+
+METHOD:: transform
+METHOD:: pulse
+The same, for one name or one period.
+
+METHOD:: identityTransform
+M0.
+
+METHOD:: nameOf
+A pulse's name.
+
+METHOD:: affine
+METHOD:: shift
+METHOD:: stretch
+The maps of time code::t -> a t + b:: (link::Classes/RLTimeMap::): both, a shift alone, a stretch alone.
+
+METHOD:: pulseOf
+The finest pulse that holds a list of time points: every two of them a whole number of its periods apart.
+
+METHOD:: layer
+The points of a pulse layer in a window. A layer is code::[period, phase]::, or a period alone: the points phase + k period.
+
+METHOD:: dissonance
+How two pulse layers stand to one another: code::\consonance:: when the points of the slower are all points of the faster; code::\displacement:: when their periods would allow that and they are shifted apart (Krebs); code::\grouping:: when neither period is a whole multiple of the other.
+
+METHOD:: common
+The points two layers both sound, as a layer code::[period, one of its points]::: the period is their lcm. nil when they share no point.
+
+METHOD:: system
+nil: time points have no pitch system.

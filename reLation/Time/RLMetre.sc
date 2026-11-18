@@ -3,7 +3,8 @@
 // Metre as a relation (Popoff and Yust): M(d) relates two pulses a multiple of d apart. Composing two metres
 // gives their greatest common divisor, intersecting them their least common multiple, and one is included in
 // another when its number is a multiple of the other's. Shifting the pulses, or multiplying them by a number
-// prime to n, changes no metre: they are automorphisms.
+// prime to n, changes no metre: they are automorphisms. (On the line of time, with periods that are fractions,
+// the same relations are RLPulses, and metre networks live on RLTimePoints.)
 //
 //   ~m = RLMetre(12);
 //   (~m.relation(4) <> ~m.relation(6)) == ~m.relation(2);      // true: the gcd

@@ -1,10 +1,10 @@
 TITLE:: RLMetre
 summary:: Metre as a relation on a cycle of pulses, and rhythmic canons
 categories:: Libraries>reLation
-related:: Classes/RLRelation, Classes/RLRelationContext, Classes/RLAutomorphism, Classes/RLTimeSpans, Classes/RCSieve, Guides/reLation
+related:: Classes/RLRelation, Classes/RLRelationContext, Classes/RLAutomorphism, Classes/RLTimeSpans, Classes/RLPulse, Classes/RLTimePoints, Classes/RCSieve, Guides/reLation
 
 DESCRIPTION::
-On a cycle of n pulses, the metre M(d) relates two pulses a multiple of d apart (Popoff and Yust). Metres are link::Classes/RLRelation::s and their algebra is arithmetic: composing two gives their greatest common divisor, intersecting them their least common multiple, and one is included in another when its number is a multiple of the other's. Shifting the pulses, or multiplying them by a number prime to n, changes no metre: they are automorphisms of the context (link::Classes/RLAutomorphism::).
+On a cycle of n pulses, the metre M(d) relates two pulses a multiple of d apart (Popoff and Yust). Metres are link::Classes/RLRelation::s and their algebra is arithmetic: composing two gives their greatest common divisor, intersecting them their least common multiple, and one is included in another when its number is a multiple of the other's. Shifting the pulses, or multiplying them by a number prime to n, changes no metre: they are automorphisms of the context (link::Classes/RLAutomorphism::). On the line of time, with periods that are fractions and no cycle, the same relations are link::Classes/RLPulse::s, and metre networks live on link::Classes/RLTimePoints::.
 
 A rhythmic strong::canon:: is a rhythm A and a set of entries B that tile the cycle: every pulse sounded once.
 
