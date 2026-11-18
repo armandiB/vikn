@@ -55,6 +55,25 @@ TestRLWalker : UnitTest {
 		this.assertEquals(held.chord, free.chord, "on the same chords");
 	}
 
+	// what the lattice page of HomewareVisuals is sent (its protocol: public/lib/lattice-viz.js there)
+	test_the_lattice_page {
+		var got = Array.new, saved = RCVisuals.sink, walker, up;
+		RCVisuals.sink = { |path, args| got = got.add([path] ++ args) };
+		up = RLLattice.show(RLWalk(ctx, c, pump));
+		this.assertEquals(got[0], ['/lattice/config', 12, 7, 4], "the division: its steps, its fifth, its major third");
+		this.assertEquals(got[1], ['/lattice/clear'], "then a clear");
+		this.assertEquals(got.drop(2).size, 9, "then the nine chords of the lift");
+		this.assertEquals(got.last, ['/lattice/chord', -4, 1, 0, 8], "the last one four fifths down and a third up: a syntonic comma from the start");
+		this.assertEquals(got[3], ['/lattice/chord', -1, 1, 1, 1], "the second 5/3 minor");
+		this.assertEquals(up.drift, [-4, 1], "the lift is returned");
+		walker = RLWalker(ctx, c, [60, 64, 67]).follow;
+		pump.do { |name| walker.step(name) };
+		this.assertEquals([walker.chord, walker.latticeChord.root], [c, [-4, 1]], "a walker's shadow: back on C major, a comma away on the lattice");
+		this.assertEquals(RLLattice.args(walker.latticeChord, walker.count), [-4, 1, 0, 8], "what a beat sends for it");
+		this.assertException({ RLLattice.args(c) }, Error, "a chord that is not on the lattice is refused");
+		RCVisuals.sink = saved;
+	}
+
 	test_in_a_beat_of_recurrent {
 		var walker = RLWalker(ctx, c, [60, 64, 67], 8.1757989156), expected = RLWalk(ctx, c, [\R, \L, \R]).freqs([60, 64, 67], 8.1757989156);
 		var beat, stream, evs;

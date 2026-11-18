@@ -63,7 +63,8 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
 - `reLation/Contexts`: RLChordContext (triads moved by T, I on the left and P, L, R on the right),
   RLTransform, RLMorphism (maps between contexts: temperaments, pushed and lifted walks)
 - `reLation/Walks`: RLWalk (a start and a word; its chords, its drift, its voices, its frequencies), RLWalker
-  (a chord and its voices taking one step at a time, for walks without an end: the `\freq` of a beat of reCurrent)
+  (a chord and its voices taking one step at a time, for walks without an end: the `\freq` of a beat of reCurrent),
+  RLLattice (a walk sent to HomewareVisuals' lattice page: the plane of fifths and thirds, the torus of a division)
 - `reLation/Relations`: RLQuantale (the values of a relation: boolean, costs, strengths), RLRelation (a
   relation between two lists, composed, compared, closed into a distance), RLCategory (what named arrows
   generate, each with a shortest word: monoids of relations, groups of transformations), RLRelationContext

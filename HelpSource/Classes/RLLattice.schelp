@@ -1,0 +1,45 @@
+TITLE:: RLLattice
+summary:: A walk shown on HomewareVisuals' lattice page: the plane of fifths and thirds, and the torus of a division
+categories:: Libraries>reLation
+related:: Classes/RLWalk, Classes/RLWalker, Classes/RCVisuals, Classes/RLJust, Guides/reLation
+
+DESCRIPTION::
+HomewareVisuals' page code::/lattice/:: draws a walk on triads twice: on the left on the lattice of fifths and major thirds, where it really goes; on the right on the torus an equal division folds that lattice into, one cell whose sides are two commas the division tempers out. A walk that closes in the division comes back to its triangle on the right, and has moved by a comma on the left.
+
+The page is sent triads of code::RLJust([3, 5])::. A walk of an equal division is shown by its lift from 1/1 (link::#*show:: does it); a walker takes a shadow on the lattice (link::Classes/RLWalker#-follow::). Messages go through link::Classes/RCVisuals:: (code::/lattice/config::, code::/lattice/clear::, code::/lattice/chord::; the page's engine, code::public/lib/lattice-viz.js:: in HomewareVisuals, has the protocol).
+
+code::
+~ctx = RLChordContext(RLChordSpace.triads(RLEDO(12)));
+~pump = RLWalk(~ctx, ~ctx.space.major(0), [\R, \L, \R, \P, \R, \L, \R, \L]);
+RLLattice.show(~pump);                     // the division, then the nine chords of the lift
+
+// a walker in a beat of reCurrent: each chord reaches the page when its sound starts
+~walker = RLWalker(~ctx, ~ctx.space.major(0), [60, 64, 67], 8.1757989156, 0.75).follow;
+RLLattice.config(~ctx.system);  RLLattice.clear;
+~beat = ~song.layer(\core).addBeat(\harmony, [instrument: \default, dur_flex: 2,
+	freq: ~walker.asPattern(Pseq([\R, \L], inf)), lattice: RLLattice.pfunc(~walker)]);
+::
+
+CLASSMETHODS::
+
+METHOD:: config
+Tell the page its division: its steps, those of its fifth and of its major third. nil: no division (the torus stays empty).
+
+METHOD:: clear
+Forget the walk drawn.
+
+METHOD:: chord
+Send one triad of the lattice.
+argument:: chord
+A triad of code::RLJust([3, 5])::; anything else is an Error.
+argument:: k
+The number of the step.
+
+METHOD:: args
+The arguments of code::/lattice/chord:: for a triad: code::[fifths, thirds, type, step]::.
+
+METHOD:: show
+A whole walk at once: the division, a clear, then every chord. A walk of an equal division is lifted to the lattice from 1/1; a walk of the lattice is shown as it is, with the division given. Returns the walk shown.
+
+METHOD:: pfunc
+For a beat or a Pbind: a key whose value sends the walker's place on the lattice when each event's sound starts. Put it after code::freq::. The walker stands on the lattice, or follows there (link::Classes/RLWalker#-follow::).

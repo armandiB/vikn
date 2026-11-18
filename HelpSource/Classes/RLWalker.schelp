@@ -67,6 +67,13 @@ A step, then the frequencies.
 METHOD:: moveTo
 Put the walker on a chord: with a voicing of it, or by the least motion from where the voices are.
 
+METHOD:: follow
+Gives the walker a shadow on the just lattice that takes every step it takes, from 1/1 (or from a chord given): where the walk really goes, for the lattice page (link::Classes/RLLattice::). For walkers of a chord context of triads, stepped by names. Returns the walker.
+
+METHOD:: shadow
+METHOD:: latticeChord
+The shadow, a walker on the lattice (nil without one); the walker's chord on the lattice, its shadow's or its own.
+
 METHOD:: freqs
 METHOD:: middle
 The frequencies of the voices; their middle, in octaves above the origin.

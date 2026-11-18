@@ -21,7 +21,7 @@
 // middle leaves the reach around the centre.
 
 RLWalker {
-	var <context, <chord, <voicing, <>base, <>centre, <>reach, <>chooser, <count = 0;
+	var <context, <chord, <voicing, <>base, <>centre, <>reach, <>chooser, <count = 0, <shadow;
 
 	// voicing: pitches of the start chord (close position at the origin when nil); base: the frequency of the
 	// origin; reach: how far, in octaves, the middle of the voices may go from where it started (nil: no limit).
@@ -59,7 +59,18 @@ RLWalker {
 		};
 		count = count + 1;
 		this.moveTo(next);
+		shadow !? { shadow.step(name) };
 	}
+
+	// A shadow on the just lattice that takes every step the walker takes, from 1/1 (or from a chord given):
+	// where the walk really goes, for the lattice page (RLLattice). For walkers of a chord context of triads,
+	// stepped by names.
+	follow { |start|
+		var just = RLChordContext(RLChordSpace.triads(RLJust([3, 5])));
+		shadow = RLWalker(just, start ?? { just.space.chord(just.system.pcZero, chord.type) });
+	}
+	// The walker's chord on the lattice: its shadow's, or its own when it stands there itself.
+	latticeChord { ^if(shadow.notNil) { shadow.chord } { chord } }
 
 	prNearest { |options|
 		var system = this.system, best, bestCost = inf;
