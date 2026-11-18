@@ -24,14 +24,26 @@ RLMorphism {
 
 	*new { |source, target, map, label| ^super.newCopyArgs(source, target, map, label) }
 
-	// The temperament from a just context to an equal division's: roots through the val, types kept.
+	// A temperament, types kept: from a just context to an equal division's (roots through the val), from a
+	// just context to a temperament's (RLTempered: roots reduced by its commas), or from a temperament's to an
+	// equal division it supports.
 	*temper { |source, target|
-		var just = source.system, edo = target.system;
-		if(just.isKindOf(RLJust).not or: { edo.isKindOf(RLEDO).not }) {
-			Error("RLMorphism.temper: from an RLJust context to an RLEDO context, not % to %".format(just, edo)).throw
+		var from = source.system, to = target.system, map;
+		if(from.isKindOf(RLTempered) and: { to.isKindOf(RLEDO) } and: { from.supports(to).not }) {
+			Error("RLMorphism.temper: % does not temper out the commas of %".format(to, from)).throw
 		};
-		^this.new(source, target, { |chord| target.space.chord(just.temperPc(edo, chord.root), chord.type) },
-			"temper to %".format(edo.steps))
+		map = case
+		{ (from.isKindOf(RLJust) or: { from.isKindOf(RLTempered) }) and: { to.isKindOf(RLEDO) } } {
+			{ |chord| target.space.chord(from.temperPc(to, chord.root), chord.type) }
+		}
+		{ to.isKindOf(RLTempered) and: { (from == to.just) or: { from.isKindOf(RLTempered) and: { from.just == to.just }
+			and: { from.commas.every { |c| to.tempers(c) } } } } } {
+			{ |chord| target.space.chord(to.reducePc(chord.root), chord.type) }
+		};
+		if(map.isNil) {
+			Error("RLMorphism.temper: from the lattice or a temperament to a temperament of it or an equal division, not % to %".format(from, to)).throw
+		};
+		^this.new(source, target, map, "temper to %".format(if(to.isKindOf(RLEDO)) { to.steps } { to }))
 	}
 
 	value { |chord| ^map.value(chord) }
@@ -51,7 +63,9 @@ RLMorphism {
 		^if(system.isFinite) { source.space.all } {
 			range = (-3..3);
 			range.dup(system.pcZero.size).allTuples.collect { |x|
-				source.space.typeNames.collect { |t| source.space.chord(x, t) }
+				// in a temperament the point of the lattice stands for its class
+				var root = if(system.respondsTo(\reducePc)) { system.reducePc(x) } { x };
+				source.space.typeNames.collect { |t| source.space.chord(root, t) }
 			}.flatten(1)
 		}
 	}

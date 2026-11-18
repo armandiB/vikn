@@ -58,7 +58,9 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
 `Math/Category_Theory/`. Start with `HelpSource/Guides/reLation.schelp`.
 
 - `reLation/Pitch`: RLPitchSystem, RLEDO (an equal division and its val), RLJust (just intonation as a
-  lattice, its commas, its maps to equal divisions), RLVoiceLeading (the least motion between voicings)
+  lattice, its commas, its maps to equal divisions), RLTempered (the lattice with some commas tempered out:
+  meantone and the other temperaments between the lattice and the divisions, with their tunings),
+  RLVoiceLeading (the least motion between voicings)
 - `reLation/Chords`: RLChordSpace (a system and its chord types), RLChord
 - `reLation/Contexts`: RLChordContext (triads moved by T, I on the left and P, L, R on the right),
   RLTransform, RLMorphism (maps between contexts: temperaments, pushed and lifted walks)

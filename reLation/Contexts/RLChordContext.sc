@@ -79,11 +79,20 @@ RLChordContext {
 	center {
 		^if(system.isFinite) {
 			system.pcs.select { |v| (v != system.pcZero) and: { this.isCentral([v, 0]) } }.collect { |v| [v, 0] }
-		} { [] }
+		} {
+			// a temperament that is not finite can still have a tritone (RLTempered:halves)
+			if(system.respondsTo(\halves)) { system.halves.collect { |v| [v, 0] } } { [] }
+		}
 	}
 
-	// An order on the elements of a finite system, for a transformation's canonical form.
-	prBefore { |g, h| ^(g[1] < h[1]) or: { (g[1] == h[1]) and: { g[0] < h[0] } } }
+	// An order on the elements, for a transformation's canonical form: by type, then by root (a root that is
+	// an Array, coordinate by coordinate).
+	prBefore { |g, h|
+		var a = g[0].asArray, b = h[0].asArray, i;
+		if(g[1] != h[1]) { ^g[1] < h[1] };
+		i = a.detectIndex { |x, k| x != b[k] };
+		^i.notNil and: { a[i] < b[i] }
+	}
 
 	// chords as elements, and back
 	element { |chord| ^[chord.root, chord.typeIndex] }

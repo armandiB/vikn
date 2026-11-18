@@ -22,10 +22,10 @@ Coordinates are plain data, read by the system they belong to; everything with r
 
 table::
 ## what || how it is written || its rules
-## a pitch class || an Integer in RLEDO (code::7::), an Array of exponents in RLJust (code::[1, 0]::, one per odd prime) || belongs to one system; add and compare through it (code::pcAdd::, code::cents::)
-## a pitch || an Integer of steps in RLEDO, code::[e2, e3, e5]:: in RLJust || code::system.height(pitch):: is its place in octaves above the origin
+## a pitch class || an Integer in RLEDO (code::7::), an Array of exponents in RLJust (code::[1, 0]::, one per odd prime), the same in RLTempered, reduced by its commas || belongs to one system; add and compare through it (code::pcAdd::, code::cents::), never with code::+::
+## a pitch || an Integer of steps in RLEDO, code::[e2, e3, e5]:: in RLJust and RLTempered || code::system.height(pitch):: is its place in octaves above the origin
 ## a voicing || an Array of pitches, one per voice || voice i stays voice i; never sorted
-## a pitch system || code::RLEDO(19)::, code::RLJust([3, 5]):: || a value
+## a pitch system || code::RLEDO(19)::, code::RLJust([3, 5])::, code::RLTempered.meantone:: || a value
 ## a chord || link::Classes/RLChord::: a root (a pitch class) and a type || the type is one of its space's; no octave, no voicing; prints as its name
 ## a chord space || link::Classes/RLChordSpace::: a system and its chord types || a type is a name and a pattern, root first
 ## a context || link::Classes/RLChordContext:: || needs a triad and its inversion
@@ -100,6 +100,17 @@ code::
 ~hexatonic = RLWalk.cycle(~ctx, ~c, [\P, \L]);
 ~temper.lift(~hexatonic).drift;                  // [0, -3]: the diesis
 ~just.system.kernel(RLEDO(12), 4).collect { |x| ~just.system.commaName(x) };
+::
+
+Between the lattice and a division stand the temperaments that give up some commas and not all (link::Classes/RLTempered::). Meantone gives up the syntonic comma: the plane of fifths and thirds becomes a chain of fifths, of which 12, 19 and 31 steps are tunings. What they share is seen there once: the pump closes whatever the fifth, and the three cycles all end on one pitch class, the diesis, which is one step in 19 and in 31 and nothing in 12.
+
+code::
+~mt = RLChordContext(RLChordSpace.triads(RLTempered.meantone));         // quarter-comma
+RLMorphism.temper(~just, ~mt).isValid;                                  // true: the lattice to meantone
+RLMorphism.temper(~mt, ~ctx).isValid;                                   // true: meantone to 12 steps
+~drift = RLWalk(~mt, ~mt.space.major, [\P, \L, \P, \L, \P, \L]).drift;  // [0, -3]
+~mt.system.cents(~drift);  ~mt.system.commaName(~drift);                // 41.06 cents, the diesis 128/125
+RLTempered.meantone.divisions(34);                                      // [5, 7, 12, 19, 24, 26, 31]
 ::
 
 section:: Voices
