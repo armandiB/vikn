@@ -264,7 +264,17 @@ Pbind(\freq, ~pump.asPattern(nil, 220), \dur, 1, \legato, 1).play;
 Pbind(\freq, ~lifted.asPattern(nil, 220), \dur, 1, \legato, 1).play;    // ends 21.5 cents below its start
 ::
 
-HomewareSC's code::Math/Category_Theory/studies/:: holds the studies rendered offline and measured (one walk in 12, 19, 31 steps and just intonation).
+In a piece, a walk is played through a beat of reCurrent, and a walk without an end by an link::Classes/RLWalker::: it keeps the chord and the voices, and takes one step for each name a pattern gives. The word can change on the next beat; the harmony goes on from where it is.
+
+code::
+~walker = RLWalker(~ctx, ~c, [60, 64, 67], 8.1757989156, 0.75);
+~beat = ~song.layer(\core).addBeat(\harmony, [instrument: \default, dur_flex: 2, freq: ~walker.asPattern(Pseq([\R, \L], inf))]);
+~beat.set(\freq, ~walker.asPattern(Prand([\P, \L, \R], inf)));
+// a rhythm from time-spans as the beat's durations
+~beat.set(\dur_flex, ~rhythm.chords.collect(_[1]));
+::
+
+HomewareSC's code::Math/Category_Theory/studies/:: holds the studies rendered offline and measured (one walk in 12, 19, 31 steps and just intonation; walks on chord graphs; networks moved by automorphisms; tetrads).
 
 section:: Tests
 
