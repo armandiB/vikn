@@ -23,7 +23,11 @@ RLLattice.config(~ctx.system);  RLLattice.clear;
 CLASSMETHODS::
 
 METHOD:: config
-Tell the page its division: its steps, those of its fifth and of its major third. nil: no division (the torus stays empty).
+Tell the page what folds the lattice: an link::Classes/RLEDO:: (its steps, those of its fifth and of its major third: the torus), an link::Classes/RLTempered:: of one comma of the lattice of 3 and 5 (the comma: the cylinder, meantone's a strip along the fifths with its notes spelled along that chain), or nil (the right panel stays empty).
+code::
+~mean = RLChordContext(RLChordSpace.triads(RLTempered.meantone));
+RLLattice.show(RLWalk(~mean, ~mean.space.major, [\P, \L, \P, \L, \P, \L]));     // ends on Dbb major, a diesis above C
+::
 
 METHOD:: clear
 Forget the walk drawn.

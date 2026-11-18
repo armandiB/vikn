@@ -1,5 +1,5 @@
 // reLation — a walk shown on HomewareVisuals' lattice page (/lattice/): the plane of fifths and major thirds,
-// and the torus an equal division folds it into.
+// and the torus an equal division folds it into, or the cylinder of a temperament of one comma (meantone).
 //
 // The page draws triads of the just lattice of 3 and 5. A walk of an equal division is shown by its lift: the
 // same word from 1/1 (RLLattice.show does it), or, for a walker, a shadow that takes the same steps on the
@@ -17,11 +17,19 @@
 
 RLLattice {
 
-	// Tell the page its division: its steps, those of its fifth and of its major third (nil: no division).
-	*config { |edo|
-		^if(edo.isNil) { RCVisuals.send('/lattice/config', 0, 0, 0) } {
-			RCVisuals.send('/lattice/config', edo.steps, edo.interval([3, 2]), edo.interval([5, 4]))
+	// Tell the page what folds the lattice: an equal division (its steps, those of its fifth and of its major
+	// third: the torus), a temperament of one comma (RLTempered on the lattice of 3 and 5: the comma, for the
+	// cylinder), or nothing (nil).
+	*config { |system|
+		^case
+		{ system.isNil } { RCVisuals.send('/lattice/config', 0, 0, 0) }
+		{ system.isKindOf(RLTempered) } {
+			if((system.primes != [3, 5]) or: { system.basis.size != 1 }) {
+				Error("RLLattice: the page draws a temperament of one comma of the lattice of 3 and 5, not %".format(system)).throw
+			};
+			RCVisuals.send('/lattice/comma', system.basis[0][1], system.basis[0][2])
 		}
+		{ RCVisuals.send('/lattice/config', system.steps, system.interval([3, 2]), system.interval([5, 4])) }
 	}
 
 	*clear { ^RCVisuals.send('/lattice/clear') }
@@ -36,8 +44,9 @@ RLLattice {
 
 	*chord { |chord, k = 0| ^RCVisuals.sendArgs('/lattice/chord', this.args(chord, k)) }
 
-	// A whole walk at once: the division, a clear, then every chord. A walk of an equal division is lifted to
-	// the lattice from 1/1 (edo is then its own system); a walk of the lattice is shown as it is.
+	// A whole walk at once: the division or the temperament, a clear, then every chord. A walk of an equal
+	// division or of a temperament is lifted to the lattice from 1/1 (edo is then its own system); a walk of
+	// the lattice is shown as it is.
 	*show { |walk, edo|
 		var system = walk.context.system, up = walk;
 		if(system.isKindOf(RLJust).not) {

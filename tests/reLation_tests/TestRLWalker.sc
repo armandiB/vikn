@@ -57,7 +57,7 @@ TestRLWalker : UnitTest {
 
 	// what the lattice page of HomewareVisuals is sent (its protocol: public/lib/lattice-viz.js there)
 	test_the_lattice_page {
-		var got = Array.new, saved = RCVisuals.sink, walker, up;
+		var got = Array.new, saved = RCVisuals.sink, walker, up, mean;
 		RCVisuals.sink = { |path, args| got = got.add([path] ++ args) };
 		up = RLLattice.show(RLWalk(ctx, c, pump));
 		this.assertEquals(got[0], ['/lattice/config', 12, 7, 4], "the division: its steps, its fifth, its major third");
@@ -71,6 +71,12 @@ TestRLWalker : UnitTest {
 		this.assertEquals([walker.chord, walker.latticeChord.root], [c, [-4, 1]], "a walker's shadow: back on C major, a comma away on the lattice");
 		this.assertEquals(RLLattice.args(walker.latticeChord, walker.count), [-4, 1, 0, 8], "what a beat sends for it");
 		this.assertException({ RLLattice.args(c) }, Error, "a chord that is not on the lattice is refused");
+		got = Array.new;
+		mean = RLChordContext(RLChordSpace.triads(RLTempered.meantone));
+		up = RLLattice.show(RLWalk(mean, mean.space.major, pump));
+		this.assertEquals(got[0], ['/lattice/comma', 4, -1], "a temperament of one comma: the comma, for the cylinder");
+		this.assertEquals(got.last, ['/lattice/chord', -4, 1, 0, 8], "then the lift, as for a division");
+		this.assertException({ RLLattice.config(RLTempered.named(\pajara)) }, Error, "a temperament the page cannot draw is refused");
 		RCVisuals.sink = saved;
 	}
 
