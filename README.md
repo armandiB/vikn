@@ -72,11 +72,12 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
 - `reLation/Relations`: RLQuantale (the values of a relation: boolean, costs, strengths), RLRelation (a
   relation between two lists, composed, compared, closed into a distance), RLCategory (what named arrows
   generate, each with a shortest word: monoids of relations, groups of transformations), RLRelationContext
-  (objects and named relations: Cube Dance and its analogues in 3k steps, the triads under P, L, R), RLGraph
+  (objects and named relations: Cube Dance and its analogues in 3k steps, the triads under P, L, R; `networks`
+  makes the context whose objects are networks, for networks of networks), RLGraph
   (distances, shortest walks, Hamiltonian cycles; edges costing steps or voice leading)
 - `reLation/Networks`: RLNetwork (nodes holding objects, arrows labelled with transformations or relations:
-  validity, the networks of one structure, local isographies; Klumpenhouwer networks on
-  `RLRelationContext.pitchClasses`), RLAutomorphism (a map of a context's objects that its relations go
+  validity, the networks of one structure, local isographies, isographies named as Lewin names them, a
+  network carried into another; Klumpenhouwer networks on `RLRelationContext.pitchClasses`), RLAutomorphism (a map of a context's objects that its relations go
   through: a complete isography; applied again and again to a cell it makes a sequence; `all` and `count`
   find every one of a context: 7776 for Cube Dance), RLNetworkPage (networks sent to HomewareVisuals' network
   page, side by side)
@@ -89,7 +90,10 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
   five types of seventh chords)
 - `reLation/Time`: RLTimeSpans (time-spans moved from both sides, after Lewin: a rhythm is a walk; the voices of
   a canon as left steps), RLMetre (metre as a relation on a cycle of pulses; rhythmic canons, tilings by
-  augmentation), RLCanonPage (a canon sent to HomewareVisuals' canon page: one row of bars for each voice)
+  augmentation), RLPulse (metre on the line of time: the relation between time points a whole number of
+  periods apart, after Popoff and Yust; Cohn's ski-hill paths), RLTimePoints (the context of metre networks:
+  layers, grouping and displacement), RLTimeMap (shifts and stretches of time, its automorphisms), RLCanonPage
+  (a canon, or the pulse layers of a metre, sent to HomewareVisuals' canon page: one row of bars for each voice)
 
 Chords of any size have a context (tetrads 4:5:6:7 by `RLChordSpace.tetrads`); `RLRelationContext.preserving`
 gives Noll's monoid of a chord and the graded belonging of each pitch class to it.
