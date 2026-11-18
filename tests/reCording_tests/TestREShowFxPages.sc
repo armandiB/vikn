@@ -207,4 +207,132 @@ TestREShowFxPages : UnitTest {
 		pages.tick(11.1);
 		this.assertEquals(sent.size, 1, "every second: again (a panel opened late)");
 	}
+
+	// an effect with more than seven knobs: banks of seven, the chosen effect's button going round them
+	bankSpec { |more|
+		var s = (device: "No Such Device", chain: ["aberration", "warp"],
+			pages: [(name: "light", cc: 0, effects: ["aberration", "warp"])],
+			layouts: (
+				aberration: [["amount", 0, 0.05, 0.005], ["angle", 0, 360, 0], ["radial", 0, 1, 1, "int"], ["power", 0.25, 4, 1], ["spectrum", 0, 1, 0],
+					["bright", 0, 1, 0], ["defocus", 0, 1, 0], ["hue", 0, 360, 0], ["basis", 0, 2, 0, "int"], ["jitter", 0, 1, 0]],
+				warp: [["amount", 0, 0.2, 0.02]]));
+		(more ? ()).keysValuesDo { |k, v| s[k] = v };
+		^s
+	}
+
+	banked { |more|
+		var p = REShowFxPages(this.bankSpec(more));
+		p.sendFunc = { |path, a| sent.add([path.asString] ++ a) };
+		p.midiFunc = { |chan, cc, v| motors.add([chan, cc, v]) };
+		p.timeFunc = { 0 };
+		^p
+	}
+
+	test_banks_press {
+		var p = this.banked, state;
+		this.assertEquals(p.bankCount("aberration"), 2, "ten knobs: two banks");
+		this.assertEquals(p.bankCount("warp"), 1);
+		this.assertEquals(p.bankOf("aberration"), 0);
+		this.assertFloatEquals(p.knobValue("aberration", 3), 1.0, "bank 1's fourth knob: power at rest");
+		p.buttonReceived(0, 0, 127, 1.0);
+		this.assertEquals(p.bankOf("aberration"), 1, "the chosen effect's button pressed: its next bank");
+		this.assertEquals(p.knobValue("aberration", 0), 0.0, "knob 1 is now hue");
+		this.assertEquals(p.knobValue("aberration", 3), nil, "bank 2 has three knobs: the fourth is free");
+		p.buttonReceived(0, 0, 0, 1.05);
+		this.assertEquals(p.bankOf("aberration"), 1, "the release (0) is nothing");
+		p.buttonReceived(0, 0, 127, 1.06);
+		this.assertEquals(p.bankOf("aberration"), 1, "a second message within bankWait: the same press");
+		sent.clear; motors.clear;
+		p.knobReceived(0, 0, 0.5);
+		this.assertEquals(sent.last, ["/fx/set", "aberration", "hue", 180.0], "the knobs drive the bank shown");
+		p.knobReceived(0, 7, 1.0);
+		this.assertEquals(sent.last, ["/fx/set", "aberration", "mix", 1.0], "the eighth is the mix in every bank");
+		motors.clear;
+		p.buttonReceived(0, 0, 127, 2.0);
+		this.assertEquals(p.bankOf("aberration"), 0, "round to the first");
+		this.assertEquals(motors[0], [0, 0, (0.1 * 16383).round.asInteger >> 7], "the motors to bank 1's places: amount at rest");
+		this.assertEquals(motors[14][2], 127, "the mix knob where it was left");
+		p.buttonReceived(0, 1, 127, 3.0);
+		this.assertEquals(p.effectOf(0), "warp");
+		p.buttonReceived(0, 1, 127, 4.0);
+		this.assertEquals(p.bankOf("warp"), 0, "one bank: its button again changes nothing");
+		p.buttonReceived(0, 0, 127, 5.0);
+		this.assertEquals(p.bankOf("aberration"), 0, "choosing an effect is not a press on it: the bank it was left on");
+		p.setBank(0, 1);
+		p.reset(0);
+		this.assertFloatEquals(p.knobValue("aberration", 0, 0), 0.005, "the reset takes every bank back");
+		this.assertEquals(p.knobValue("aberration", 0, 1), 0.0);
+		state = p.panelState;
+		this.assertEquals(state[\pages][0][\bank], 1);
+		this.assertEquals(state[\pages][0][\banks], 2);
+		this.assertEquals(state[\pages][0][\knobs][0][\label], "hue", "the panel shows the bank's knobs");
+		this.assertEquals(state[\pages][0][\knobs][7][\label], "mix");
+		sent.clear;
+		p.sendState;
+		this.assertEquals(sent.count { |m| m[0] == "/fx/set" and: { m[1] == "aberration" } }, 11, "the state holds every bank's parameters and the mix");
+		p.stop;
+	}
+
+	test_banks_lights_and_value {
+		var p = this.banked((bankLights: [127, 64])), q;
+		p.select(0, 0);
+		this.assertEquals(motors.asArray.keep(-8).collect(_[2]), [127, 0, 0, 0, 0, 0, 0, 0], "bank 1's light");
+		p.setBank(0, 1);
+		this.assertEquals(motors.asArray.keep(-8).collect(_[2]), [64, 0, 0, 0, 0, 0, 0, 0], "bank 2's light");
+		p.stop;
+		// a button of three states (dark, 64, 127): its value says the bank
+		q = this.banked((bankBy: "value", bankValues: [64, 127]));
+		q.buttonReceived(0, 0, 127);
+		this.assertEquals(q.bankOf("aberration"), 1, "127: the second bank");
+		this.assertEquals(motors.asArray.keep(-8)[0][2], 127, "its light the state's value");
+		q.buttonReceived(0, 0, 0);
+		this.assertEquals(q.bankOf("aberration"), 0, "0 on the chosen effect's button (gone round to dark): the first bank");
+		this.assertEquals(motors.asArray.keep(-8)[0][2], 64, "and the button sent the first bank's value");
+		q.buttonReceived(0, 0, 63);
+		this.assertEquals(q.bankOf("aberration"), 0, "63 is nearest 64");
+		q.buttonReceived(0, 1, 127);
+		this.assertEquals(q.effectOf(0), "warp", "a value chooses the effect");
+		this.assertEquals(q.bankOf("warp"), 0, "an effect of one bank stays on it whatever the value");
+		q.stop;
+	}
+
+	// the graph of the effects engine's w1: nodes, source nodes, wires, the node shown, looks, values set once
+	test_graph {
+		var p = REShowFxPages((device: "No Such Device", chain: ["comp", "warp", "blur2"],
+			nodes: (cut: "alpha", comp: "blend", blur2: "blur"),
+			inputs: (setting: "main", clip: "video:/recordings/x.mp4"),
+			wires: ('comp.b': "cut", 'cut.in': "setting"),
+			out: "blur2", look: (layers: 1),
+			set: (kaleidoscope: (seam: 1), comp: (mix: 1)),
+			pages: [(name: "a", cc: 0, effects: ["warp", "blur2", "cut"])],
+			layouts: (warp: [["amount", 0, 0.2, 0.02]], blur: [["radius", 0, 64, 8]])));
+		var paths, at;
+		p.sendFunc = { |path, a| sent.add([path.asString] ++ a) };
+		p.midiFunc = { |chan, cc, v| motors.add([chan, cc, v]) };
+		p.timeFunc = { 0 };
+		this.assert(RCLog.history.any { |e| e[2].contains("cut is not in the chain") }.not, "a node of the graph on a page, off the chain: no warning");
+		this.assertEquals(p.layout("blur2").size, 1, "a made node without a layout takes its effect's");
+		p.start(false);
+		paths = sent.collect(_[0]);
+		at = { |path| paths.indexOfEqual(path) };
+		this.assertEquals(sent.first, ["/fx/clear"]);
+		this.assertEquals(sent.select { |m| m[0] == "/fx/node" }, [["/fx/node", "blur2", "blur"], ["/fx/node", "comp", "blend"], ["/fx/node", "cut", "alpha"]], "the nodes, by name");
+		this.assertEquals(sent.select { |m| m[0] == "/fx/input" }, [["/fx/input", "clip", "video", "/recordings/x.mp4"], ["/fx/input", "setting", "main"]]);
+		this.assertEquals(sent.select { |m| m[0] == "/fx/wire" }, [["/fx/wire", "comp", "b", "cut"], ["/fx/wire", "cut", "in", "setting"]]);
+		this.assertEquals(sent.select { |m| m[0] == "/fx/out" }, [["/fx/out", "blur2"]]);
+		this.assertEquals(sent.select { |m| m[0] == "/fx/look" }, [["/fx/look", "layers", 1]]);
+		this.assert(sent.includesEqual(["/fx/set", "kaleidoscope", "seam", 1]), "a value set once");
+		this.assert(sent.includesEqual(["/fx/set", "comp", "mix", 1]), "a node's mix set by the spec");
+		this.assertEquals(sent.count { |m| m[0] == "/fx/set" and: { m[1] == "comp" } }, 1, "and no knob's mix sent for it");
+		this.assert(sent.includesEqual(["/fx/set", "blur2", "radius", 8.0]), "the made node's knob at rest");
+		this.assert(sent.includesEqual(["/fx/set", "cut", "mix", 0.0]), "a page's node off the chain has a mix too");
+		this.assert(at.("/fx/node") < at.("/fx/set"), "the nodes before anything is set on them");
+		this.assert(at.("/fx/set") < at.("/fx/wire"), "the wires after");
+		this.assertEquals(sent.last, ["/fx/chain", "comp", "warp", "blur2"], "the chain last");
+		sent.clear;
+		p.tick(2.5);
+		this.assertEquals(sent.count { |m| m[0] == "/fx/node" }, 3, "the graph again with every state: a page opened late has it");
+		this.assertEquals(sent.count { |m| m[0] == "/fx/clear" }, 0);
+		p.stop;
+	}
 }
