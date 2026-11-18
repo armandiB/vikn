@@ -1,0 +1,110 @@
+TITLE:: RLCategory
+summary:: Everything named arrows generate by composition, each with a shortest word: a monoid, a group, a category
+categories:: Libraries>reLation
+related:: Classes/RLRelation, Classes/RLTransform, Classes/RLRelationContext, Guides/reLation
+
+DESCRIPTION::
+The generators are link::Classes/RLRelation::s or link::Classes/RLTransform::s (anything that composes with code::<>::, compares by value and answers code::sourceIdentity::, code::targetIdentity:: and code::follows::). The category holds every arrow their compositions give, found breadth first, so each arrow comes with a shortest word: the list of generator names in the strong::order of time::.
+
+Arrows on one list of objects generate a strong::monoid::; when every arrow can be undone, a strong::group::. Arrows between several lists generate a category with as many objects.
+
+What it is for: the monoid knows the walks. Its arrows are all the different things a word can do, and code::relating(x, y):: lists those that take x to y. On the 24 triads and 4 augmented triads of 12 steps:
+
+table::
+## generators || arrows
+## S, one voice by a semitone || 7 (S7 = S5)
+## T, two voices by a semitone each || 4
+## S and T || 8
+## D, two common tones || 6
+## U, P, L (Cube Dance with its edges named) || 40
+::
+
+code::
+~cd = RLRelationContext.cubeDance;
+~m = ~cd.category;                                   // RLCategory([[\U, u], [\P, p], [\L, l]])
+~m.size;                                             // 40
+~m.wordOf(~m.generator(\L) <> ~m.generator(\P));     // [P, L]
+~m.arrow([\U, \U, \U]) == ~m.generator(\U);          // true
+~m.invertibles.collect { |a| ~m.wordOf(a) };         // [], [P], [L], [P, L], [L, P], [P, L, P]
+~m.relating(~cd.space.major(2), ~cd.space.minor(7)); // six arrows relate D major to G minor: UU, UPU ...
+
+~ctx = RLChordContext(RLChordSpace.triads(RLEDO(12)));
+~plr = RLCategory([[\P, ~ctx.p], [\L, ~ctx.l], [\R, ~ctx.r]]);
+[~plr.size, ~plr.isGroup];                           // [24, true]
+~plr.wordOf(~ctx.t(6));                              // four steps: the tritone is a product of P, L, R
+~plr.includes(~ctx.t(7));                            // false: a fifth is not
+::
+
+The closure is guarded: more than strong::maxSize:: arrows is an Error. A monoid of relations can be very large (nearly a million with sus4 chords on one list).
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: generators
+An Array of code::[name, arrow]:: pairs (or Associations).
+argument:: maxSize
+4000 by default.
+
+INSTANCEMETHODS::
+
+METHOD:: names
+The generators' names, in the order given.
+
+METHOD:: generator
+A generator by its name.
+
+METHOD:: arrows
+Every arrow: the identities first, then by the length of their words. Each has its word as label, written right to left ("LP" is P first), "id" for an identity.
+
+METHOD:: identities
+The identity arrows, one per list of objects.
+
+METHOD:: size
+The number of arrows.
+
+METHOD:: wordOf
+The shortest word of an arrow, in time order; nil when it is not one of the arrows.
+
+METHOD:: words
+Every arrow's word, in the order of link::#-arrows::.
+
+METHOD:: arrow
+The arrow of a word (time order). An Error when its steps do not follow one another.
+
+METHOD:: includes
+METHOD:: indexOf
+Whether something is one of the arrows; its place among them.
+
+METHOD:: composeIndex
+The index of code::arrows[i]:: after code::arrows[j]::, nil when they do not follow one another. Read from the generators' table: no relation is composed.
+
+METHOD:: table
+The whole table of compositions, by indices.
+
+METHOD:: isMonoid
+One list of objects, one identity.
+
+METHOD:: invertibles
+The arrows that can be undone.
+
+METHOD:: isGroup
+A monoid whose arrows can all be undone.
+
+METHOD:: relating
+The arrows that take x to y (for relations: that relate them).
+
+METHOD:: canonical
+The category's own instance of an arrow (the one that carries its word as label), or nil.
+
+METHOD:: automorphisms
+The automorphisms of a monoid: the ways of sending each arrow to an arrow, one to one, that keep composition. Each is an Array of indices: code::arrows[i]:: goes to code::arrows[result[i]]::. T and I on twelve pitch classes have 48, on nineteen 342; the monoid of U, P, L has 12.
+code::
+~m = RLRelationContext.cubeDance.category;
+~m.automorphisms.collect { |a| ~m.imageOf(a, ~m.generator(\U)).label }.asSet;     // U and PUP
+::
+
+METHOD:: imageOf
+The image of an arrow under one of them.
+
+METHOD:: extendMap
+From the indices of the generators' images (in the order of link::#-names::), the index of every arrow's image, along its word. Nothing is checked.

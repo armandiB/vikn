@@ -1,0 +1,118 @@
+TITLE:: RLRelationContext
+summary:: A list of objects and the named relations that move them: Cube Dance, its analogues, any family of chords
+categories:: Libraries>reLation
+related:: Classes/RLRelation, Classes/RLCategory, Classes/RLGraph, Classes/RLChordContext, Classes/RLVoiceLeading, Guides/reLation
+
+DESCRIPTION::
+Where an link::Classes/RLChordContext:: moves every chord to one chord, a relation may offer several, or none. A relation context answers the same questions (code::names::, code::transform::, code::act::, code::neighbours::), code::act:: with a list of any length; it also gives the monoid its relations generate (link::#-category::) and their graph (link::#-graph::).
+
+link::#*cubeDance:: is Douthett and Steinbach's graph with its edges named, after Popoff: the 24 major and minor triads and the 4 augmented triads of 12 steps, with
+
+table::
+## P || n major - n minor || keeps an augmented triad
+## L || n major - (n + 4) minor || keeps an augmented triad
+## U || n major - the augmented triad on n; n minor - the one on n - 1 || six triads for each augmented triad
+::
+
+Each moves one voice by one semitone. In a division of 3k steps the same three relations join the two nearly even triads and the even one: 35 chords in 15 steps, 42 in 18, 56 in 24.
+
+code::
+~cd = RLRelationContext.cubeDance;
+~sp = ~cd.space;
+~aug = ~sp.chord(0, \aug);
+~cd.act(\U, ~aug);                     // C major, E major, Ab major, C# minor, F minor, A minor
+~cd.act(\P, ~sp.major(0));             // [C minor]
+~cd.neighbours(~sp.major(0));          // [[U, C aug], [P, C minor], [L, E minor]]
+~cd.category.size;                     // 40
+
+// a path and its word (Muse, "Take a Bow")
+~path = [~sp.major(2), ~sp.chord(2, \aug), ~sp.minor(7), ~sp.major(7), ~sp.chord(3, \aug), ~sp.minor(0), ~sp.major(0)];
+~cd.wordOf(~path);                     // [U, U, P, U, U, P]
+
+// its graph: distances, shortest walks, walks through every chord
+~g = ~cd.graph;
+~g.distance(~sp.major(0), ~sp.major(6));        // 6
+~g.shortestPath(~sp.major(0), ~sp.major(1));    // C major, C aug, C# minor, C# major
+~g.countHamiltonianCycles;                      // 1296
+
+RLRelationContext.cubeDance(RLEDO(15)).objects.size;      // 35
+RLRelationContext.triads(RLEDO(19)).category.size;        // 38: P, L, R as relations, a group
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: objects
+argument:: relations
+An Array of code::[name, relation]:: pairs; in place of an link::Classes/RLRelation::, a rule code::(x, y) -> value::.
+argument:: quantale
+Boolean when nil.
+argument:: space
+The link::Classes/RLChordSpace:: of the objects, when they are chords.
+
+METHOD:: cubeDance
+Cube Dance in an link::Classes/RLEDO:: of 3k steps (12 when none is given), with U, P, L. Any other system is an Error.
+
+METHOD:: triads
+The 2n triads nearest 4:5:6 of an equal division under P, L, R, each a relation with one image: the chicken-wire graph in 12 steps.
+
+METHOD:: pitchClasses
+The pitch classes of an equal division under transposition and inversion, named code::\T0::, code::\T1::... and code::\I0::, code::\I1::... (I5 sends x to 5 - x), with T1 and I0 as generators. Klumpenhouwer networks live here (link::Classes/RLNetwork::).
+
+INSTANCEMETHODS::
+
+METHOD:: objects
+METHOD:: quantale
+METHOD:: space
+
+METHOD:: system
+The space's pitch system.
+
+METHOD:: names
+Every name the context knows.
+
+METHOD:: generators
+The names given at the start.
+
+METHOD:: transform
+A relation by its name.
+
+METHOD:: identityTransform
+Each object related to itself.
+
+METHOD:: arrow
+An arrow from what names it: a relation, a name, or a word (an Array of names in the order of time).
+
+METHOD:: nameOf
+The name of an arrow: the first name of the context that does the same, else its word in the generators (read right to left), else nil.
+
+METHOD:: define
+Names the relation a word does (steps in time order).
+
+METHOD:: act
+What a relation offers from an object: a list.
+
+METHOD:: neighbours
+The objects one generator away, as code::[name, object]:: pairs (the object itself left out).
+
+METHOD:: labels
+The generators that relate x to y.
+
+METHOD:: wordOf
+For a list of objects, the first generator relating each to the next (nil where none does).
+
+METHOD:: isWalk
+Whether a word fits a list of objects, step by step.
+
+METHOD:: union
+The join of some relations (all the generators when none is named).
+
+METHOD:: category
+The link::Classes/RLCategory:: the generators generate, kept once made.
+
+METHOD:: graph
+The link::Classes/RLGraph:: of some relations.
+argument:: which
+Names; all the generators when nil.
+argument:: cost
+As for link::Classes/RLGraph#*new::.

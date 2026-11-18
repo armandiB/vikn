@@ -1,0 +1,83 @@
+TITLE:: RLVoiceLeading
+summary:: How the voices of one chord move to the tones of the next, by the least motion
+categories:: Libraries>reLation
+related:: Classes/RLWalk, Classes/RLPitchSystem, Classes/RLChord, Guides/reLation
+
+DESCRIPTION::
+A strong::voicing:: is an Array of pitches of one link::Classes/RLPitchSystem::, one per voice, in the order of the voices (not sorted: voice 0 stays voice 0). link::#*minimal:: sends each voice to one tone of the target so that the total motion is least; each voice then takes the nearest pitch of its tone.
+
+A least motion never needs crossed voices (Tymoczko, emphasis::The geometry of musical chords::, 2006), so it is one of the rotations of the two chords sorted round the pitch-class circle: n candidates for n voices, not n!. link::#*exhaustive:: tries every assignment and is there to check the first.
+
+Sizes are in cents, so that motions in different systems compare.
+
+code::
+~edo = RLEDO(12);
+RLVoiceLeading.minimal(~edo, [60, 64, 67], [0, 3, 7]);    // [60, 63, 67]: C major to C minor
+RLVoiceLeading.minimal(~edo, [60, 64, 67], [5, 9, 0]);    // [60, 65, 69]: C major to F major
+RLVoiceLeading.cents(~edo, [60, 64, 67], [60, 65, 69]);   // 300.0
+RLVoiceLeading.displacements(~edo, [60, 64, 67], [60, 65, 69]);   // [0.0, 100.0, 200.0]
+
+~just = RLJust([3, 5]);     // 1/1, 5/4, 3/2 to the tones 5/3, 1/1, 5/4
+RLVoiceLeading.minimal(~just, [[0, 0, 0], [-2, 0, 1], [-1, 1, 0]], [[-1, 1], [0, 0], [0, 1]]);
+// [[0, 0, 0], [-2, 0, 1], [0, -1, 1]]: the fifth moves up to 5/3, a minor tone 10/9 (182.4 cents)
+::
+
+CLASSMETHODS::
+
+METHOD:: minimal
+The voicing of the target tones nearest to a voicing.
+argument:: system
+argument:: voices
+The voicing to move from.
+argument:: pcs
+The target's pitch classes, as many as there are voices (double a tone by naming it twice).
+
+METHOD:: exhaustive
+The same by trying every assignment of voices to tones: for tests, and for chords of up to six voices.
+
+METHOD:: minimalDoubled
+More voices than tones: each voice goes to a tone, every tone is taken, the total motion is least (every way of doubling the tones is tried). Fewer voices than tones is an Error.
+code::
+RLVoiceLeading.minimalDoubled(RLEDO(12), [48, 60, 64, 67], [5, 9, 0]);   // [48, 60, 65, 69]: four voices to F major
+RLVoiceLeading.minimalDoubled(RLEDO(12), [0, 0, 4, 6], [6, 10, 0]);      // [-2, 0, 6, 6]: Tymoczko's example
+::
+
+METHOD:: through
+The voicings of a list of chords, from a voicing of the first (close position at the origin when nil): each chord by the least motion from the one before. With more voices than the chords have tones, some are doubled. A voicing that is not the first chord is an Error.
+argument:: chords
+An Array of link::Classes/RLChord::s of one system.
+argument:: from
+
+METHOD:: between
+The least total motion between two chords of as many tones, in cents.
+
+METHOD:: stepsBetween
+The same in steps of their link::Classes/RLEDO::: 3 from C major to F major, 2 to F minor.
+
+METHOD:: moveSets
+Every way the tones of one chord can go to the tones of another of the same size, each as the sorted steps moved (the voices that stay left out): C major to E minor gives code::[1]:: among others. In an RLEDO.
+
+METHOD:: withDoublings
+Between two sets of pitch classes of any sizes, doublings allowed on both sides (Tymoczko's dynamic programme over the voice leadings without crossings): code::[cents, pairs]::, the least total motion and the code::[from, to]:: pairs that make it. Every tone of each side is in a pair.
+code::
+RLVoiceLeading.withDoublings(RLEDO(12), [0, 4, 6], [6, 10, 0]);         // [400.0, [[0, 10], [0, 0], [4, 6], [6, 6]]]
+RLVoiceLeading.withDoublings(RLEDO(12), [0, 4, 7], [0, 4, 7, 10]);      // a triad to a seventh chord
+::
+
+METHOD:: displacements
+How far each voice moves between two voicings, in cents, signed.
+
+METHOD:: cents
+The size of the motion between two voicings.
+argument:: system
+argument:: from
+argument:: to
+argument:: measure
+code::\l1:: the sum of the moves (the default), code::\l2:: their Euclidean length, code::\linf:: the largest.
+
+METHOD:: closePosition
+A chord in close position: its tones in the order of its type's pattern, the root nearest a height, each next tone above the last.
+argument:: chord
+An link::Classes/RLChord::.
+argument:: height
+In octaves above the origin.

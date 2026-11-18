@@ -1,0 +1,96 @@
+TITLE:: RLGraph
+summary:: The graph of a relation: distances, shortest walks, walks through every object once
+categories:: Libraries>reLation
+related:: Classes/RLRelation, Classes/RLRelationContext, Classes/RLVoiceLeading, Classes/RLWalk, Guides/reLation
+
+DESCRIPTION::
+The objects of a relation as vertices, an edge wherever the relation holds between two different objects. A graph forgets the names of the steps and keeps who is next to whom; the relation context it came from can name the steps of a path again (link::Classes/RLRelationContext#-wordOf::).
+
+Each edge has a strong::cost::: 1 (the default: distance counts steps), the relation's own values (code::\value::, for a relation of Lawvere costs), or what a rule code::(x, y) -> number:: answers. link::#*voiceLeading:: costs each edge the steps its voices move.
+
+Two distances meet here. On Cube Dance the number of steps between two chords is the least voice leading between them, for all 378 pairs (and for every pair of its analogues in 15, 18 and 24 steps). On the 24 triads joined by P, L, R it is not: equal for 72 pairs of 276; for 216 when an edge costs the semitones it moves.
+
+code::
+~cd = RLRelationContext.cubeDance;
+~g = ~cd.graph;
+~c = ~cd.space.major(0);
+~g.neighbours(~c);                               // [C minor, E minor, C aug]
+~g.distance(~c, ~cd.space.major(6));             // 6
+~g.shortestPaths(~c, ~cd.space.major(1));        // two walks of three steps, through C aug
+~g.countHamiltonianCycles;                       // 1296
+~g.hamiltonianCycle.collect(_.name);             // the first of them
+
+~cw = RLRelationContext.triads(RLEDO(12));       // the 24 triads; P, L, R
+~cw.graph.countHamiltonianCycles;                // 62
+~cw.graph.distance(~cw.space.major(0), ~cw.space.major(1));                           // 4 edges
+RLGraph.voiceLeading(~cw.union).distance(~cw.space.major(0), ~cw.space.major(1));     // 5 semitones along them
+RLVoiceLeading.stepsBetween(~cw.space.major(0), ~cw.space.major(1));                  // 3 directly
+::
+
+The search for Hamiltonian cycles is exact, by depth first with forced moves, and meant for graphs of some tens of vertices (Cube Dance takes a few hundredths of a second).
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: relation
+A relation of one list to itself. Loops are left out.
+argument:: cost
+nil (1 per edge), code::\value:: (the relation's values), or a Function code::(x, y) -> number::.
+
+METHOD:: voiceLeading
+The graph of a relation of chords of one link::Classes/RLEDO::, each edge costing the steps its voices move (link::Classes/RLVoiceLeading#*stepsBetween::).
+
+INSTANCEMETHODS::
+
+METHOD:: objects
+METHOD:: relation
+
+METHOD:: size
+METHOD:: edgeCount
+The numbers of vertices and of edges (an edge both ways counts once).
+
+METHOD:: isSymmetric
+Whether every edge goes both ways.
+
+METHOD:: neighbours
+METHOD:: degree
+METHOD:: degrees
+The objects next to one; how many; for every object.
+
+METHOD:: cost
+The cost of the edge from x to y, nil when there is none.
+
+METHOD:: distances
+The least cost from an object to every object, in the order of link::#-objects:: (inf where no walk leads).
+
+METHOD:: distance
+The least cost of a walk from x to y.
+
+METHOD:: shortestPath
+One cheapest walk from x to y, as the list of objects it meets, both ends in; nil when no walk leads there.
+
+METHOD:: shortestPaths
+Every cheapest walk from x to y.
+argument:: x
+argument:: y
+argument:: max
+1000 by default.
+
+METHOD:: diameter
+The largest distance between two objects.
+
+METHOD:: components
+The parts no edge joins, a list of objects each.
+
+METHOD:: countHamiltonianCycles
+The number of walks through every object once that come back to their start. In a symmetric graph a cycle and the same cycle backwards count once.
+
+METHOD:: hamiltonianCycles
+The first cycles found, each the list of objects in the order met, the start first.
+argument:: start
+The first object when nil.
+argument:: max
+How many to return.
+
+METHOD:: hamiltonianCycle
+The first one, or nil.

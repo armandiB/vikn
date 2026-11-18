@@ -1,0 +1,69 @@
+TITLE:: RLMorphism
+summary:: A map between two contexts that their transformations go through: temperaments, pushed and lifted walks
+categories:: Libraries>reLation
+related:: Classes/RLChordContext, Classes/RLWalk, Classes/RLJust, Classes/RLEDO, Guides/reLation
+
+DESCRIPTION::
+A morphism sends each chord of a strong::source:: context to a chord of a strong::target:: context so that, for every name both contexts know, moving then mapping is mapping then moving: code::map(P(x)) == P(map(x))::. link::#-isValid:: checks it.
+
+Such a map carries walks forward (link::#-push::) and, the other way, lifts them (link::#-lift::): a walk of the target and a chord above its start give the walk above it, by the same word.
+
+A strong::temperament:: is the first example (link::#*temper::): the val of an equal division sends the just lattice's triads onto the division's. Every closed walk of the division lifts to a just walk that ends a comma away, a comma the division tempers out. What the walk hides in the division, the lift shows.
+
+code::
+~just = RLChordContext(RLChordSpace.triads(RLJust([3, 5])));
+~edo = RLChordContext(RLChordSpace.triads(RLEDO(12)));
+~temper = RLMorphism.temper(~just, ~edo);
+~temper.(~just.space.minor([-1, 1]));       // A minor
+~temper.isValid;                             // true, on a patch of the lattice
+
+~hexatonic = RLWalk.cycle(~edo, ~edo.space.major(0), [\P, \L]);
+~above = ~temper.lift(~hexatonic);           // from 1/1 major
+~above.drift;                                // [0, -3]
+~just.system.commaName(~above.drift);        // diesis 128/125
+~temper.push(~above) == ~hexatonic;          // true
+
+// a map that is no morphism
+RLMorphism(~edo, ~edo, { |chord| ~edo.space.chord(chord.root * 2, chord.type) }).isValid;   // false
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: source
+argument:: target
+Two contexts.
+argument:: map
+A Function, chord of the source -> chord of the target.
+argument:: label
+
+METHOD:: temper
+The temperament from a just context to an equal division's: roots through the val, types kept. Any other pair of systems is an Error.
+argument:: source
+A context on an link::Classes/RLJust::.
+argument:: target
+A context on an link::Classes/RLEDO::.
+
+INSTANCEMETHODS::
+
+METHOD:: source
+METHOD:: target
+METHOD:: map
+METHOD:: label
+
+METHOD:: value
+The chord a chord goes to. code::morphism.(chord)::.
+
+METHOD:: isValid
+Whether the map commutes with every transformation the two contexts both name.
+argument:: sample
+The chords to check on: every chord of a finite source, a patch round the origin of a lattice (exponents -3 to 3), when nil.
+
+METHOD:: push
+A walk of the source, carried to the target.
+
+METHOD:: lift
+A walk of the target, lifted to the source.
+argument:: walk
+argument:: from
+A chord above the walk's start (one the map sends to it; anything else is an Error); the source's base chord of the start's type when nil.

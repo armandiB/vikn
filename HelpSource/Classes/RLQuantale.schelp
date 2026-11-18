@@ -1,0 +1,62 @@
+TITLE:: RLQuantale
+summary:: The values a relation can take, and how they combine along a walk and between walks
+categories:: Libraries>reLation
+related:: Classes/RLRelation, Classes/RLGraph, Classes/RLCategory, Guides/reLation
+
+DESCRIPTION::
+A relation with values says more than yes or no about two objects: a cost, a strength. A quantale gives the two operations that composing relations needs: link::#-mul:: combines the values met along a walk, link::#-join:: chooses between walks. link::#-zero:: is "not related" (it absorbs mul and is neutral for join), link::#-unit:: the value of staying in place.
+
+table::
+## quantale || values || along a walk (mul) || between walks (join) || zero || unit
+## code::RLQuantale.boolean:: || 0, 1 || and || or || 0 || 1
+## code::RLQuantale.lawvere:: || 0 to inf || sum || min || inf || 0
+## code::RLQuantale.multiplicative:: || 0 to 1 || product || max || 0 || 1
+## code::RLQuantale.interval:: || 0 to 1 || min || max || 0 || 1
+::
+
+With the Lawvere quantale, composing relations is the min-plus product: the powers of a relation of costs hold the cheapest walks of each length, and link::Classes/RLRelation#-closure:: is the distance. With the interval quantale, a walk is as strong as its weakest step.
+
+code::
+RLQuantale.lawvere.mul(2, 3);        // 5: costs add along a walk
+RLQuantale.lawvere.join(2, 3);       // 2: the cheaper walk wins
+RLQuantale.interval.mul(0.5, 1);     // 0.5
+RLQuantale.lawvere.leq(3, 2);        // true: a larger cost is below a smaller one
+::
+
+CLASSMETHODS::
+
+METHOD:: boolean
+METHOD:: lawvere
+METHOD:: multiplicative
+METHOD:: interval
+The four quantales, one object each.
+
+METHOD:: named
+One of the four by its Symbol.
+
+METHOD:: new
+A quantale of one's own.
+argument:: name
+argument:: zero
+argument:: unit
+argument:: mulFunc
+argument:: joinFunc
+Functions of two values.
+
+INSTANCEMETHODS::
+
+METHOD:: name
+METHOD:: zero
+METHOD:: unit
+
+METHOD:: mul
+Two values met one after the other.
+
+METHOD:: join
+Two values between which to choose.
+
+METHOD:: leq
+Whether a is below b: joining them gives b.
+
+METHOD:: coerce
+A value from what a rule answers: true is the unit, false and nil the zero, a number itself (as a Float).

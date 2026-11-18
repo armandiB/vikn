@@ -52,6 +52,32 @@ Two small modules the songs hold by name (`~song.ambi`, `~song.recorder(\k)`):
   by REShowFxPages). Guide: `HelpSource/Guides/reCording.schelp`;
   tests in `tests/reCording_tests/`.
 
+### reLation
+`reLation/` is transformational music theory as objects (classes `RL...`): harmony described by what
+moves one chord to another, in any tuning. The theory, its sources and its studies are in HomewareSC,
+`Math/Category_Theory/`. Start with `HelpSource/Guides/reLation.schelp`.
+
+- `reLation/Pitch`: RLPitchSystem, RLEDO (an equal division and its val), RLJust (just intonation as a
+  lattice, its commas, its maps to equal divisions), RLVoiceLeading (the least motion between voicings)
+- `reLation/Chords`: RLChordSpace (a system and its chord types), RLChord
+- `reLation/Contexts`: RLChordContext (triads moved by T, I on the left and P, L, R on the right),
+  RLTransform, RLMorphism (maps between contexts: temperaments, pushed and lifted walks)
+- `reLation/Walks`: RLWalk (a start and a word; its chords, its drift, its voices, its frequencies)
+- `reLation/Relations`: RLQuantale (the values of a relation: boolean, costs, strengths), RLRelation (a
+  relation between two lists, composed, compared, closed into a distance), RLCategory (what named arrows
+  generate, each with a shortest word: monoids of relations, groups of transformations), RLRelationContext
+  (objects and named relations: Cube Dance and its analogues in 3k steps, the triads under P, L, R), RLGraph
+  (distances, shortest walks, Hamiltonian cycles; edges costing steps or voice leading)
+- `reLation/Networks`: RLNetwork (nodes holding objects, arrows labelled with transformations or relations:
+  validity, the networks of one structure, local isographies; Klumpenhouwer networks on
+  `RLRelationContext.pitchClasses`), RLAutomorphism (a map of a context's objects that its relations go
+  through: a complete isography; applied again and again to a cell it makes a sequence)
+- `reLation/Groups`: RLExtension (chords as elements of a group once a base chord is chosen: the eight
+  extensions of Z12 by Z2, two in a prime division; left and right actions, a movable base chord; other
+  (p, q) on request), RLWreath (Hook's uniform transformations: 288 in 12 steps for two types)
+
+Tests in `tests/reLation_tests/` (UnitTest, no server): the tables of the theory.
+
 ### Extensions of SuperCollider's classes
 - `SCExtensions/ScoreExt.sc`: `Score:spillDefs(dir)`, SynthDefs of any size in a non-realtime score. A score
   carries its defs inline (`/d_recv`) and sclang encodes each line into a 64 KB buffer: a def over 65480 bytes

@@ -1,0 +1,75 @@
+TITLE:: RLChordSpace
+summary:: A pitch system and the chord types allowed in it
+categories:: Libraries>reLation
+related:: Classes/RLChord, Classes/RLChordContext, Classes/RLPitchSystem, Guides/reLation
+
+DESCRIPTION::
+A chord space is a link::Classes/RLPitchSystem:: and a list of chord strong::types::. A type is a name and a strong::pattern::, the pitch-class intervals of its tones above the root, root first. The chords of the space are link::Classes/RLChord::s, a root and a type each.
+
+link::#*triads:: builds the usual space of a system: the triad nearest 4:5:6 and its inversion.
+
+table::
+## major || code::[0, a, b]:: || a the system's 5/4, b its 3/2
+## minor || code::[0, b - a, b]:: || the same intervals upside down
+::
+
+A space is a value: equal to another with the same system and types.
+
+code::
+~space = RLChordSpace.triads(RLEDO(12));
+~space.pattern(\minor);            // [0, 3, 7]
+~space.major(0).pcs;               // [0, 4, 7]
+~space.find([9, 0, 4]);            // A minor
+~space.all.size;                   // 24
+
+RLChordSpace.triads(RLEDO(19)).pattern(\major);       // [0, 6, 11]
+RLChordSpace.triads(RLJust([3, 5])).minor.pcs;        // [[0, 0], [1, -1], [1, 0]]: 1/1, 6/5, 3/2
+RLChordSpace.triads(RLEDO(22), [9, 7], [3, 2]).pattern(\major);   // [0, 8, 13]: a triad on the supermajor third
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: system
+argument:: types
+An Array of code::[name, pattern]:: pairs.
+
+METHOD:: triads
+The triad nearest strong::third:: and strong::fifth:: above a root, named code::\major::, and its inversion, code::\minor::.
+argument:: system
+argument:: third
+A just ratio, 5/4 by default.
+argument:: fifth
+3/2 by default.
+
+INSTANCEMETHODS::
+
+METHOD:: system
+METHOD:: types
+
+METHOD:: typeNames
+METHOD:: typeIndex
+METHOD:: typeAt
+The names of the types, the index of a name, the name at an index.
+
+METHOD:: pattern
+The pattern of a type. An unknown name is an Error.
+
+METHOD:: chord
+The chord of a root and a type (the first type when none is given).
+
+METHOD:: major
+METHOD:: minor
+The chord of that type on a root (the origin when none is given).
+
+METHOD:: all
+Every chord of a finite system, type by type. An Error on the lattice.
+
+METHOD:: canonical
+A symmetric chord has several roots (C, E and Ab augmented are one chord in 12 steps): the chord of the same type and tones on the first of them.
+
+METHOD:: distinct
+Every chord of a finite system once: 28 for major, minor and augmented triads in 12 steps, where link::#-all:: has 36.
+
+METHOD:: find
+The chord with these pitch classes, in any order, or nil.

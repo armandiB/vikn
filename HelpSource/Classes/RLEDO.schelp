@@ -1,0 +1,57 @@
+TITLE:: RLEDO
+summary:: An equal division of the octave as a pitch system, with its val
+categories:: Libraries>reLation
+related:: Classes/RLPitchSystem, Classes/RLJust, Classes/RLChordSpace, Guides/reLation
+
+DESCRIPTION::
+A link::Classes/RLPitchSystem:: whose pitch classes are the Integers code::0..steps-1:: and whose pitches are the Integers (steps from the origin).
+
+Its strong::val:: gives each prime a number of steps: the nearest one, code::(steps * log2(prime)).round::, unless the mapping says otherwise. link::#-interval:: reads a just ratio through the val, so the division knows which of its steps stands for 5/4 or 3/2, and which commas it tempers out (those the val sends to 0).
+
+code::
+RLEDO(31).val(3);                  // 49 steps for 3/1, so 18 for a fifth
+RLEDO(19).interval([5, 4]);        // 6
+RLEDO(12).interval([81, 80]);      // 0: the syntonic comma is tempered out
+RLEDO(22).interval([81, 80]);      // 1: not in 22
+RLEDO(17).interval([5, 4]);        // 5
+RLEDO(17, (5: 40)).interval([5, 4]);   // 6: 17's other major third, by a mapping
+RLEDO(19).nearest(11, 1.5);        // 30: the pitch of class 11 closest to an octave and a half up
+RLEDO(12).name(10);                // Bb
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: steps
+The number of steps in the octave.
+argument:: mapping
+nil, or a Dictionary or Event prime -> steps for the primes that do not take their nearest step: code::(5: 40):: gives 5/1 forty steps.
+
+METHOD:: noteNames
+The names used in 12 steps.
+
+INSTANCEMETHODS::
+
+METHOD:: steps
+
+METHOD:: val
+The steps of a prime: the mapping's, else the nearest.
+
+METHOD:: mapping
+The primes the mapping names, with their steps (a copy).
+
+METHOD:: interval
+METHOD:: pitchInterval
+The steps of a just ratio, reduced to a pitch class (interval) or as a pitch (pitchInterval): code::RLEDO(12).pitchInterval([3, 1]):: is 19.
+
+METHOD:: pcs
+Every pitch class, code::[0, 1, ... steps - 1]::.
+
+METHOD:: size
+The number of pitch classes.
+
+METHOD:: stepCents
+One step in cents.
+
+METHOD:: name
+A note name in 12 steps, the step number elsewhere.

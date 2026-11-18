@@ -1,0 +1,105 @@
+TITLE:: RLNetwork
+summary:: Named nodes holding musical objects, and arrows labelled with transformations or relations: validity, fillings, isographies
+categories:: Libraries>reLation
+related:: Classes/RLAutomorphism, Classes/RLRelationContext, Classes/RLChordContext, Classes/RLCategory, Guides/reLation
+
+DESCRIPTION::
+A network says how some objects stand to one another: each strong::node:: holds one object of a context (a pitch class, a chord), each strong::arrow:: goes from a node to a node with a label, a transformation or a relation of the context. A Klumpenhouwer network is one on pitch classes with T and I; a chord progression is one on a chain (link::#*chain::).
+
+A network is strong::valid:: when it is a picture of the context:
+
+list::
+## each arrow's label takes the object at its tail to the object at its head (for a relation: relates them);
+## the labels compose as the arrows do: two routes between the same nodes have the same composite label.
+::
+
+On C, E, G the labels T4, I11, T7 pass the first test and fail the second, since I11 after T4 is I7: the network asserts something false about how T and I compose. link::#-problems:: says so in words.
+
+A label is given as an arrow, as a name of the context, or as a word (an Array of names in the order of time). A network is a value.
+
+code::
+~pcs = RLRelationContext.pitchClasses;          // T and I on the twelve pitch classes
+~w = RLNetwork(~pcs, [[\x, 9], [\y, 11], [\z, 10]], [[\x, \y, \I8], [\y, \z, \I9], [\x, \z, \T1]]);   // Webern, op. 11/2: A, B, Bb
+~w.isValid;                                     // true
+~w.fillings(\x).collect(_.objects);             // the twelve networks with these labels: (x, 8 - x, x + 1)
+RLNetwork(~pcs, [[\c, 0], [\e, 4], [\g, 7]], [[\c, \e, \T4], [\e, \g, \I11], [\c, \g, \T7]]).problems;
+// [ two routes from c to g compose to I7 and to T7 ]
+
+// moved by an automorphism of the context: contents and labels together
+~w.transformedBy(RLAutomorphism.affine(~pcs, 1, 4));     // (1, 3, 2) with I4, I5, T1
+
+// a second network with the same labels, and what takes the first to it node by node
+~w2 = RLNetwork(~pcs, [[\x, 1], [\y, 7], [\z, 2]], [[\x, \y, \I8], [\y, \z, \I9], [\x, \z, \T1]]);     // C#, G, D
+~w.hasSameLabels(~w2);                          // true: a strong isography
+~w.localIsographies(~w2).collect { |l| l.collect { |p| ~pcs.nameOf(p[1]) } };     // [I10, I6, I0] and [T4, T8, T4]
+
+// chords: Muse, "Take a Bow", one automorphism applied again and again to a cell
+~cd = RLRelationContext.cubeDance;
+~sp = ~cd.space;
+~cell = RLNetwork.chain(~cd, [~sp.major(2), ~sp.chord(2, \aug), ~sp.minor(7)], [\U, \U]);
+~cell.iterate(RLAutomorphism.transposition(~cd, 5), 3).collect(_.objects);
+// D major, D aug, G minor; G major, Eb aug, C minor; C major, C aug, F minor; F major, C# aug, Bb minor
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: context
+An link::Classes/RLRelationContext:: (labels: relations, names, words) or an link::Classes/RLChordContext:: (labels: link::Classes/RLTransform::s or their names).
+argument:: contents
+An Array of code::[node, object]:: pairs; a node's name is a Symbol or a number.
+argument:: arrows
+An Array of code::[from, to, label]::. An arrow between nodes that are not there is an Error.
+
+METHOD:: chain
+A progression: the objects in order, a label between each and the next. The nodes are named 0, 1, 2...
+
+INSTANCEMETHODS::
+
+METHOD:: context
+METHOD:: nodes
+METHOD:: arrows
+The arrows as code::[from, to, arrow]::, the labels resolved.
+
+METHOD:: at
+The object at a node.
+
+METHOD:: objects
+The objects in the order of the nodes.
+
+METHOD:: labels
+METHOD:: labelNames
+The labels in the order of the arrows, as arrows and as names (the context's name for each, else its word).
+
+METHOD:: label
+The label of the arrow from one node to another, or nil.
+
+METHOD:: composite
+The composite label of a route, a list of nodes each joined to the next by an arrow.
+
+METHOD:: isValid
+METHOD:: problems
+Whether the network is valid; what is wrong with it, a list of sentences (empty when valid).
+
+METHOD:: transformedBy
+The network moved by an link::Classes/RLAutomorphism:: of its context: contents by its map, labels by what it makes of them. A valid network stays valid. (Relation contexts.)
+
+METHOD:: iterate
+The network and what an automorphism makes of it, again and again: n + 1 networks.
+
+METHOD:: fillings
+Every valid network with the same shape and labels: each object of the context is tried at a node, and the others follow along the arrows (a relation may offer several). The space of networks of one structure.
+argument:: node
+The node to start from (the first when nil).
+
+METHOD:: hasSameLabels
+Whether another network of the same shape has the same labels: a strong isography.
+
+METHOD:: labelPairs
+For another network of the same shape, the pairs code::[label, its label]::: what an isography between them must do to the labels.
+
+METHOD:: localIsographies
+The local isographies to another network of the same shape: one arrow of the context's category at each node, taking this network's object to that one's, such that going round each arrow either way is the same. Each answer is an Array of code::[node, arrow]::.
+argument:: that
+argument:: arrowMap
+How the labels change: one of code::context.category.automorphisms::; nil when they must be the same.
