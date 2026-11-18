@@ -87,7 +87,7 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
   five types of seventh chords)
 - `reLation/Time`: RLTimeSpans (time-spans moved from both sides, after Lewin: a rhythm is a walk; the voices of
   a canon as left steps), RLMetre (metre as a relation on a cycle of pulses; rhythmic canons, tilings by
-  augmentation)
+  augmentation), RLCanonPage (a canon sent to HomewareVisuals' canon page: one row of bars for each voice)
 
 Chords of any size have a context (tetrads 4:5:6:7 by `RLChordSpace.tetrads`); `RLRelationContext.preserving`
 gives Noll's monoid of a chord and the graded belonging of each pitch class to it.

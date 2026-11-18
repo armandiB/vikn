@@ -116,6 +116,40 @@ TestRLMetre : UnitTest {
 	}
 }
 
+// what the canon page of HomewareVisuals is sent (its protocol: public/lib/canon-viz.js there)
+TestRLCanonPage : UnitTest {
+	var got, saved;
+
+	setUp {
+		got = Array.new;
+		saved = RCVisuals.sink;
+		RCVisuals.sink = { |path, args| got = got.add([path] ++ args) };
+	}
+
+	tearDown { RCVisuals.sink = saved }
+
+	test_a_tiling_canon {
+		var pair = RLMetre.perfect([0, 1, 2], 5).detect { |p| p[1] == [10, 2, 1, 3, 0] }, spans;
+		RLCanonPage.canon([[0, 1], [1, 1], [2, 1]], pair[1].collect { |u, i| [u, pair[0][i]] }, nil, 15, "a perfect tiling");
+		spans = got.select { |m| m[0] == '/canon/span' };
+		this.assertEquals(got.keep(4), [['/canon/clear'], ['/canon/title', "a perfect tiling"], ['/canon/pulses', 15, 1], ['/canon/voice', 0, "[10, 1]"]],
+			"a clear, the title, the pulses, then each voice named by its left step");
+		this.assertEquals([got.size, spans.size], [23, 15], "five voices of three notes");
+		this.assertEquals(spans.last, ['/canon/span', 4, 14, 7], "the last note of the slowest voice: from 14, 7 pulses long");
+		this.assertEquals(spans.collect(_[2]).sort, Array.series(15), "the onsets are the 15 pulses, each once");
+	}
+
+	test_heights_and_the_head {
+		RLCanonPage.show([[[0, 1], [1, 1]], [[0, 2]]], ["high", "low"], [[72, 60], [48]]);
+		this.assertEquals(got.select { |m| m[0] == '/canon/span' }.collect(_.last), [1, 0.5, 0], "heights scaled together between 0 and 1");
+		this.assertEquals(got.select { |m| m[0] == '/canon/voice' }.collect(_.last), ["high", "low"], "the names given");
+		got = Array.new;
+		RLCanonPage.head(2.5);
+		RLCanonPage.head;
+		this.assertEquals(got, [['/canon/head', 2.5], ['/canon/head', -1]], "the head, and none");
+	}
+}
+
 TestRLTruth : UnitTest {
 
 	// THEORY.md § 1.8: Noll's monoid for C major, six truth values, a hierarchy of the twelve pitch classes
