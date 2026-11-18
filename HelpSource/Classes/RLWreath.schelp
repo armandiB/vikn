@@ -56,6 +56,22 @@ METHOD:: order
 METHOD:: act
 What an element makes of a chord of a k-type space.
 
+METHOD:: swap
+The element that exchanges the types i and j, a chord of type i going code::shift:: higher and a chord of type j as much lower; chords of the other types stay. The shifts of such an element sum to zero.
+
+METHOD:: census
+The swaps one voice makes by itself, as code::[i, j, shift]:: with i below j: a chord of type i and the chord of type j whose root is code::shift:: higher differ by one voice, moved by one of code::moves:: steps (1 or 2 when not given). Chords are told apart by root and type, so a chord that is its own transposition counts once for each root it can be given. For the five types of link::Classes/RLChordSpace#*sevenths:: these are the 17 operations of Cannas, Antonini and Pernazza (P12, R12, L13... Q43, N51); as moves of notes they are 11.
+code::
+~w = RLWreath(12, 5);  ~sevenths = RLChordSpace.sevenths;
+~w.census(~sevenths);                                  // 17 triples
+~l13 = ~w.swap(0, 2, 4);                               // dominant <-> half-diminished a major third up
+~w.act(~l13, ~sevenths.chord(0, \dom7));               // E hdim7: one voice, C to D
+~w.mul(~w.swap(1, 3, 3), ~w.swap(1, 3, 8));            // [[0, 5, 0, 7, 0], [0, 1, 2, 3, 4]]: no type changed
+::
+
+METHOD:: generated
+Everything a list of elements generates, the identity first; nil past code::max:: elements (for small groups: the four type swaps without shift generate the 120 permutations of five types).
+
 METHOD:: of
 The element that does what a function of chords does on a space of an RLEDO, or nil when the function is not uniform.
 argument:: func

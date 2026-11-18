@@ -245,6 +245,17 @@ RLWalk(~t12, ~t12.space.otonal(0), ~word).isClosed;  // true
 RLRelationContext.powerTowers.graph.size;    // 39 seventh chords, one voice by a semitone
 ::
 
+In 12 steps the moves between a dominant and a half-diminished seventh that keep two tones and move two by a semitone are Childs's operations. They are steps of this context on the right: six wechsels (five contextual inversions, and the sixth after a tritone) when the two voices go the same way, three schritts (by 3, 6, 9) when they go opposite ways (link::Classes/RLChordContext#-wechsel::). Together they are the nine edges at each chord of Pipeline (link::Classes/RLRelationContext#*pipeline::).
+
+The other seventh chords (major, minor, diminished) are their own inversions, so they have no chord context. They come as relations (Power Towers above) and as uniform transformations: link::Classes/RLWreath#-census:: finds, between five types, the 17 swaps that move one voice by one or two semitones (Cannas, Antonini and Pernazza), which generate every permutation of the types with every list of shifts that sums to zero.
+
+code::
+~t12.k(1, 2) == ~t12.wechsel(1);             // true: C7 to C# half-diminished
+~t12.schritt(3).(~t12.space.otonal(0));      // Eb7: two voices by a semitone, opposite ways
+RLRelationContext.pipeline.graph.degrees.asSet;     // Set[9]
+RLWreath(12, 5).census(RLChordSpace.sevenths).size; // 17
+::
+
 section:: Time
 
 Time-spans (link::Classes/RLTimeSpans::) are moved from both sides as triads are: on the left everything is stretched and shifted, on the right each span moves by its own duration. A rhythm is a walk, and the same word from another span is the same rhythm at another time and tempo. Metre is a relation (link::Classes/RLMetre::), with shifts and dilations as its automorphisms, and a canon a pair of sets that tile the cycle.

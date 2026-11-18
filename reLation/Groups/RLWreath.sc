@@ -48,7 +48,53 @@ RLWreath {
 	// What an element makes of a chord of a k-type space.
 	act { |u, chord|
 		var i = chord.typeIndex;
-		^chord.space.chord(chord.root + u[0][i], chord.space.typeAt(u[1][i]))
+		^chord.space.chord(chord.system.pcAdd(chord.root, u[0][i]), chord.space.typeAt(u[1][i]))
+	}
+
+	// The element that exchanges the types i and j, a chord of type i going `shift` higher and a chord of type
+	// j as much lower; chords of the other types stay. The shifts of such an element sum to zero.
+	swap { |i, j, shift = 0|
+		var shifts = 0 ! k, types = Array.series(k);
+		shifts[i] = shift % n;
+		shifts[j] = shift.neg % n;
+		types[i] = j;
+		types[j] = i;
+		^[shifts, types]
+	}
+
+	// The swaps one voice makes by itself, as [i, j, shift] with i below j: a chord of type i and the chord of
+	// type j whose root is `shift` higher differ by one voice, moved by one of `moves` steps. Chords are told
+	// apart by root and type, so a chord that is its own transposition (a diminished seventh) counts once for
+	// each root it can be given. For the five types of RLChordSpace.sevenths: the 17 operations of Cannas,
+	// Antonini and Pernazza.
+	census { |space, moves = #[1, 2]|
+		var out = Array.new;
+		k.do { |i|
+			Array.series(k - i - 1, i + 1).do { |j|
+				n.do { |shift|
+					var a = space.chord(0, space.typeAt(i)).pcs, b = space.chord(shift, space.typeAt(j)).pcs;
+					var gone = a.reject { |x| b.includes(x) }, come = b.reject { |x| a.includes(x) };
+					if((gone.size == 1) and: { come.size == 1 } and: { moves.any { |m| [m, n - m].includes((come[0] - gone[0]) % n) } }) {
+						out = out.add([i, j, shift]);
+					};
+				};
+			};
+		};
+		^out
+	}
+
+	// Everything a list of elements generates, the identity first (for small groups: nil past `max` elements).
+	generated { |gens, max = 2000|
+		var out = [this.identity], head = 0;
+		while { head < out.size } {
+			gens.do { |g|
+				var x = this.mul(g, out[head]);
+				if(out.includesEqual(x).not) { out = out.add(x) };
+			};
+			head = head + 1;
+			if(out.size > max) { ^nil };
+		};
+		^out
 	}
 
 	// The element that does what a function of chords does on a space of an RLEDO, or nil when the function is

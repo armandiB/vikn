@@ -81,6 +81,12 @@ RLRelationContext {
 		^this.singleStep(RLChordSpace(RLEDO(12), [[\dom7, [0, 4, 7, 10]], [\min7, [0, 3, 7, 10]], [\hdim7, [0, 3, 6, 10]], [\dim7, [0, 3, 6, 9]]]))
 	}
 
+	// Pipeline (Douthett and Steinbach): the 24 dominant and half-diminished sevenths of 12 steps, two voices
+	// by one semitone each. Each chord has nine neighbours: Childs's nine operations.
+	*pipeline {
+		^this.singleStep(RLChordSpace(RLEDO(12), [[\dom7, [0, 4, 7, 10]], [\hdim7, [0, 3, 6, 10]]]), [1, 1])
+	}
+
 	// The pitch classes of an equal division under transposition and inversion: T0, T1 ... and I0, I1 ...
 	// by name (I5 sends x to 5 - x), T1 and I0 as generators. Klumpenhouwer networks live here.
 	*pitchClasses { |system|

@@ -53,6 +53,9 @@ argument:: inverseName
 METHOD:: tetrads
 The tetrad nearest 4:5:6:7, named code::\otonal::, and its inversion, code::\utonal::: in 12 steps a dominant seventh code::[0, 4, 7, 10]:: and a half-diminished seventh code::[0, 3, 6, 10]::; on code::RLJust([3, 5, 7]):: 1/1, 5/4, 3/2, 7/4 and 1/1, 7/6, 7/5, 7/4. A lattice without the prime 7 is an Error.
 
+METHOD:: sevenths
+The five classical seventh chords of 12 steps, in the order of Cannas, Antonini and Pernazza: code::\dom7, \min7, \hdim7, \maj7, \dim7::. Chords are a root and a type, so a diminished seventh, which has four roots, is four chords here. For link::Classes/RLWreath#-census::.
+
 INSTANCEMETHODS::
 
 METHOD:: system

@@ -41,6 +41,12 @@ RLChordSpace {
 			[system.pcZero, system.interval([5, 4]), system.interval([3, 2]), system.interval([7, 4])], \utonal)
 	}
 
+	// The five classical seventh chords of 12 steps, in the order of Cannas, Antonini and Pernazza: dominant,
+	// minor, half-diminished, major, diminished. A diminished seventh has four roots: four chords here.
+	*sevenths {
+		^this.new(RLEDO(12), [[\dom7, [0, 4, 7, 10]], [\min7, [0, 3, 7, 10]], [\hdim7, [0, 3, 6, 10]], [\maj7, [0, 4, 7, 11]], [\dim7, [0, 3, 6, 9]]])
+	}
+
 	otonal { |root| ^this.chord(root ?? { system.pcZero }, \otonal) }
 	utonal { |root| ^this.chord(root ?? { system.pcZero }, \utonal) }
 

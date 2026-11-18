@@ -105,6 +105,13 @@ RLChordContext {
 	l { ^named[\L] }
 	r { ^named[\R] }
 
+	// Riemann's two kinds of step, by number (Hook's S and W): a schritt moves a chord of the first type up by
+	// v and a chord of the second type down by v; a wechsel sends the chord of the first type on r to the
+	// chord of the second type on r + v, and back. Both act on the right: they commute with T and I. P, L, R
+	// and the contextual inversions K are wechsels, their products two by two schritts.
+	schritt { |v| ^RLTransform(this, nil, [v, 0], "S" ++ this.prLabel(v)) }
+	wechsel { |v| ^RLTransform(this, nil, [v, 1], "W" ++ this.prLabel(v)) }
+
 	prLabel { |v| ^if(v.isKindOf(SequenceableCollection)) { "(" ++ v.join(" ") ++ ")" } { v.asString } }
 
 	// The transformation that moves nothing.

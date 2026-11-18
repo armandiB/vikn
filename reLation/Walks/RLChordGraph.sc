@@ -25,7 +25,7 @@ RLChordGraph {
 
 	*initClass {
 		suffixes = IdentityDictionary[\major -> "", \minor -> "m", \aug -> "+", \dom7 -> "7", \min7 -> "m7",
-			\hdim7 -> "m7b5", \dim7 -> "dim7", \otonal -> "7", \utonal -> "m7b5"];
+			\hdim7 -> "m7b5", \dim7 -> "dim7", \maj7 -> "maj7", \otonal -> "7", \utonal -> "m7b5"];
 	}
 
 	// The short name of a vertex: for a chord its root and a suffix (C, Cm, C+, C7, Cm7, Cm7b5, Cdim7).
