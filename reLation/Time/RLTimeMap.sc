@@ -26,7 +26,8 @@ RLTimeMap {
 	inverse { ^RLTimeMap(1 / a, b.neg / a) }
 	isIdentity { ^((a - 1).abs < 1e-12) and: { b.abs < 1e-12 } }
 
-	== { |that| ^that.isKindOf(RLTimeMap) and: { (a - that.a).abs < 1e-12 } and: { (b - that.b).abs < 1e-12 } }
+	// equal when a and b are, read to the tenth decimal (what hash reads too)
+	== { |that| ^that.isKindOf(RLTimeMap) and: { a.round(1e-10) == that.a.round(1e-10) } and: { b.round(1e-10) == that.b.round(1e-10) } }
 	!= { |that| ^(this == that).not }
 	hash { ^[\RLTimeMap, a.round(1e-10), b.round(1e-10)].hash }
 

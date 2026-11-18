@@ -121,5 +121,13 @@ TestRLNetworksOfNetworks : UnitTest {
 		this.assert(top.isValid, "a network of networks with the labels of its first node: <I8>, <I9>, <T1> over I8, I9, T1");
 		this.assertEquals(top.labelNames.collect { |n| n.reject { |c| "<>".includes(c) } }, w1.labelNames, "name for name");
 		this.assertException({ RLRelationContext.networks(w1, [['<T1>', this.prT(1)]], 100) }, Error, "more networks than max is an Error");
+		this.assertException({ RLRelationContext.networks(w1, [[\none, pcs.isography([\I0, \T1])]]) }, Error, "a move that is no isography (nil) is refused by name");
+	}
+
+	test_an_empty_network {
+		var empty = RLNetwork(pcs, [], []);
+		this.assert(empty.isValid, "a network of nothing is valid");
+		this.assertEquals(empty.fillings, [empty], "and is its own one filling");
+		this.assertEquals(RLRelationContext.networks(empty, [['<T1>', this.prT(1)]]).objects, [empty], "moved, it stays what it is");
 	}
 }

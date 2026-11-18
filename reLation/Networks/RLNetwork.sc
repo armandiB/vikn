@@ -177,6 +177,7 @@ RLNetwork {
 	// (or only the object given), and the others follow along the arrows (a relation may offer several).
 	fillings { |node, object|
 		var start = node ? nodes.first, out = Array.new, order = [start], grow = true, fill;
+		if(nodes.isEmpty) { ^[this] };
 		while { grow } {
 			grow = false;
 			arrows.do { |a|

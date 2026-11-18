@@ -45,6 +45,23 @@ TestRLPulse : UnitTest {
 		this.assertException({ RLPulse.paths(5, 2) }, Error, "a top that is no whole multiple of the bottom is refused");
 	}
 
+	// periods whose fractions have large terms, very different sizes, a sign: found by a review of Nov 18 2026
+	test_periods_far_from_small_fractions {
+		var time = RLTimePoints.new;
+		this.assertFloatEquals(RLPulse.gcd(21.4749, 0.0001), 0.0001, "the gcd of 21.4749 and a ten-thousandth (their cross product passes 32 bits)", 1e-12);
+		this.assertEquals(RLPulse(0.1271) & RLPulse(0.1313), RLPulse(166.8823), "the lcm of 0.1271 and 0.1313");
+		this.assertFloatEquals(RLPulse.gcd(0.00004, 0.00001), 0.00001, "periods under a ten-thousandth", 1e-12);
+		this.assert(RLNetwork(time, [[\a, 0], [\b, 0.0001], [\c, 21.475]], [[\a, \b, 0.0001], [\b, \c, 21.4749], [\a, \c, 0.0001]]).isValid,
+			"a network with such periods is valid");
+		this.assert((RLPulse(0.0001) <= RLPulse(2000)).not and: { RLPulse(2000) <= RLPulse(0.0001) }, "a short pulse is not included in a long one, the long one is in the short");
+		this.assert((RLPulse(1001.0001) <= RLPulse(1001)).not, "1001.0001 is no whole multiple of 1001");
+		this.assert(RLPulse(2000).relates(0, 0.0001).not and: { RLPulse(2000).relates(1, 4001) }, "two points a ten-thousandth apart are not 2000 apart");
+		this.assertEquals([RLPulse(-1/2), RLPulse.lcm(-1/2, 1/3), RLPulse.gcd(1/2, -1/3)], [RLPulse(1/2), 1, 1/6], "the sign of a period is dropped");
+		this.assertException({ RLPulse.skiHill(0, 1) }, Error, "no ski-hill from 0");
+		this.assertException({ RLPulse.paths(-6, 1/2) }, Error, "nor from a negative period");
+		this.assertException({ RLPulse.skiHill(0.0001, 2000) }, Error, "nor from a top below its bottom");
+	}
+
 	test_maps_of_time_are_automorphisms {
 		var maps = [RLTimeMap(1, 1/12), RLTimeMap(2, 0), RLTimeMap(-1, 3), RLTimeMap(3/2, 1/4)], ok = true;
 		maps.do { |f|
@@ -60,6 +77,10 @@ TestRLPulse : UnitTest {
 		this.assertEquals(RLTimeMap(2, 1) <> RLTimeMap(3, 1/2), RLTimeMap(6, 2), "one map after another");
 		this.assert((RLTimeMap(2, 1) <> RLTimeMap(2, 1).inverse).isIdentity, "undone");
 		this.assertException({ RLTimeMap(0, 1) }, Error, "a stretch by 0 is refused");
+		this.assert([[0.5e-10 - 1e-13, 0.5e-10 + 1e-13], [0.25, 0.25 + 1e-13]].every { |pair|
+			var f = RLTimeMap(1, pair[0]), g = RLTimeMap(1, pair[1]);
+			(f == g) == (f.hash == g.hash)
+		}, "two maps are equal exactly when their hashes are");
 	}
 }
 
@@ -85,6 +106,20 @@ TestRLMetreNetworks : UnitTest {
 		this.assert(triangle.(1/2).isValid.not, "with M1/2 across it is not");
 		this.assert(RLNetwork(time, [[\a, 0], [\b, 1/3]], [[\a, \b, 1/2]]).isValid.not, "a pulse that misses its point is seen");
 		this.assertException({ time.arrow(\Mx) }, Error, "a name that is no pulse is refused");
+		['M.', '0/0', 'M1.2.3', '1/0', 'M', '1/2/3'].do { |bad|
+			this.assertException({ time.arrow(bad) }, Error, "% is refused".format(bad));
+		};
+		this.assertEquals([time.arrow('M0'), time.arrow("3/2"), time.arrow('M0.25')], [RLPulse(0), RLPulse(1.5), RLPulse(1/4)], "M0, 3/2 and M0.25 are pulses");
+	}
+
+	// a metre network moved by a map of time that brings it back: networks of metre networks
+	test_a_network_of_metre_networks {
+		var flip = time.affine(-1, 11/2), hyper = RLRelationContext.networks(top, [[\flip, flip]]);
+		var pair = RLNetwork(hyper, [[\a, top], [\b, top.transformedBy(flip)]], [[\a, \b, \flip], [\b, \a, \flip]]);
+		this.assertEquals(hyper.objects.collect(_.objects), [[5/2, 3], [3, 5/2]], "the half bar and the same read backwards about its middle");
+		this.assertEquals(hyper.category.size, 2, "the flip and the identity");
+		this.assert(pair.isValid, "the two as one network: the flip there and back");
+		this.assertException({ RLRelationContext.networks(top, [[\later, time.shift(1/12)]], 50) }, Error, "a shift never brings a network back: more networks than max");
 	}
 
 	// the post's last figure: two inclusions (groupings), one shift (displacement), and the point both share
@@ -113,6 +148,21 @@ TestRLMetreNetworks : UnitTest {
 		this.assertEquals(time.common(1/2, 1/3), [1, 0], "three against two: once a bar");
 		this.assertEquals(time.pulseOf([0, 1/2, 5/6, 1]), RLPulse(1/6), "the finest pulse that holds the voice's four points");
 		this.assertEquals(time.layer([1/6, 5/2], 5/2, 3.01), [5/2, 8/3, 17/6, 3].round(1e-10), "a layer's points in a window");
+	}
+
+	// one point alone (period 0), periods with large terms, a sign: found by a review of Nov 18 2026
+	test_layers_at_the_edges {
+		this.assertEquals(time.common([0, 1/2], [1/2, 0]), [0, 1/2], "one point and a layer it is on: that point");
+		this.assertEquals(time.common([1/2, 0], [0, 1/2]), [0, 1/2], "the other way round");
+		this.assertEquals(time.common([0, 1], [0, 1]), [0, 1], "one point twice");
+		this.assertEquals(time.common([0, 1/3], [1/2, 0]), nil, "one point off the layer: nothing shared");
+		this.assertEquals(time.dissonance([0, 1/2], 1/2), \consonance, "a point on a layer");
+		this.assertEquals(time.dissonance([0, 1/3], 1/2), \displacement, "a point off it");
+		this.assertArrayFloatEquals(time.common(0.1271, 0.1313), [166.8823, 0], "two layers that meet again after 1313 steps of the first", 1e-9);
+		// 1271 k is 1 modulo 1313 for k = 719: the first layer's step 719 is the second's step 696
+		this.assertArrayFloatEquals(time.common([0.1271, 0], [0.1313, 0.0001]), [166.8823, 0.1271 * 719], "and, a ten-thousandth apart, first at step 719", 1e-9);
+		this.assert(RLPulse(0.1313).relates(0.0001, 0.1271 * 719), "that point is on the second layer");
+		this.assertEquals([time.dissonance(-1, 1/2), time.common(-1/2, 1/3)], [\consonance, [1, 0]], "the sign of a period is dropped");
 	}
 
 	// layers as rows of the canon page (its protocol: public/lib/canon-viz.js in HomewareVisuals)

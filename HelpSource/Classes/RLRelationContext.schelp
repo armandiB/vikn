@@ -85,9 +85,9 @@ Networks as objects: the networks a network becomes under some moves, and the mo
 argument:: seed
 An link::Classes/RLNetwork:: of a relation context.
 argument:: moves
-code::[[name, move], ...]::. A move is an link::Classes/RLAutomorphism:: of the seed's context (contents and labels move together: one image), or an automorphism of its category alone, as link::Classes/RLCategory#-automorphisms:: lists them and link::#-isography:: names one (Lewin's <T1>, <I5>: the labels move, and every valid network with the new labels is an image, twelve of them for T and I).
+code::[[name, move], ...]::. A move is an link::Classes/RLAutomorphism:: of the seed's context (contents and labels move together: one image), or anything else link::Classes/RLNetwork#-transformedBy:: takes (an link::Classes/RLTimeMap:: for a metre network); or an automorphism of its category alone, an Array as link::Classes/RLCategory#-automorphisms:: lists them and link::#-isography:: names one (Lewin's <T1>, <I5>: the labels move, and every valid network with the new labels is an image, twelve of them for T and I).
 argument:: max
-More networks than this is an Error.
+More networks than this is an Error: the moves must bring the seed back after some steps (a shift of time never does).
 argument:: generators
 The names that generate the category (all the moves when nil).
 code::

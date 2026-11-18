@@ -54,13 +54,13 @@ METHOD:: pulseOf
 The finest pulse that holds a list of time points: every two of them a whole number of its periods apart.
 
 METHOD:: layer
-The points of a pulse layer in a window. A layer is code::[period, phase]::, or a period alone: the points phase + k period.
+The points of a pulse layer in a window. A layer is code::[period, phase]::, or a period alone: the points phase + k period. A layer of period 0 is its one point.
 
 METHOD:: dissonance
-How two pulse layers stand to one another: code::\consonance:: when the points of the slower are all points of the faster; code::\displacement:: when their periods would allow that and they are shifted apart (Krebs); code::\grouping:: when neither period is a whole multiple of the other.
+How two pulse layers stand to one another: code::\consonance:: when the points of the slower are all points of the faster; code::\displacement:: when their periods would allow that and they are shifted apart (Krebs); code::\grouping:: when neither period is a whole multiple of the other. One point alone (period 0) is the slowest of layers: on the other layer (a consonance) or off it.
 
 METHOD:: common
-The points two layers both sound, as a layer code::[period, one of its points]::: the period is their lcm. nil when they share no point.
+The points two layers both sound, as a layer code::[period, its first point from the first layer's phase on]::: the period is their lcm. nil when they share no point.
 
 METHOD:: system
 nil: time points have no pitch system.

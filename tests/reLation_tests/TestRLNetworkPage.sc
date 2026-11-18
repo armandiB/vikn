@@ -44,6 +44,14 @@ TestRLNetworkPage : UnitTest {
 		this.assertEquals(captions, ["x", "y: i2 of x", "z: i5 of y, t3 of x", "the network of these networks"], "each frame under its node and the moves that reach it");
 		this.assertEquals(arrows.copyRange(9, 11).collect(_.last), ["i2", "i5", "t3"], "the plan's arrows by the names of the moves");
 		this.assertEquals(arrows.keep(3).collect(_.last), ["I4", "I10", "T6"], "the first network's by its labels");
+		// a plan with more nodes than its networks, and places given for the networks' nodes only
+		got = Array.new;
+		top = RLNetwork(hyper, [\x, \y, \z, \w].collect { |n| [n, cell] }, [[\x, \y, \i2], [\y, \z, \i5], [\z, \w, \i2]]).fillings(\x, cell).first;
+		RLNetworkPage.nested(top, "four", [[-0.5, 0], [0, 0], [0.5, 0]]);
+		nodes = got.select { |m| m[0] == '/network/node' };
+		this.assertEquals(nodes.size, 16, "four frames of three notes and the plan's four nodes");
+		this.assertEquals(nodes[1].copyRange(3, 4), [0, 0], "the networks' nodes at the places given");
+		this.assertArrayFloatEquals(nodes[12].copyRange(3, 4), [0, -0.8], "the plan's own round a circle", 0.0001);
 	}
 
 	test_one_network_and_the_frame_that_plays {

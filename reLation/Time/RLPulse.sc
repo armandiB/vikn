@@ -11,36 +11,46 @@
 //   RLPulse.paths(6, 1/2).size;                     // 3: the ways of dividing six quarters down to eighths by
 //                                                   // 2s and 3s (Cohn's ski-hill graph)
 //
-// Periods are plain numbers read as fractions (1/6, 0.25, 3), to a denominator of 10000 at most.
-// A pulse is a value. RLTimePoints is the context where pulses label networks.
+// Periods are plain numbers read as fractions of whole numbers (1/6, 0.25, 3): the nearest one with a
+// denominator up to 10000 (a period under a ten-thousandth keeps a larger one). A period that is no such
+// fraction is replaced by the nearest. A pulse is a value. RLTimePoints is the context where pulses label
+// networks.
 
 RLPulse {
 	var <period, <>label;
 
 	// the period is kept as the number its fraction gives, so that 1/6 and 0.5 / 3 are one pulse
 	*new { |period = 0|
-		var f = this.fraction(period.abs);
+		var f = this.fraction(period);
 		^super.newCopyArgs(f[0] / f[1])
 	}
 
-	// A period as [numerator, denominator].
-	*fraction { |x| ^x.asFraction(10000, false) }
+	// A period as [numerator, denominator] in lowest terms; its sign is dropped.
+	*fraction { |x|
+		var f = x.abs.asFraction(10000, false), g = f[0].gcd(f[1]).max(1);
+		^[f[0].div(g), f[1].div(g)]
+	}
 
 	// The longest period that fits a whole number of times in two periods (gcd(0, x) is x), and the shortest
-	// that both fit in (lcm(0, x) is 0).
+	// that both fit in (lcm(0, x) is 0). Of two fractions in lowest terms: the gcd of the numerators over the
+	// lcm of the denominators, and the other way round (no product of a numerator by a denominator, which
+	// passes 32 bits for a period like 21.4749).
 	*gcd { |a, b|
 		var fa = this.fraction(a), fb = this.fraction(b);
-		^(fa[0] * fb[1]).gcd(fb[0] * fa[1]) / (fa[1] * fb[1])
+		^fa[0].gcd(fb[0]) / this.prLcm(fa[1], fb[1])
 	}
 	*lcm { |a, b|
 		var fa = this.fraction(a), fb = this.fraction(b);
-		^(fa[0] * fb[1]).lcm(fb[0] * fa[1]) / (fa[1] * fb[1])
+		^this.prLcm(fa[0], fb[0]) / fa[1].gcd(fb[1])
 	}
+	// the least common multiple of two whole numbers, as a Float: it can pass 32 bits
+	*prLcm { |x, y| ^if((x == 0) or: { y == 0 }) { 0.0 } { (x / x.gcd(y)) * y } }
 
-	// Whether two time points are a whole number of periods apart.
+	// Whether two time points are a whole number of periods apart: what is left of the time between them,
+	// once the nearest whole number of periods is taken away, is nothing (a billionth of that time, or of 1).
 	relates { |x, y|
-		var q;
-		^if(period == 0) { (y - x).abs < 1e-9 } { q = (y - x) / period; (q - q.round).abs < 1e-7 }
+		var d = y - x, tolerance = 1e-9 * d.abs.max(1);
+		^if(period == 0) { d.abs < tolerance } { (d - ((d / period).round * period)).abs < tolerance }
 	}
 
 	// This after that: two points are related when a point between them is related to both. The gcd.
@@ -89,8 +99,8 @@ RLPulse {
 		^out
 	}
 	*prRatio { |top, bottom|
-		if((bottom <= 0) or: { (this.new(top) <= this.new(bottom)).not }) {
-			Error("RLPulse: % is not a whole multiple of %".format(top, bottom)).throw
+		if((bottom <= 0) or: { top <= 0 } or: { (this.new(top) <= this.new(bottom)).not }) {
+			Error("RLPulse: % is not a whole multiple of % (two periods above 0 are needed)".format(top, bottom)).throw
 		};
 		^(top / bottom).round.asInteger
 	}

@@ -42,10 +42,11 @@ RLCanonPage {
 	// points fall on, and which layers sound on each of its points: where two layers meet, and where they
 	// never do.
 	*layers { |layers, from = 0, to = 1, names, title|
-		var time = RLTimePoints.new, list = layers.collect { |l| if(l.isNumber) { [l, 0] } { [l[0], l[1] ? 0] } }, unit = 0;
+		var time = RLTimePoints.new, list = layers.collect { |l| if(l.isNumber) { [l.abs, 0] } { [l[0].abs, l[1] ? 0] } }, unit = 0;
 		list.do { |l| unit = RLPulse.gcd(RLPulse.gcd(unit, l[0]), (l[1] - from).abs) };
 		^this.show(list.collect { |l| time.layer(l, from, to).collect { |t| [(t - from).round(1e-10), l[0] / 2] } },
-			names ?? { list.collect { |l| RLPulse(l[0]).name } }, nil, [((to - from) / unit).round.asInteger, unit], title)
+			names ?? { list.collect { |l| RLPulse(l[0]).name } }, nil,
+			if(unit > 0) { [((to - from) / unit).round.asInteger, unit] }, title)
 	}
 
 	// A line at a beat (where the playing is); nil takes it away.
