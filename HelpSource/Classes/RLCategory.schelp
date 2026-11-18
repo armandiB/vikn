@@ -109,6 +109,9 @@ code::
 ~m.automorphisms.collect { |a| ~m.imageOf(a, ~m.generator(\U)).label }.asSet;     // U and PUP
 ::
 
+METHOD:: automorphism
+The automorphism that sends the generators, in the order of link::#-names::, to these arrows, as one of link::#-automorphisms::; nil when no automorphism sends them there. link::Classes/RLRelationContext#-isography:: takes names and words.
+
 METHOD:: imageOf
 The image of an arrow under one of them.
 

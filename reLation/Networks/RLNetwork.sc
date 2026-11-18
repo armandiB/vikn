@@ -18,7 +18,9 @@
 //   ~cell.iterate(RLAutomorphism.transposition(~cd, 5), 2).collect(_.objects);     // "Take a Bow"
 //
 // A label is given as an arrow, a name of the context, or a word (an Array of names in the order of time).
-// A network is a value.
+// A network is a value: it can be the object another network holds. RLRelationContext.networks makes the
+// context whose objects are networks and whose relations are the moves between them; a network on it is a
+// network of networks.
 
 RLNetwork {
 	var <context, <nodes, contents, <arrows;
@@ -121,9 +123,9 @@ RLNetwork {
 		^out
 	}
 
-	// Every valid network with the same shape and labels: each object the context offers is tried at a node,
-	// and the others follow along the arrows (a relation may offer several).
-	fillings { |node|
+	// Every valid network with the same shape and labels: each object the context offers is tried at a node
+	// (or only the object given), and the others follow along the arrows (a relation may offer several).
+	fillings { |node, object|
 		var start = node ? nodes.first, out = Array.new, order = [start], grow = true, fill;
 		while { grow } {
 			grow = false;
@@ -152,8 +154,25 @@ RLNetwork {
 				};
 			};
 		};
-		context.objects.do { |x| fill.value(1, Dictionary[start -> x]) };
+		(if(object.notNil) { [object] } { context.objects }).do { |x| fill.value(1, Dictionary[start -> x]) };
 		^out.select(_.isValid)
+	}
+
+	// What an isography offers: every valid network of the same shape whose labels are this one's moved by an
+	// automorphism of the context's category (one of context.category.automorphisms; RLRelationContext:isography
+	// names one). The contents are free: T and I on twelve pitch classes offer twelve networks.
+	isographs { |arrowMap|
+		var cat = context.category;
+		^RLNetwork(context, nodes.collect { |n| [n, contents[n]] },
+			arrows.collect { |a| [a[0], a[1], cat.imageOf(arrowMap, a[2])] }).fillings
+	}
+
+	// The isographies from this network to another of the same shape: the automorphisms of the category that
+	// send each label of this one to the label of that one. Empty when the two are not isographic.
+	isographiesTo { |that|
+		var cat = context.category;
+		if(this.prSameShape(that).not) { Error("RLNetwork: two networks of different shapes").throw };
+		^cat.automorphisms.select { |am| arrows.every { |a, i| cat.imageOf(am, a[2]) == that.arrows[i][2] } }
 	}
 
 	// Whether another network of the same shape has the same labels (a strong isography); the pairs

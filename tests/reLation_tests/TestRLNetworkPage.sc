@@ -27,6 +27,25 @@ TestRLNetworkPage : UnitTest {
 		this.assertEquals(arrows.collect(_.last).asSet.size, 2, "the same two labels in every frame: this automorphism changes none");
 	}
 
+	// a network of networks: its nodes' networks frame by frame, then the plan
+	test_a_network_of_networks {
+		var pcs = RLRelationContext.pitchClasses, nodes, arrows, captions, top;
+		var cell = RLNetwork(pcs, [[\x, 1], [\y, 3], [\z, 7]], [[\x, \y, \I4], [\y, \z, \I10], [\x, \z, \T6]]);
+		var hyper = RLRelationContext.networks(cell, [[\i2, RLAutomorphism.affine(pcs, 11, 2)], [\i5, RLAutomorphism.affine(pcs, 11, 5)],
+			[\t3, RLAutomorphism.affine(pcs, 1, 3)]]);
+		top = RLNetwork(hyper, [\x, \y, \z].collect { |n| [n, cell] }, [[\x, \y, \i2], [\y, \z, \i5], [\x, \z, \t3]]).fillings(\x, cell).first;
+		RLNetworkPage.nested(top, "a tower");
+		nodes = got.select { |m| m[0] == '/network/node' };
+		arrows = got.select { |m| m[0] == '/network/arrow' };
+		captions = got.select { |m| m[0] == '/network/caption' }.collect(_.last);
+		this.assertEquals([nodes.size, arrows.size], [12, 12], "three frames of three notes, and the plan's three nodes");
+		this.assertEquals(nodes.keep(3).collect(_.last), ["C#", "Eb", "G"], "pitch classes by the names of their notes");
+		this.assertEquals(nodes.copyRange(9, 11).collect(_.last), ["C# Eb G", "C# B G", "E F# Bb"], "the plan's nodes show the notes of their networks");
+		this.assertEquals(captions, ["x", "y: i2 of x", "z: i5 of y, t3 of x", "the network of these networks"], "each frame under its node and the moves that reach it");
+		this.assertEquals(arrows.copyRange(9, 11).collect(_.last), ["i2", "i5", "t3"], "the plan's arrows by the names of the moves");
+		this.assertEquals(arrows.keep(3).collect(_.last), ["I4", "I10", "T6"], "the first network's by its labels");
+	}
+
 	test_one_network_and_the_frame_that_plays {
 		var cd = RLRelationContext.cubeDance, sp = cd.space;
 		RLNetworkPage.show(RLNetwork.chain(cd, [sp.major(0), sp.minor(0)], [\P]), nil, [[-0.5, 0], [0.5, 0]]);

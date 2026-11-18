@@ -25,6 +25,12 @@ One code::[x, y]:: for each node, between -1 and 1, y downwards, the same in eve
 argument:: captions
 One text for each frame.
 
+METHOD:: nested
+A network of networks (a network on link::Classes/RLRelationContext#*networks::): the networks its nodes hold, each in its frame under its node's name and the moves that reach it, then the plan in a last frame, each of its nodes showing the notes of its network.
+
+METHOD:: text
+What a node shows: a chord by its short name, a pitch class by its note's name, a network by what its own nodes show, anything else as it prints.
+
 METHOD:: at
 The frame that plays; nil for none.
 

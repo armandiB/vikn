@@ -52,6 +52,12 @@ RLAutomorphism {
 		}, "I" ++ k)
 	}
 
+	// An automorphism carried to a context of networks (RLRelationContext.networks): every network moved by it.
+	// The networks it makes must all be among that context's objects (they are when it is one of the moves).
+	*onNetworks { |context, automorphism|
+		^this.new(context, { |net| net.transformedBy(automorphism) }, automorphism.label)
+	}
+
 	// On pitch classes: x -> kx + c.
 	*affine { |context, k, c|
 		var system = context.system;
