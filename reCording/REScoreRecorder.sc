@@ -574,11 +574,20 @@ REScoreRecorder {
 		^this.prAdd(ev)
 	}
 
+	// (Nov 19 2026, VK-6) A key whose value a replay cannot make again is left out, and the beat
+	// keeps its own at replay: a Function dur's loop (written Prout({ |inval| "open Function" }),
+	// which compiles) set at replay stopped the beat after a loop; a Function without source is a
+	// reference (REScore.replayable).
 	prBeatState { |b|
-		var res = IdentityDictionary.new;
-		b.keyOrder.do { |k| b.keyProxy(k) !? { |p| res[k] = REScore.encodeValue(p.source) } };
-		b.realDur !? { |d| res[\real_dur] = REScore.encodeValue(d) };
+		var res = IdentityDictionary.new, left = List.new;
+		var put = { |k, v|
+			var enc = REScore.encode(v);
+			if(enc[1] and: { REScore.replayable(enc[0]) }) { res[k] = enc[0] } { left.add(k) };
+		};
+		b.keyOrder.do { |k| b.keyProxy(k) !? { |p| put.(k, p.source) } };
+		b.realDur !? { |d| put.(\real_dur, d) };
 		res[\playing] = b.isPlaying;
+		if(left.notEmpty) { RCLog.info(\score, { "snapshot: % keeps % (not replayable)".format(this.prBeatVoice(b), left.asArray) }) };
 		^res
 	}
 

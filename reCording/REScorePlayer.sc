@@ -655,7 +655,9 @@ REScorePlayer {
 
 	// Sets what a snapshot recorded: the beats' key sources (a numeric source
 	// ramps to a numeric target over `beats` when given), their transport, the
-	// orgnsms' static attributes (identity keys aside), the song's seed.
+	// orgnsms' static attributes (identity keys aside), the song's seed. A key
+	// source that cannot be made again (REScore.replayable: an older take's
+	// open Function dur, VK-6, or a reference) is skipped: the beat keeps its own.
 	*applyState { |song, state, beats = 0|
 		if(state.isNil) { ^this };
 		state[\seed] !? { |s| song.seed = s };
@@ -667,7 +669,10 @@ REScorePlayer {
 				RCLog.warn(\player, "snapshot: no beat %".format(voice));
 			} {
 				keys.keysValuesDo { |k, v|
-					if(k != \playing) {
+					case
+					{ k == \playing } { }
+					{ REScore.replayable(v).not } { RCLog.info(\player, { "snapshot: % keeps its % (not replayable)".format(voice, k) }) }
+					{
 						v = REScore.decodeValue(v, song);
 						if(beats > 0 and: { v.isNumber } and: { b.keyProxy(k).notNil } and: { b.keyProxy(k).source.isNumber }) {
 							b.set(k, this.ramp(b.keyProxy(k).source, v, beats), quant: nil);
