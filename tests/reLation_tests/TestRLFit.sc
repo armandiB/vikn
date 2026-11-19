@@ -42,6 +42,20 @@ TestRLFit : UnitTest {
 		this.assertFloatEquals(fit.segments.sum { |s| s[\cost] }, fit.cost, "the passages' costs add up, the change of region counted");
 	}
 
+	test_the_fit_as_data {
+		var edo = RLEDO(12), c = RLScale.major(edo), g = RLScale.major(edo, 7);
+		var fit = RLFit(this.prIn(c, [0, 3, 4, 0, 5, 1, 4, 0]) ++ this.prIn(g, [4, 0, 3, 4, 0, 1, 4, 0]), RLRegions(edo));
+		var d = fit.data, ch = d[\chords];
+		this.assertEquals(ch.collect { |x| x[\passage] }, (0 ! 8) ++ (1 ! 8), "each chord in its passage");
+		this.assertEquals(ch.collect { |x| x[\numeral] }, fit.segments[0][\numerals] ++ fit.segments[1][\numerals], "its numeral there");
+		this.assertEquals(ch.collect { |x| x[\move] }.copyRange(0, 3), [nil, "ascending", "superstrong", "ascending"], "the step into it; none into the first");
+		this.assertFloatEquals(ch.sum { |x| x[\step] + x[\change] }, fit.cost, "the chords' costs and the changes' add up to the fit's");
+		this.assertEquals(d[\states][ch[8][\state]][\title], "G major (D)", "the context of the second passage, by name");
+		this.assertEquals(d[\states][ch[8][\state]][\tones], g.degrees, "and its scale's tones");
+		this.assertEquals(d[\passages].collect { |p| [p[\first], p[\last], p[\state]] }, [[0, 7, ch[0][\state]], [8, 15, ch[8][\state]]], "the passages");
+		this.assertEquals(d[\chart][\major].detect { |row| row[0] == "D" }, ["D", 1, "major", 1], "Schoenberg's chart goes with it");
+	}
+
 	test_the_triads_take_a_hexatonic_cycle {
 		var edo = RLEDO(12), ctx = RLChordContext(RLChordSpace.triads(edo));
 		var fit = RLFit(RLFit.events(RLWalk.cycle(ctx, ctx.space.major(0), [\P, \L]).chords), RLRegions(edo)), seg = fit.segments.first;

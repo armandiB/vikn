@@ -78,3 +78,10 @@ METHOD:: title
 METHOD:: regionTitle
 METHOD:: report
 The reading as text; with a score, the coverage too.
+
+METHOD:: data
+The reading as plain data (numbers, Strings, Arrays and Events of those), for a file or a page: the contexts it
+could choose from (each region's name, class, tonic and scale; Schoenberg's chart), each chord as read (its
+context, passage, numeral, kind, the step into it, what it cost and what the change into its context cost), the
+passages with their patterns, the surprises, where the reading differs from the keys the chords carry. With a
+score, the coverage too. HomewareSC's code::Math/Category_Theory/fit/:: writes it as JSON and shows it as a page.

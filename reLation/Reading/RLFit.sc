@@ -375,6 +375,7 @@ RLFit {
 						actual = read[\deg][next];
 						surprises = surprises.add((kind: \break, at: next, segment: si, pattern: pat,
 							expected: scale.numeral(scale.triads.chord(expected)), actual: seg[\numerals][next - seg[\first]],
+							expectedPcs: scale.realize(scale.triads.chord(expected)),
 							// the steps from the expected root to the one that came, the shorter way round
 							by: actual !? { var k = (actual - expected) % scale.steps; if(k > scale.steps.div(2)) { k - scale.steps } { k } }));
 					};
@@ -443,6 +444,62 @@ RLFit {
 			};
 			out
 		}
+	}
+
+	// The fit as plain data (numbers, Strings, Arrays and Events of those) for a file or a page: the contexts it
+	// could choose from, each chord as it reads it (its context, numeral, kind, what it cost and what the change
+	// into its context cost), the passages, the surprises, where it differs from the keys the chords carry.
+	data { |score|
+		var cover = score !? { this.coverage(score) }, str = { |x| x !? { x.asString } };
+		var region = { |r| r !? { [r[0], r[1].asString] } };
+		var perChord = Array.newClear(chords.size);
+		segments.do { |seg, si|
+			var read = readings[seg[\state]];
+			Array.series(seg[\last] - seg[\first] + 1, seg[\first]).do { |i|
+				var k = i - seg[\first], c = chords[i];
+				perChord[i] = (
+					onset: c[\onset], dur: c[\dur], mn: c[\mn], root: c[\root], bass: c[\bass], pcs: c[\pcs], label: str.(c[\label]),
+					key: region.(c[\key]), applied: region.(c[\applied]), state: seg[\state], passage: si, numeral: seg[\numerals][k],
+					kind: if(seg[\kind] == \region) { read[\kinds][i].asString } { if(read[\tri][i].isNil) { "foreign" } { "triad" } },
+					degree: if(seg[\kind] == \region) { read[\deg][i] },
+					target: if(seg[\kind] == \region) { if((read[\kinds][i] == \dominant) or: { read[\kinds][i] == \leading }) { read[\target][i] } },
+					step: read[\step][i], change: if(i > 0) { this.prChange(states[path[i - 1]], states[path[i]]) } { 0 },
+					move: if(k > 0) { str.(if(seg[\kind] == \region) { seg[\progressions][k - 1] } { seg[\word][k - 1] }) },
+					agrees: c[\key] !? { this.prAgrees(i) }, agrees_loosely: c[\key] !? { this.prAgrees(i, true) }
+				);
+			};
+		};
+		^(
+			cost: cost, unit: str.(costs[\unit] ? "bits"), costs: str.(costs[\source] ? "hand-set"), system: system.steps,
+			tonic: regions.tonic, mode: regions.mode.asString, agreement: this.agreement, agreement_loose: this.agreement(true),
+			chart: (major: RLRegions.majorChart.collect { |row| [row[0].asString, row[1], row[2].asString, row[3]] },
+				minor: RLRegions.minorChart.collect { |row| [row[0].asString, row[1], row[2].asString, row[3]] }),
+			states: states.collect { |st|
+				if(st[\kind] == \region) {
+					(kind: "region", title: this.regionTitle(st[\region]), region: region.(st[\region]), name: str.(regions.nameOf(st[\region])),
+						relation: regions.classOf(st[\region]), tonic: regions.tonicOf(st[\region]), tones: st[\scale].degrees,
+						alternates: st[\scale].alternates)
+				} { (kind: "triads", title: "triads") }
+			},
+			chords: perChord,
+			passages: segments.collect { |seg, si|
+				(
+					first: seg[\first], last: seg[\last], from: seg[\from], to: seg[\to], kind: seg[\kind].asString, state: seg[\state],
+					title: this.title(seg), cost: seg[\cost],
+					patterns: seg[\patterns].collect { |p|
+						(from: p[\from], to: p[\to], next: p[\next], period: p[\period], unit: p[\unit].collect(_.asString), repeats: p[\repeats])
+					},
+					held: cover !? { cover[si][\chords] }, scale: cover !? { cover[si][\scale] }, natural: cover !? { cover[si][\natural] }
+				)
+			},
+			surprises: surprises.collect { |s|
+				(kind: s[\kind].asString, at: s[\at], passage: s[\segment], chord: s[\chord], expected: s[\expected], actual: s[\actual],
+					expected_pcs: s[\expectedPcs], by: s[\by], relation: s[\relation], unit: s[\pattern] !? { |p| p[\unit].collect(_.asString) })
+			},
+			differences: this.differences(true).collect { |d|
+				(first: d[\first], last: d[\last], reads: this.title(states[d[\state]]), key: this.regionTitle(d[\key]))
+			}
+		)
 	}
 
 	// The name of a passage's context, or of a region: "F minor (t)", "triads".
