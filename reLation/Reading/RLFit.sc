@@ -32,7 +32,7 @@
 
 RLFit {
 	classvar <defaultCosts;
-	var <chords, <regions, <costs, <span, <system, <states, <path, <cost, <segments, <surprises;
+	var <chords, <regions, <costs, <span, <system, <states, <path, <cost, <segments, <surprises, <chosen, <extra;
 	var triadSpace, triadContext, triadGraph, distances, readings;
 
 	*initClass {
@@ -51,6 +51,28 @@ RLFit {
 
 	// model: nil (the hand-set table), some of its entries to change, or a counted model (RLFit.readModel).
 	*new { |chords, regions, model, span = 7| ^super.new.prInit(chords, regions, model, span) }
+
+	// Chords that come with the other chords their spans could be (\alternatives, each with \extra: what the
+	// notes cost more under it; RLChordFit:withAlternatives): the fit chooses among them, so that two chords the
+	// notes price alike are settled by what the passage makes of them (a six-four before its dominant, a
+	// diminished chord and the seventh chord it is the top of). One programme over the chords, the contexts and
+	// the alternatives; the choice is kept only when the whole is cheaper: the fit's cost and what the notes
+	// cost more. Returns the fit of the chosen chords, with chosen (per chord: 0, or which alternative was
+	// taken) and extra (what the choices cost in the notes, in the model's unit).
+	*choosing { |chords, regions, model, span = 7|
+		var first = this.new(chords, regions, model, span), pick = first.prChoose, extra = 0, list, second;
+		if(pick.every { |a| a == 0 }) { ^first.prChosen(pick, 0) };
+		list = chords.collect { |c, i|
+			var alt;
+			if(pick[i] == 0) { c } {
+				alt = c[\alternatives][pick[i] - 1];
+				extra = extra + (alt[\extra] ? 0);
+				alt
+			}
+		};
+		second = this.new(list, regions, model, span);
+		^if((second.cost + extra) < (first.cost - 1e-9)) { second.prChosen(pick, extra) } { first.prChosen(pick.collect { 0 }, 0) }
+	}
 
 	// The model the fit prices with. A chord in a region is one of nine kinds: the degree of its root, 0 to 6, when
 	// its tones are tones of the scale; 7, an artificial dominant; 8, another foreign chord. For each mode the
@@ -272,6 +294,93 @@ RLFit {
 		cost = last[at];
 		path = Array.newClear(n);
 		Array.series(n, n - 1, -1).do { |i| path[i] = at; at = back[i][at] };
+	}
+
+	prChosen { |pick, more| chosen = pick; extra = more }
+
+	// Which option to take at each chord (0: the chord, k: its k-th alternative), by one programme over the
+	// chords, the contexts and the options. What an alternative leads to is read from the chords as they are.
+	prChoose {
+		var n = chords.size, s = states.size, change, options, what, best, back, pick, bk = 0, ba = 0, low = inf;
+		if(n == 0) { ^[] };
+		change = states.collect { |a| states.collect { |b| this.prChange(a, b) } };
+		options = chords.collect { |c| [c] ++ (c[\alternatives] ? []) };
+		// what[i][a][k]: option a of chord i in state k: its kind in a region (0 to 8), its triad among the triads
+		what = options.collect { |opts, i|
+			opts.collect { |o, a|
+				states.collect { |st, k|
+					if(st[\kind] == \region) {
+						if(a == 0) { readings[k][\kind][i] } { this.prKindOf(o, i, k) }
+					} {
+						if(a == 0) { readings[k][\tri][i] } { this.prTriad(o) }
+					}
+				}
+			}
+		};
+		best = options.collect { |opts| Array.fill(s) { Array.fill(opts.size, inf) } };
+		back = options.collect { |opts| Array.fill(s) { Array.newClear(opts.size) } };
+		s.do { |k| options[0].do { |o, a| best[0][k][a] = this.prStepOf(k, nil, what[0][a][k]) + if(a == 0) { 0 } { o[\extra] ? 0 } } };
+		Array.series(n - 1, 1).do { |i|
+			s.do { |k|
+				// the cheapest way into state k after each option of the chord before, staying tried first
+				var into = options[i - 1].collect { |o, b|
+					var least = best[i - 1][k][b] + change[k][k], from = k;
+					s.do { |j|
+						var v = best[i - 1][j][b] + change[j][k];
+						if(v < (least - 1e-9)) { least = v; from = j };
+					};
+					[least, from]
+				};
+				options[i].do { |o, a|
+					var least = inf, fromB = 0;
+					into.do { |pair, b|
+						var v = pair[0] + this.prStepOf(k, what[i - 1][b][k], what[i][a][k]);
+						if(v < (least - 1e-9)) { least = v; fromB = b };
+					};
+					best[i][k][a] = least + if(a == 0) { 0 } { o[\extra] ? 0 };
+					back[i][k][a] = [into[fromB][1], fromB];
+				};
+			};
+		};
+		// the end: the chord itself on a tie
+		s.do { |k| options[n - 1].size.do { |a| if(best[n - 1][k][a] < (low - 1e-9)) { low = best[n - 1][k][a]; bk = k; ba = a } } };
+		pick = Array.newClear(n);
+		Array.series(n, n - 1, -1).do { |i|
+			var e;
+			pick[i] = ba;
+			if(i > 0) { e = back[i][bk][ba]; bk = e[0]; ba = e[1] };
+		};
+		^pick
+	}
+
+	// What a chord costs in state k after the chord before, both as they are there (a kind in a region, a triad
+	// or nil among the triads). before: nil for the first chord.
+	prStepOf { |k, before, now|
+		var st = states[k], table, d;
+		if(st[\kind] == \region) {
+			table = costs[st[\region][1]];
+			^if(before.isNil) { table[\first][now] } { table[\step][before][now] }
+		};
+		^case
+		{ now.isNil } { costs[\foreign] }
+		{ before.isNil } { costs[\first_triad] ? 0 }
+		{ d = this.prDistance(before, now); d == 0 } { costs[\same] ? 1.0 }
+		{ min(d * costs[\generator], costs[\far]) }
+	}
+
+	// The kind (0 to 8) of another chord in chord i's place, in the region of state k: as prReadRegion gives it
+	// for the chords themselves, what it leads to read from the chords as they are.
+	prKindOf { |chord, i, k|
+		var scale = states[k][\scale], read = readings[k], root = chord[\root], deg, j, to, has;
+		var third = system.interval([5, 4]), minorThird = system.interval([6, 5]), fourth = system.interval([4, 3]);
+		var semitone = system.interval([16, 15]), dim = system.pcAdd(minorThird, minorThird);
+		deg = root !? { scale.degreeOf(root) };
+		if(chord[\pcs].every { |pc| scale.holds(pc) }) { ^deg ? 8 };
+		j = Array.series(3, i + 1).detect { |x| chords[x].notNil and: { chords[x][\root] != root } };
+		if(j.isNil or: { root.isNil } or: { chords[j][\root].isNil } or: { read[\kinds][j] != \inside }) { ^8 };
+		has = { |x| chord[\pcs].includesEqual(system.pcAdd(root, x)) };
+		to = system.pcSub(chords[j][\root], root);
+		^if((has.(third) and: { to == fourth }) or: { has.(minorThird) and: { has.(dim) } and: { to == semitone } }) { 7 } { 8 }
 	}
 
 	prSegments {

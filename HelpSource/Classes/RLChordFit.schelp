@@ -70,8 +70,18 @@ The places a chord may start, and the end.
 METHOD:: candidates
 The cheapest chords for a span of time, read alone: code::[(label:, cost:, root:, pcs:, type:), ...]::.
 
+METHOD:: withAlternatives
+The chords again, each with the other chords its span could be (code::\alternatives::): the cheapest ones for the span read alone, each with code::\extra::, what the span's notes cost more under it. For a fit that chooses between them by their context: link::Classes/RLFit#*choosing::.
+argument:: within
+Only alternatives that cost less than this more than the chord itself.
+argument:: n
+At most this many.
+
 METHOD:: agreement
 How long these chords have the roots, and the roots and tones, of chords written by an analyst (the score's own when none are given).
+argument:: labelled
+argument:: ours
+Another list of chords to score than the reading's own (the ones a fit chose). The same for link::#-differences::, link::#-breakdown:: and link::#-report::.
 
 METHOD:: differences
 Where the roots are not an analyst's, run by run, with how the two chords stand: code::\same:: (the same tones under another root: a six-four chord read as its bass or as its fourth), code::\part:: (ours is a part of theirs: a root that does not sound), code::\holds:: (theirs is a part of ours), code::\shares:: (two tones or more in common), code::\other::.

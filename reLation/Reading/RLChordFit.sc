@@ -337,13 +337,13 @@ RLChordFit {
 			type: tNames[ti], label: RLChordFit.spell(r) ++ " " ++ tNames[ti], cost: bits, id: id)
 	}
 
-	// The cheapest chords for a span of time, read alone: [(label:, cost:, root:, pcs:, type:), ...], at most n.
-	candidates { |from, to, n = 3|
+	// Every chord for a span of time read alone, cheapest first: [[cost, id, false], ...].
+	prCandidates { |from, to|
 		var count = Array.fill(width, 0.0), saving = Array.fill(width, 0.0), keys = List.new, total = 0.0, base = 0.0, low = inf, lowKey = nil;
 		var bounds = model[\bounds];
 		notes.do { |nt|
 			var a = max(nt[\onset], from), b = min(nt[\onset] + nt[\dur], to), w = (b - a) * rate, idx = nt[\tpc] + span, c;
-			if(w > 1e-9) {
+			if(w > (0.01 * rate)) {
 				c = bounds.count { |x| nt[\dur] >= (x - 1e-9) };
 				if(count[idx] <= 0) { keys.add(idx) };
 				count[idx] = count[idx] + w;
@@ -353,21 +353,47 @@ RLChordFit {
 				if(nt[\pitch] < low) { low = nt[\pitch]; lowKey = idx };
 			};
 		};
-		^this.prBest(count, saving, keys, total, base, lowKey, nil, 0, 0, 0, nil, true).keep(n).collect { |pair|
+		^this.prBest(count, saving, keys, total, base, lowKey, nil, 0, 0, 0, nil, true)
+	}
+
+	// The cheapest chords for a span of time, read alone: [(label:, cost:, root:, pcs:, type:), ...], at most n.
+	candidates { |from, to, n = 3|
+		^this.prCandidates(from, to).keep(n).collect { |pair|
 			var c = this.prChord(pair[1], from, to, pair[0]);
 			(label: c[\label], cost: pair[0], root: c[\root], pcs: c[\pcs], type: c[\type])
 		}
 	}
 
+	// The chords again, each with the other chords its span could be (\alternatives): the cheapest ones for the
+	// span read alone, at most n, that cost less than `within` more than the chord itself does there. Each has
+	// \extra: what the span's notes cost more under it (less, when negative: the chord before or the place in
+	// the bar had decided otherwise). For a fit that chooses between them by their context: RLFit.choosing.
+	withAlternatives { |within = 8, n = 2|
+		^chords.collect { |c|
+			var list = this.prCandidates(c[\onset], c[\onset] + (c[\span] ? c[\dur])), own = list.detect { |pair| pair[1] == c[\id] }, out = c.copy;
+			out[\alternatives] = if(own.isNil) { [] } {
+				list.select { |pair| (pair[1] != c[\id]) and: { (pair[0] - own[0]) < within } }.keep(n).collect { |pair|
+					var alt = this.prChord(pair[1], c[\onset], c[\onset] + c[\dur], c[\cost] + (pair[0] - own[0]));
+					alt[\span] = c[\span];
+					alt[\bass] = c[\bass];
+					alt[\extra] = pair[0] - own[0];
+					alt
+				}
+			};
+			out
+		}
+	}
+
 	// How long these chords have the roots, and the roots and tones, of chords written by an analyst (the
 	// score's own when none are given): (root: [quarter notes agreed, labelled], chord: [agreed, labelled]).
-	agreement { |labelled|
+	// ours: another list of chords to score than the reading's own (the ones a fit chose, RLFit.choosing).
+	agreement { |labelled, ours|
 		var rootTime = 0, chordTime = 0, total = 0;
 		(labelled ? score.chords).do { |c|
 			var a = c[\onset], b = a + c[\dur];
 			if(c[\root].notNil) {
 				total = total + c[\dur];
-				chords.do { |m|
+				(ours ? chords).do { |m|
 					var lo = max(a, m[\onset]), hi = min(b, m[\onset] + (m[\span] ? m[\dur]));
 					if((hi > (lo + 1e-9)) and: { m[\root] == c[\root] }) {
 						rootTime = rootTime + (hi - lo);
@@ -383,12 +409,12 @@ RLChordFit {
 	// relation, how the two chords' tones stand: \same (the same tones under another root: a six-four chord read
 	// as its bass or as its fourth), \part (ours is a part of theirs: a root that does not sound), \holds (theirs
 	// is a part of ours), \shares (two tones or more in common), \other.
-	differences { |labelled|
+	differences { |labelled, ours|
 		var out = Array.new;
 		(labelled ? score.chords).do { |c|
 			var a = c[\onset], b = a + c[\dur];
 			if(c[\root].notNil) {
-				chords.do { |m|
+				(ours ? chords).do { |m|
 					var lo = max(a, m[\onset]), hi = min(b, m[\onset] + (m[\span] ? m[\dur])), ours, theirs, common, relation;
 					if((hi > (lo + 1e-9)) and: { m[\root] != c[\root] }) {
 						ours = m[\pcs].asSet;
@@ -417,13 +443,13 @@ RLChordFit {
 	}
 
 	// The time of those differences by their relation, and no chord of ours at all: relation -> quarter notes.
-	breakdown { |labelled|
+	breakdown { |labelled, ours|
 		var out = IdentityDictionary.new, theirs = labelled ? score.chords, covered = 0, total = 0;
-		this.differences(theirs).do { |d| out[d[\relation]] = (out[d[\relation]] ? 0) + (d[\to] - d[\from]) };
+		this.differences(theirs, ours).do { |d| out[d[\relation]] = (out[d[\relation]] ? 0) + (d[\to] - d[\from]) };
 		theirs.do { |c|
 			if(c[\root].notNil) {
 				total = total + c[\dur];
-				chords.do { |m| covered = covered + max(0, min(c[\onset] + c[\dur], m[\onset] + (m[\span] ? m[\dur])) - max(c[\onset], m[\onset])) };
+				(ours ? chords).do { |m| covered = covered + max(0, min(c[\onset] + c[\dur], m[\onset] + (m[\span] ? m[\dur])) - max(c[\onset], m[\onset])) };
 			};
 		};
 		out[\none] = max(0, total - covered);
@@ -431,18 +457,18 @@ RLChordFit {
 		^out
 	}
 
-	report { |labelled|
+	report { |labelled, ours|
 		var lines = Array.new, pct = { |pair| if(pair[1] > 0) { (100 * pair[0] / pair[1]).round(0.1).asString ++ " %" } { "-" } };
 		var theirs = labelled ? score.chords, agree;
-		lines = lines.add("CHORDS: % chords from % notes, cost %; costs: %".format(chords.size, notes.size, cost.round(0.01), model[\source] ? "?"));
+		lines = lines.add("CHORDS: % chords from % notes, cost %; costs: %".format((ours ? chords).size, notes.size, cost.round(0.01), model[\source] ? "?"));
 		if(theirs.notEmpty) {
-			agree = this.agreement(theirs);
+			agree = this.agreement(theirs, ours);
 			lines = lines.add("CHORDS: the analysts' roots for % of the labelled time, their roots and tones for % (they wrote % chords)".format(
 				pct.(agree[\root]), pct.(agree[\chord]), theirs.size));
-			agree = this.breakdown(theirs);
+			agree = this.breakdown(theirs, ours);
 			lines = lines.add("CHORDS: another root, of the labelled time: the same tones %, ours a part of theirs %, theirs a part of ours %, two tones or more shared %, other %; no chord here %".format(
 				*[\same, \part, \holds, \shares, \other, \none].collect { |k| pct.([agree[k] ? 0, agree[\total]]) }));
-			this.differences(theirs).do { |d|
+			this.differences(theirs, ours).do { |d|
 				lines = lines.add("DIFFERS: measure %, % to %: % here, the analysts % (%)".format(d[\mn] ? "?", d[\from].round(0.01), d[\to].round(0.01), d[\ours], d[\theirs], d[\relation]));
 			};
 		};

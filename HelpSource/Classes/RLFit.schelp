@@ -41,6 +41,16 @@ nil, entries of the hand-set table to change, or a counted model.
 argument:: span
 The regions tried: those within so many fifths of the tonic.
 
+METHOD:: choosing
+A fit of chords that come with the other chords their spans could be (code::\alternatives::, each with code::\extra::: link::Classes/RLChordFit#-withAlternatives::). Where the notes price two chords alike, the passage chooses: a six-four before its dominant, a diminished chord and the seventh chord it is the top of. One programme over the chords, the contexts and the alternatives; the choice is kept only when the whole is cheaper (the fit's cost and what the notes cost more). The fit returned is that of the chosen chords, with link::#-chosen:: and link::#-extra::.
+
+code::
+~chords = RLChordFit(~score);
+~fit = RLFit.choosing(~chords.withAlternatives, ~score.regions);
+~fit.chosen.count { |x| x > 0 };     // how many chords the passage changed
+~fit.extra;                          // what that costs in the notes
+::
+
 METHOD:: events
 Chords for a fit from link::Classes/RLChord::s, of a space of the system or of a scale's space (given the scale).
 
@@ -62,6 +72,11 @@ METHOD:: states
 METHOD:: cost
 METHOD:: costs
 The model used.
+
+METHOD:: chosen
+After link::#*choosing::: per chord, 0 or the number of the alternative taken.
+METHOD:: extra
+After link::#*choosing::: what the choices cost more in the notes.
 
 METHOD:: surprises
 What stands out: a foreign chord that leads nowhere, a pattern of three units or more that stops before its passage does (with what one more step would have been, and the steps between that and what came), a change to a region of class 3 or beyond.
