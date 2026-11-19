@@ -16,7 +16,7 @@ strong::Banks:: (Nov 18 2026). A layout of more than seven knobs is laid out sev
 
 strong::The graph:: (the effects engine's w1, HomewareVisuals' code::public/lib/fx-viz-w1.js::), sent before the chain with every state as lines that change nothing when they are there already: code::nodes:: (name → effect: code::/fx/node::; a page or the chain names them as effects, and a node without a layout takes its effect's), code::inputs:: (name → code::"main"::, code::"video:/recordings/x.mp4"::: code::/fx/input::), code::wires:: (code::"node.port":: → source: code::/fx/wire::), code::out:: (code::/fx/out::), code::look:: (code::/fx/look::), code::set:: (node → param → value: values no knob holds; a node whose code::mix:: is set there keeps it, no knob's mix is sent for it).
 
-MIDI as link::Classes/REShowRoto::: the device's source alone connected (never code::MIDIIn.connectAll::), the client brought up when nobody had and disposed by link::#-stop::. A teardown of CoreMIDI can stall (once at a console's quit, Oct 31 2026; HomewareSC's code::console.sh stop:: kills the console when it does not answer).
+MIDI as link::Classes/REShowRoto::: the device's source alone connected (never code::MIDIIn.connectAll::), the client brought up when nobody had and disposed by link::#-stop::. A teardown of CoreMIDI stalls when MIDI arrives during it (a console's quit, 2 of 3 on Oct 31 2026; Nov 19, with a knob turning, 1 of 3 quits of the old code, killed after 14 s with the page never told): the console's quit stops with code::keepMidi:: and drops MIDIClient's teardown at exit (link::Classes/REShowConsole#-stop::), 3 of 3 quits ending in 1.3-1.5 s with the knob turning.
 
 CLASSMETHODS::
 
