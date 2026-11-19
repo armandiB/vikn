@@ -69,6 +69,35 @@ TestRCControl : UnitTest {
 		this.assert(this.logHas("not found"), "warned");
 	}
 
+	// HL3-P8 (Nov 19): an absent device's mapping listens to nothing (it listened to every source: another device's
+	// CCs drove knobs into takes); rebind, once the device is there, connects its source once and makes the mapping on it
+	test_midi_absent_device_listens_to_nothing_until_rebind {
+		var got = List.new, connected = List.new, savedSources = RCMidi.sourceList, savedConnect = RCMidi.connectFunc;
+		RCMidi.sourceList = [];
+		RCMidi.connectFunc = { |i, e| connected.add(e.name) };
+		song.midi.control(\late, 11, 0, "Late Device", { |x| x }, { |v| got.add(v) });
+		song.midi.control(\late2, 12, 0, "Late Device", { |x| x }, { });
+		this.assertEquals(MIDIdef.all[\rc_ctl_late].srcID, RCMidi.absentID, "absent: its def on a source no device has");
+		this.assert(song.midi.pending.includesKey(\late), "kept for rebind");
+		song.midi.control(\any, 13, 0, nil, { |x| x }, { });
+		this.assertEquals(MIDIdef.all[\rc_ctl_any].srcID, nil, "no device named: every source, as meant");
+		this.assert(song.midi.pending.includesKey(\any).not, "and nothing to wait for");
+		this.assertEquals(song.midi.rebind, [], "still absent: nothing rebound");
+		RCMidi.sourceList = [MIDIEndPoint("Late Device", "Late Device", 424242)];
+		this.assertEquals(song.midi.rebind, [\late, \late2], "plugged in: both rebound");
+		this.assertEquals(MIDIdef.all[\rc_ctl_late].srcID, 424242, "now on its source");
+		this.assertEquals(connected.asArray, ["Late Device"], "its source connected once");
+		this.assert(song.midi.pending.isEmpty, "nothing waits");
+		MIDIdef(\rc_ctl_late).func.value(64, 11, 0, 424242);
+		this.assertEquals(got.asArray, [64], "the mapping works");
+		song.midi.control(\gone, 14, 0, "Gone Device", { |x| x }, { });
+		song.midi.free(\gone);
+		this.assert(song.midi.pending.includesKey(\gone).not, "a freed mapping waits no more");
+		[\late, \late2, \any].do { |n| song.midi.free(n) };
+		RCMidi.sourceList = savedSources;
+		RCMidi.connectFunc = savedConnect;
+	}
+
 	test_midi_control_and_fine {
 		var got = nil;
 		var keys = song.midi.control(\knob, 5, 0, "No Such Device", { |x| x * 2 }, { |v, raw| got = [v, raw] }, fine: true);

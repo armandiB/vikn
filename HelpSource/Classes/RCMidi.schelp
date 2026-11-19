@@ -10,7 +10,15 @@ CLASSMETHODS::
 METHOD:: pairWait
 Seconds an MSB waits for its LSB before it fires alone (0.02).
 METHOD:: findSrcId
-uid of a MIDI source by name; nil with a warning when absent (the mapping then listens to all sources).
+uid of a MIDI source by name; nil when absent, with a warning unless code::warn:: is false.
+argument:: deviceName
+argument:: warn
+METHOD:: absentID
+The source filter of a mapping whose device is absent: never a source's uid, so nothing reaches it until link::#-rebind::.
+METHOD:: sourceList
+The sources looked through (nil: code::MIDIClient.sources::); a test stands a list in for them.
+METHOD:: connectFunc
+How link::#-rebind:: connects a found source: code::{ |index, endpoint| }:: (nil: code::MIDIIn.connect::); a test stands in for it.
 
 INSTANCEMETHODS::
 METHOD:: control
@@ -18,6 +26,7 @@ argument:: name
 argument:: ccNum
 argument:: chan
 argument:: deviceName
+The source the mapping listens to; nil: every source. A device named and absent: the mapping is made whole (link::#-replay:: works) but listens to nothing, with a warning, until it is plugged in and link::#-rebind:: called (HL3-P8, Nov 19 2026: it listened to every source, and another device's CCs drove knobs into takes).
 argument:: valFunc
 Maps the raw value (0..127, fractional with fine).
 argument:: action
@@ -39,4 +48,11 @@ argument:: throttle
 As for link::#-control::.
 METHOD:: free
 argument:: name
+METHOD:: rebind
+After plugging a device in: the sources listed again, each found device's source connected (a session connects the sources there are at its start, not one plugged in later), the mappings that waited for it made again on its uid. Returns their names; the others keep waiting (link::#-pending::).
+code::
+~song.midi.rebind;
+::
+METHOD:: pending
+Name → the arguments of a mapping waiting for its absent device.
 METHOD:: freeAll
