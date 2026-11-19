@@ -13,7 +13,8 @@
 //   RLScore.read(path, RLEDO(19)).notes.first; // the same note in 19 steps
 //
 // A pitch is the system's (steps from its origin, middle C); chords written by analysts keep their label, their
-// key as a region [fifths, mode] from the global tonic, their root and tones as pitch classes.
+// key as a region [fifths, mode] from the global tonic, their root and tones as pitch classes. A chord written
+// "of" a degree (V7/vi) also has that degree's key (\applied): analysts write a short stay in a key either way.
 
 RLScore {
 	var <system, <notes, <chords, <marks, <measures, <info;
@@ -38,7 +39,8 @@ RLScore {
 			var pcOf = { |f| sys.pc((base + f) * fifth) };
 			(
 				onset: h[\onset].asFloat, dur: h[\dur].asFloat, mn: h[\mn], label: h[\label].asString,
-				key: [h[\key][0], h[\key][1].asSymbol], root: pcOf.(h[\root]), bass: h[\bass] !? { |b| pcOf.(b) },
+				key: [h[\key][0], h[\key][1].asSymbol], applied: h[\applied] !? { |a| [a[0], a[1].asSymbol] },
+				root: pcOf.(h[\root]), bass: h[\bass] !? { |b| pcOf.(b) },
 				pcs: h[\tones].collect { |f| pcOf.(f) }, type: h[\type].asString, numeral: h[\numeral].asString
 			)
 		};

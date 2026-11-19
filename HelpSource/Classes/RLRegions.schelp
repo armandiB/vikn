@@ -1,0 +1,73 @@
+TITLE:: RLRegions
+summary:: The keys round one tonic: Schoenberg's chart of the regions
+categories:: Libraries>reLation
+related:: Classes/RLScale, Classes/RLFit, Guides/reLation
+
+DESCRIPTION::
+One tonality, and every other key a region of it, nearer or farther (Schoenberg, emphasis::Structural Functions of Harmony::, chapters III, IV and IX). A region is code::[fifths, mode]::: where its tonic stands on the line of fifths from the central tonic, and code::\major:: or code::\minor::. On the line of fifths G sharp (8) and A flat (-4) are two regions, as on the chart, whatever the tuning makes of them.
+
+The chart names the regions and puts them in five classes of relationship.
+
+table::
+## round a major tonic || 1 direct and close || D, SD, sm, m
+## || 2 indirect but close || t, sd, v, SM, M, bM, bSM
+## || 3 indirect || bm, bsm, MM, Mm, bsmSM, bsmsm
+## || 4 indirect and remote || Np, dor, S/T, bMD, bmv
+## || 5 distant || every other region
+## round a minor tonic || 1 close || M, T, v, sd
+## || 2 indirect but close || D, SM
+## || 3 indirect || m, sm, SD
+## || 4 indirect and remote || #sm, #SM, #m, #M, subT, subt, Np
+## || 5 distant || every other region
+::
+
+The classes are Schoenberg's judgement of the practice up to the end of the 19th century, not a measure. Counted on Beethoven's piano sonatas (the key left as the tonic), classes 1 and 2 hold nine changes of key in ten from a major key, eight in ten from a minor one.
+
+code::
+~r = RLRegions(RLEDO(12), 0, \major);
+~r.region(\sm);                          // [3, \minor]: A minor
+~r.region(\SMsm);                        // [6, \minor]: the submediant major's submediant minor
+~r.classOf([-4, \major]);                // 2: A flat major, bSM
+~r.classOf([8, \major]);                 // 3: G sharp major, MM
+~r.relation(\D, \sm);                    // 4: A minor seen from G major is its dor
+~r.scale(\sm);                           // RLScale: A minor
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: system
+argument:: tonic
+A pitch class of the system (its zero when nil).
+argument:: mode
+
+METHOD:: majorChart
+METHOD:: minorChart
+The charts: code::[name, fifths, mode, class]:: for each named region.
+METHOD:: chart
+
+METHOD:: classBetween
+The class (0 the same key, 1 to 5) of a key of code::toMode:: whose tonic is code::fifths:: from the tonic of a key of code::fromMode::.
+METHOD:: nameBetween
+Its name on the chart, or nil.
+
+INSTANCEMETHODS::
+
+METHOD:: region
+A region from its name: one symbol of the chart, or several in a row, each read from the region before. A region is returned as it is.
+
+METHOD:: relation
+The class of a region seen from another.
+METHOD:: classOf
+Seen from the central tonic.
+METHOD:: nameOf
+
+METHOD:: tonicOf
+A region's tonic as a pitch class of the system.
+METHOD:: scale
+Its link::Classes/RLScale::.
+
+METHOD:: regions
+Every region within code::span:: fifths of the tonic.
+METHOD:: names
+METHOD:: central

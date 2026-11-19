@@ -1,0 +1,56 @@
+TITLE:: RLScore
+summary:: The notes of a piece on one time line, and what analysts wrote over them
+categories:: Libraries>reLation
+related:: Classes/RLFit, Classes/RLRegions, Classes/RLScale, Guides/reLation
+
+DESCRIPTION::
+A score read from the JSON file that HomewareSC's code::Math/Category_Theory/fit/dcml_read.py:: writes from a corpus of annotated scores. Time is in quarter notes from the start. Notes are spelled (their place on the line of fifths), so the same score is read into any equal division with a fifth.
+
+A note is an Event code::(onset:, dur:, pitch:, pc:, tpc:, staff:, mn:)::, its pitch in the system's steps from middle C. A chord written by an analyst is code::(onset:, dur:, mn:, label:, key:, root:, bass:, pcs:, type:, numeral:)::, its key a region code::[fifths, mode]:: from the piece's global tonic (link::Classes/RLRegions::), its root and tones pitch classes. Read the entries with code::[\key]::, not as messages.
+
+code::
+~score = RLScore.read(path);
+~score.chords.first[\label];
+~score.regions;                       // RLRegions round the global tonic
+~score.coverage(0, 8, [5, 8, 0]);     // [covered, total]: quarter notes of what sounds in the span
+~fit = RLFit(~score.chords, ~score.regions);
+::
+
+CLASSMETHODS::
+
+METHOD:: read
+argument:: path
+argument:: system
+An link::Classes/RLEDO:: (12 steps when nil).
+
+METHOD:: new
+A score from its parts.
+
+METHOD:: pitchOf
+A spelled note (MIDI number and place on the line of fifths) as a pitch of an equal division.
+
+INSTANCEMETHODS::
+
+METHOD:: notes
+METHOD:: chords
+METHOD:: marks
+Cadences and phrase marks: code::[onset, measure, cadence, phrase mark]::.
+METHOD:: measures
+METHOD:: info
+METHOD:: system
+METHOD:: duration
+
+METHOD:: tonic
+METHOD:: regions
+
+METHOD:: sounding
+The notes sounding in a span, each with the part of it inside.
+METHOD:: weights
+Pitch class to quarter notes sounded in a span.
+METHOD:: coverage
+How much of what sounds in a span is one of some pitch classes: code::[covered, total]::.
+
+METHOD:: measureAt
+METHOD:: chordAt
+METHOD:: between
+The part of the score between two measures.

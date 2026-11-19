@@ -184,16 +184,18 @@ RLFit {
 	}
 
 	prReadRegion { |scale, mode|
-		var n = chords.size, deg, inside, kinds, kind, step, table = costs[mode];
+		var n = chords.size, deg, inside, kinds, kind, step, target, table = costs[mode];
 		var third = system.interval([5, 4]), minorThird = system.interval([6, 5]), fourth = system.interval([4, 3]);
 		var semitone = system.interval([16, 15]), dim = system.pcAdd(minorThird, minorThird);
 		deg = chords.collect { |c| c[\root] !? { |r| scale.degreeOf(r) } };
 		inside = chords.collect { |c| c[\pcs].every { |pc| scale.holds(pc) } };
+		// where a chord leads: the next chord on another root, at most three chords on (a dominant may be held)
+		target = chords.collect { |c, i| Array.series(3, i + 1).detect { |j| chords[j].notNil and: { chords[j][\root] != c[\root] } } };
 		kinds = chords.collect { |c, i|
-			var has = { |x| c[\pcs].includesEqual(system.pcAdd(c[\root], x)) }, next = chords[i + 1], to;
+			var has = { |x| c[\pcs].includesEqual(system.pcAdd(c[\root], x)) }, next = target[i] !? { |j| chords[j] }, to;
 			case
 			{ inside[i] } { \inside }
-			{ next.isNil or: { c[\root].isNil } or: { next[\root].isNil } or: { inside[i + 1].not } } { \foreign }
+			{ next.isNil or: { c[\root].isNil } or: { next[\root].isNil } or: { inside[target[i]].not } } { \foreign }
 			{
 				to = system.pcSub(next[\root], c[\root]);
 				(has.(third) and: { to == fourth }) or: { has.(minorThird) and: { has.(dim) } and: { to == semitone } }
@@ -208,7 +210,7 @@ RLFit {
 		step = chords.collect { |c, i|
 			if(i == 0) { table[\first][kind[0]] } { table[\step][kind[i - 1]][kind[i]] }
 		};
-		^(deg: deg, kinds: kinds, kind: kind, step: step)
+		^(deg: deg, kinds: kinds, kind: kind, step: step, target: target)
 	}
 
 	prReadTriads {
@@ -277,6 +279,7 @@ RLFit {
 
 	prSegment { |first, last|
 		var k = path[first], st = states[k], read = readings[k], seg, idx = Array.series(last - first + 1, first);
+		var what, kept = Array.new, moves;
 		seg = (first: first, last: last, kind: st[\kind], state: k,
 			from: chords[first][\onset], to: chords[last][\onset] !? { |o| o + (chords[last][\dur] ? 0) });
 		// its chords' costs, with what it cost to come to it: the passages' costs add up to the fit's
@@ -291,6 +294,7 @@ RLFit {
 				if(read[\deg][i].notNil and: { read[\deg][i - 1].notNil }) { (read[\deg][i] - read[\deg][i - 1]) % st[\scale].steps }
 			};
 			seg[\progressions] = seg[\word].collect { |w| w !? { st[\scale].progressionOf(w) } };
+			what = read[\deg];
 		} {
 			seg[\numerals] = idx.collect { |i| read[\tri][i] !? { |t| t.name } ? "?" };
 			seg[\word] = idx.drop(1).collect { |i|
@@ -298,8 +302,18 @@ RLFit {
 					triadContext.rightInterval(read[\tri][i - 1], read[\tri][i]).label.asSymbol
 				}
 			};
+			what = read[\tri];
 		};
-		seg[\patterns] = RLFit.periods(seg[\word]);
+		// patterns are looked for in the moves alone: a root (a triad) that stays is passed over. Each run keeps
+		// where it is in the chords: from, to, and next, the chord that follows it on another root (nil at the end).
+		idx.do { |i| if(kept.isEmpty or: { what[i] != what[kept.last] }) { kept = kept.add(i) } };
+		moves = kept.drop(1).collect { |i| seg[\word][i - first - 1] };
+		seg[\patterns] = RLFit.periods(moves).collect { |p|
+			p[\from] = kept[p[\start]];
+			p[\to] = kept[p[\start] + p[\length]];
+			p[\next] = kept[p[\start] + p[\length] + 1];
+			p
+		};
 		^seg
 	}
 
@@ -322,7 +336,7 @@ RLFit {
 			r
 		};
 		if((kind == \dominant) or: { kind == \leading }) {
-			^if(kind == \dominant) { "V" } { "viio" } ++ if(c[\pcs].size > 3) { "7" } { "" } ++ "/" ++ roman.(read[\deg][i + 1], chords[i + 1])
+			^if(kind == \dominant) { "V" } { "viio" } ++ if(c[\pcs].size > 3) { "7" } { "" } ++ "/" ++ roman.(read[\deg][read[\target][i]], chords[read[\target][i]])
 		};
 		if(d.isNil) { ^"*" ++ system.name(c[\root]) };
 		text = roman.(d, c);
@@ -349,8 +363,8 @@ RLFit {
 					};
 				};
 				seg[\patterns].do { |pat|
-					var lastChord = seg[\first] + pat[\start] + pat[\length], next = lastChord + 1, expected, actual, scale = seg[\scale];
-					if((next <= seg[\last]) and: { read[\deg][lastChord].notNil } and: { pat[\repeats] >= 3 }) {
+					var lastChord = pat[\to], next = pat[\next], expected, actual, scale = seg[\scale];
+					if(next.notNil and: { read[\deg][lastChord].notNil } and: { pat[\repeats] >= 3 }) {
 						expected = (read[\deg][lastChord] + pat[\unit].wrapAt(pat[\length])) % scale.steps;
 						actual = read[\deg][next];
 						surprises = surprises.add((kind: \break, at: next, segment: si, pattern: pat,
@@ -368,19 +382,42 @@ RLFit {
 		surprises = surprises.sort { |a, b| a[\at] <= b[\at] };
 	}
 
+	// whether the fit reads chord i in the key the chord carries (\key); loosely: or in the key it is written
+	// "of" (\applied: V7/vi is in vi for a moment)
+	prAgrees { |i, loose = false|
+		var st = states[path[i]], is = { |key|
+			key.notNil and: { st[\kind] == \region } and: { st[\region][1] == key[1] } and: { regions.tonicOf(st[\region]) == regions.tonicOf(key) }
+		};
+		^is.(chords[i][\key]) or: { loose and: { is.(chords[i][\applied]) } }
+	}
+
 	// How long the fit's regions are the keys the chords carry (\key, a region): [quarter notes agreed, labelled].
-	agreement {
+	// loose: a chord written "of" a degree (\applied) agrees in that degree's key too.
+	agreement { |loose = false|
 		var agreed = 0, total = 0;
 		chords.do { |c, i|
-			var st = states[path[i]], d = c[\dur] ? 1;
+			var d = c[\dur] ? 1;
 			if(c[\key].notNil) {
 				total = total + d;
-				if((st[\kind] == \region) and: { st[\region][1] == c[\key][1] } and: { regions.tonicOf(st[\region]) == regions.tonicOf(c[\key]) }) {
-					agreed = agreed + d;
-				};
+				if(this.prAgrees(i, loose)) { agreed = agreed + d };
 			};
 		};
 		^[agreed, total]
+	}
+
+	// Where the fit's context is not the key the chords carry: [(first:, last:, state:, key:), ...], run by run.
+	differences { |loose = false|
+		var out = Array.new, same = { |i| chords[i][\key].isNil or: { this.prAgrees(i, loose) } };
+		chords.do { |c, i|
+			if(same.(i).not) {
+				if(out.notEmpty and: { out.last[\last] == (i - 1) } and: { out.last[\state] == path[i] } and: { out.last[\key] == c[\key] }) {
+					out.last[\last] = i
+				} {
+					out = out.add((first: i, last: i, state: path[i], key: c[\key]))
+				};
+			};
+		};
+		^out
 	}
 
 	// Per passage, how much of a score's notes its chords hold, and its scale: (chords: [covered, total],
@@ -402,19 +439,20 @@ RLFit {
 		}
 	}
 
-	// The name of a passage's context: "f minor (t)" or "triads".
-	title { |seg|
-		var r = seg[\region];
-		^if(seg[\kind] == \region) {
-			"% %%".format(system.name(regions.tonicOf(r)), r[1], seg[\name] !? { |n| " (" ++ n ++ ")" } ? "")
-		} { "triads" }
+	// The name of a passage's context, or of a region: "F minor (t)", "triads".
+	title { |seg| ^if(seg[\kind] == \region) { this.regionTitle(seg[\region]) } { "triads" } }
+	regionTitle { |r|
+		^"% %%".format(system.name(regions.tonicOf(r)), r[1], regions.nameOf(r) !? { |n| " (" ++ n ++ ")" } ? "")
 	}
 
 	report { |score|
 		var lines = Array.new, cover = score !? { this.coverage(score) }, agree = this.agreement, pct;
 		pct = { |pair| if(pair[1] > 0) { (100 * pair[0] / pair[1]).round(0.1).asString ++ " %" } { "-" } };
 		lines = lines.add("FIT: % chords, % passages, cost %".format(chords.size, segments.size, cost.round(0.01)));
-		if(agree[1] > 0) { lines = lines.add("FIT: the analysts' keys for % of the labelled time".format(pct.(agree))) };
+		if(agree[1] > 0) {
+			lines = lines.add("FIT: the analysts' keys for % of the labelled time; % counting the keys their chords are written of (V7/vi)".format(
+				pct.(agree), pct.(this.agreement(true))))
+		};
 		segments.do { |seg, si|
 			var c0 = chords[seg[\first]], c1 = chords[seg[\last]], steps = seg[\last] - seg[\first];
 			lines = lines.add("% chords % to % (measures % to %): %, cost % (% per step)".format(
@@ -427,12 +465,17 @@ RLFit {
 				lines = lines.add("    word: " ++ seg[\word].collect { |w| (w ? "?").asString }.join(" "));
 			};
 			seg[\patterns].do { |pat|
-				lines = lines.add("    pattern: % repeated % times from chord %".format(pat[\unit], pat[\repeats].round(0.01), seg[\first] + pat[\start]));
+				lines = lines.add("    pattern: % repeated % times, chords % to %".format(pat[\unit], pat[\repeats].round(0.01), pat[\from], pat[\to]));
 			};
 			cover !? {
 				lines = lines.add("    notes held by the chords: %".format(pct.(cover[si][\chords]))
 					++ if(cover[si][\scale].notNil) { "; by the scale: % (% without its substitutes)".format(pct.(cover[si][\scale]), pct.(cover[si][\natural])) } { "" });
 			};
+		};
+		this.differences(true).do { |d|
+			lines = lines.add("DIFFERS: chords % to % (measures % to %): the fit reads %, the analysts %".format(
+				d[\first], d[\last], chords[d[\first]][\mn] ? "?", chords[d[\last]][\mn] ? "?",
+				this.title(states[d[\state]]), this.regionTitle(d[\key])));
 		};
 		surprises.do { |s|
 			var c = chords[s[\at]], where = "chord % (measure %)".format(s[\at], c[\mn] ? "?");
