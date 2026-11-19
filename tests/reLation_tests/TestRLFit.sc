@@ -56,6 +56,24 @@ TestRLFit : UnitTest {
 		this.assertEquals(d[\chart][\major].detect { |row| row[0] == "D" }, ["D", 1, "major", 1], "Schoenberg's chart goes with it");
 	}
 
+	test_choosing_between_chords_the_notes_price_alike {
+		// C F G C, then B D F, then C: the diminished triad could be the dominant seventh it is the top of
+		var edo = RLEDO(12), c = RLScale.major(edo), regions = RLRegions(edo);
+		var list = { |extra|
+			var chords = RLFit.events([0, 3, 4, 0, 6, 0].collect { |d| c.triads.chord(d) }, c);
+			chords[4][\alternatives] = [(pcs: [7, 11, 2, 5], root: 7, onset: chords[4][\onset], dur: 1, label: "G7", extra: extra)];
+			chords
+		};
+		var plain = RLFit(list.(0.2), regions), cheap = RLFit.choosing(list.(0.2), regions), dear = RLFit.choosing(list.(5), regions);
+		this.assertEquals(cheap.chosen, [0, 0, 0, 0, 1, 0], "the passage takes the dominant seventh: V7 to I is worth more than the notes lose");
+		this.assertEquals(cheap.segments.first[\numerals], ["I", "IV", "V", "I", "V7", "I"], "and reads it so");
+		this.assertFloatEquals(cheap.extra, 0.2, "what the choice costs in the notes");
+		this.assert((cheap.cost + cheap.extra) < plain.cost, "the whole is cheaper than without choosing");
+		this.assertEquals(dear.chosen, [0, 0, 0, 0, 0, 0], "not when the notes would lose more than the passage gains");
+		this.assertFloatEquals(dear.cost, plain.cost, "the fit is then the plain one");
+		this.assertEquals(RLFit.choosing(RLFit.events([0, 3, 4, 0].collect { |d| c.triads.chord(d) }, c), regions).chosen, [0, 0, 0, 0], "chords without alternatives stay");
+	}
+
 	test_the_triads_take_a_hexatonic_cycle {
 		var edo = RLEDO(12), ctx = RLChordContext(RLChordSpace.triads(edo));
 		var fit = RLFit(RLFit.events(RLWalk.cycle(ctx, ctx.space.major(0), [\P, \L]).chords), RLRegions(edo)), seg = fit.segments.first;

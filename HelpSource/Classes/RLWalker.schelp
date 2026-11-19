@@ -78,6 +78,12 @@ METHOD:: freqs
 METHOD:: middle
 The frequencies of the voices; their middle, in octaves above the origin.
 
+METHOD:: rise
+How far the middle of the voices is from where it started, in octaves.
+METHOD:: shifted
+METHOD:: octaves
+The octaves the voices were brought back by at the last step (0, or -1: an octave down), and since the start. With a reach, voices that climb or sink for ever are brought back; the lattice page draws it (link::Classes/RLLattice#*pfunc::). On the lattice a fifth to the right is a tone, not a height: voices that take the nearest way go down a fourth when the picture goes a fifth to the right, and an R, L chain climbs while it goes left.
+
 METHOD:: asPattern
 The frequencies of each chord as a word goes by: first the chord the walker stands on, then one step for each name.
 argument:: word

@@ -123,6 +123,21 @@ TestRLChordFit : UnitTest {
 		this.assertEquals(RLChordFit.barLength("6/8"), 3, "a bar of 6/8 in quarter notes");
 	}
 
+	test_the_other_chords_a_span_could_be {
+		// G B D F with B the lowest: the dominant seventh, and, dearer by the G left unexplained, the diminished
+		// triad on B (a whole bar of G outside the chord: far dearer, so the margin asked is wide)
+		var rows = this.prBlock(0, 4, [[59, 5], [62, 2], [65, -1], [67, 1]]);
+		var fit = RLChordFit(this.prScore(rows, 1)), with = fit.withAlternatives(200, 8), alts = with.first[\alternatives];
+		this.assertEquals(this.prLabels(fit), ["G Mm7"], "G B D F, B the lowest: the dominant seventh over its third");
+		this.assertEquals(alts.collect { |a| a[\label] }.keep(2), ["G M", "B o"], "the nearest: the triad without its seventh, the diminished triad on B");
+		this.assert(alts.every { |a| a[\extra] > 0 }, "each dearer in the notes, by its extra");
+		this.assert((alts.collect { |a| a[\extra] }.differentiate.drop(1)).every { |d| d >= 0 }, "the nearest first");
+		this.assertEquals([alts.first[\onset], alts.first[\dur], alts.first[\span]], [0, 4, 4], "on the same span");
+		this.assertEquals(fit.withAlternatives(0.001).first[\alternatives], [], "none within a thousandth of a bit");
+		this.assertEquals(fit.agreement([(onset: 0, dur: 4, root: 11, pcs: [11, 2, 5])], [alts.detect { |a| a[\label] == "B o" }])[\root], [4, 4],
+			"another list of chords is scored like the reading's own");
+	}
+
 	test_places_in_the_bar {
 		this.assertEquals(["4/4", "2/2", "3/4", "6/8", "12/8"].collect { |ts| RLChordFit.beat(ts) }, [1, 2, 1, 1.5, 1.5], "the beat, in quarter notes");
 		this.assertEquals([0, 2, 1, 0.5, 0.25].collect { |pos| RLChordFit.place(pos, 2) }, [0, 1, 2, 3, 3], "in 2/2: the downbeat, a beat, a half beat, elsewhere");

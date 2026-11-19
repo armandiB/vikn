@@ -44,12 +44,17 @@ TestRLWalker : UnitTest {
 	}
 
 	test_voices_kept_within_reach {
-		var free = RLWalker(ctx, c, [60, 64, 67]), held = RLWalker(ctx, c, [60, 64, 67], 261.6, 0.75), worst = 0;
+		var free = RLWalker(ctx, c, [60, 64, 67]), held = RLWalker(ctx, c, [60, 64, 67], 261.6, 0.75), worst = 0, shifts = 0;
 		48.do { |i|
 			free.step([\R, \L][i % 2]);
 			held.step([\R, \L][i % 2]);
 			worst = max(worst, (held.middle - held.centre).abs);
+			shifts = shifts + held.shifted;
 		};
+		this.assertEquals(held.octaves, -2, "brought down twice, an octave each time");
+		this.assertEquals(shifts, held.octaves, "and each step said so (shifted)");
+		this.assertFloatEquals(held.rise, free.rise + held.octaves, "the voices' rise is the free walker's, those octaves less");
+		this.assertEquals([free.shifted, free.octaves], [0, 0], "a walker without a reach is never brought back");
 		this.assert((free.middle - free.centre) > 1.9, "the R, L chain climbs two octaves in 48 steps");
 		this.assert(worst <= 0.76, "with a reach, the voices are brought back by octaves (never further than % octaves)".format(worst.round(0.01)));
 		this.assertEquals(held.chord, free.chord, "on the same chords");

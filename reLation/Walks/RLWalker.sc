@@ -18,10 +18,12 @@
 //   ~beat.set(\freq, ~walker.asPattern(Pseq([\P, \L], inf)));
 //
 // Voices that climb or sink for ever (the R, L chain; "Take a Bow") are brought back by octaves when their
-// middle leaves the reach around the centre.
+// middle leaves the reach around the centre. The walker says so: shifted, the octaves its voices were moved by
+// at the last step (0, or -1: an octave down); octaves, the same since the start; rise, how far their middle
+// is from where it started. The lattice page draws them (RLLattice.pfunc).
 
 RLWalker {
-	var <context, <chord, <voicing, <>base, <>centre, <>reach, <>chooser, <count = 0, <shadow;
+	var <context, <chord, <voicing, <>base, <>centre, <>reach, <>chooser, <count = 0, <shadow, <shifted = 0, <octaves = 0;
 
 	// voicing: pitches of the start chord (close position at the origin when nil); base: the frequency of the
 	// origin; reach: how far, in octaves, the middle of the voices may go from where it started (nil: no limit).
@@ -40,11 +42,14 @@ RLWalker {
 	// The middle of the voices, in octaves above the origin; the frequencies of the voices.
 	middle { ^voicing.collect { |p| this.system.height(p) }.mean }
 	freqs { ^voicing.collect { |p| this.system.freq(p, base) } }
+	// How far the middle of the voices is from where it started, in octaves.
+	rise { ^this.middle - (centre ? this.middle) }
 
 	// Put the walker on a chord: with a voicing of it, or by the least motion from where the voices are.
 	moveTo { |aChord, aVoicing|
 		chord = aChord;
 		voicing = aVoicing ?? { RLVoiceLeading.minimalDoubled(this.system, voicing, aChord.pcs) };
+		shifted = 0;
 		this.prRecentre;
 	}
 
@@ -88,6 +93,8 @@ RLWalker {
 			shift = (centre - this.middle).round.asInteger;
 			if((centre - this.middle).abs > reach and: { shift != 0 }) {
 				voicing = voicing.collect { |p| system.pitchAdd(p, if(shift > 0) { system.octave } { system.pitchNeg(system.octave) }) };
+				shifted = shifted + shift.sign;
+				octaves = octaves + shift.sign;
 				this.prRecentre;
 			};
 		};
