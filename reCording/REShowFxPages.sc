@@ -281,17 +281,18 @@ REShowFxPages {
 		^midi
 	}
 
-	stop {
+	// keepMidi: the mappings alone, CoreMIDI left as it is, for a process about to exit (REShowRoto's, HL3-G6)
+	stop { |keepMidi = false|
 		midi !? (_.freeAll);
 		midi = nil;
-		source !? { |s| RCGuard.call(\fxpages, nil) { MIDIIn.disconnect(sourceIndex, s) } };
+		if(keepMidi.not) {
+			source !? { |s| RCGuard.call(\fxpages, nil) { MIDIIn.disconnect(sourceIndex, s) } };
+			if(ownsMidi) { RCGuard.call(\fxpages, nil) { MIDIClient.disposeClient } };
+		};
+		ownsMidi = false;
 		source = nil;
 		sourceIndex = nil;
 		out = nil;
-		if(ownsMidi) {
-			ownsMidi = false;
-			RCGuard.call(\fxpages, nil) { MIDIClient.disposeClient };
-		};
 		started = false;
 	}
 

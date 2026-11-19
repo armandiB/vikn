@@ -91,6 +91,22 @@ TestREShowConsole : UnitTest {
 		this.assertEquals(sent.size, 1, "stopped twice: once");
 	}
 
+	// HL3-G6: a quit leaves CoreMIDI to the exit: stop(keepMidi: true) tells the page all the same, the roto's mappings
+	// freed; dropMidiShutDown keeps the ShutDown actions that are not MIDIClient's (a device's own is tried by hand)
+	test_stop_for_the_exit {
+		var c = this.prConsole, mine = { nil }, kept;
+		c.start;
+		sent.clear;
+		c.stop(keepMidi: true);
+		this.assertSent([["/fx/chase", 0]], "the page told, as by a plain stop");
+		this.assert(c.started.not and: { c.roto.started.not }, "stopped, the roto too");
+		ShutDown.add(mine);
+		REShowConsole.dropMidiShutDown;
+		kept = ShutDown.objects.includes(mine);
+		ShutDown.remove(mine);
+		this.assert(kept, "a shutdown action that is not MIDIClient's kept");
+	}
+
 	test_time_seek_advance_and_jump {
 		var c = this.prConsole;
 		c.start;

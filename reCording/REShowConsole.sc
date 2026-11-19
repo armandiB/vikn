@@ -114,20 +114,33 @@ REShowConsole {
 		^this
 	}
 
-	stop {
+	// The page told first (transport, chase off), then the roto's and the pages' MIDI. keepMidi (the quit of a
+	// process about to exit): their mappings freed, CoreMIDI left to the OS, whose teardown stalled the quit in
+	// 2 of 3 tries on Oct 31 (HL3-G6); with *dropMidiShutDown the exit does not tear it down either.
+	stop { |keepMidi = false|
 		if(started.not) { ^this };
 		routine !? (_.stop);
 		routine = nil;
 		oscFuncs.do(_.free);
 		oscFuncs = nil;
-		roto !? (_.stop);
-		fxPages !? (_.stop);
-		fxPages = nil;
 		if(playing) { playing = false; this.prSend('/fx/transport', [0]) };
 		this.prSend('/fx/chase', [0]);
+		roto !? (_.stop(keepMidi));
+		fxPages !? (_.stop(keepMidi));
+		fxPages = nil;
 		started = false;
-		RCLog.post(\console, "stopped", true);
+		RCLog.post(\console, "stopped" ++ if(keepMidi) { " (MIDI left to the exit)" } { "" }, true);
 		^this
+	}
+
+	// MIDIClient's own teardown removed from the exit's ShutDown actions (MIDIClient.init adds one): a process
+	// about to exit leaves CoreMIDI to the OS (HL3-G6). Returns how many were removed.
+	*dropMidiShutDown {
+		var hooks = (ShutDown.objects ? []).select { |f|
+			f.isKindOf(Function) and: { f.def.context.tryPerform(\ownerClass) == MIDIClient.class }
+		};
+		hooks.do { |f| ShutDown.remove(f) };
+		^hooks.size
 	}
 
 	// The show file read again (when the console was given one), the cues rebuilt and sent again,
