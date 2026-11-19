@@ -15,7 +15,7 @@ argument:: song
 METHOD:: applyState
 argument:: song
 argument:: state
-A snapshot's state (the event's code::state:: field).
+A snapshot's state (the event's code::state:: field). A beat's key source that is not link::Classes/REScore#*replayable:: (an older take's open Function dur, a reference) is skipped.
 argument:: beats
 Numeric sources ramp to their target over this many beats (0: at once).
 

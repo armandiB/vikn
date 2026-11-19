@@ -112,7 +112,7 @@ argument:: server
 
 METHOD:: snapshot
 argument:: name
-The state of what is in scope: the sources of every key of the beats, the static attributes of the orgnsms, the song's seed.
+The state of what is in scope: the sources of every key of the beats, the static attributes of the orgnsms, the song's seed. (Nov 19 2026) A beat's key whose source a replay cannot make again (link::Classes/REScore#*replayable::: a Function dur or a dur list, a Function without source) is left out: the beat keeps its own at replay.
 returns:: The event id.
 
 METHOD:: recall

@@ -44,6 +44,11 @@ METHOD:: encode
 argument:: x
 returns:: code::[encoded, replayable]::: false when a code::{ref}:: appears anywhere inside.
 
+METHOD:: replayable
+argument:: x
+An encoded value.
+returns:: Whether a replay can make it again: no code::{ref}:: inside, and no code::{sc}:: holding an open Function. (Nov 19 2026) A Pattern over a closure (a beat's Function dur, a dur list) is written code::Prout({ |inval| "open Function" })::, which compiles, into a pattern that yields nothing; link::#*encode:: calls it replayable. A snapshot keeps only replayable key sources, and link::Classes/REScorePlayer#*applyState:: skips the others.
+
 METHOD:: decodeValue
 argument:: x
 argument:: song
