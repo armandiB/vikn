@@ -42,6 +42,24 @@ TestRLFit : UnitTest {
 		this.assertFloatEquals(fit.segments.sum { |s| s[\cost] }, fit.cost, "the passages' costs add up, the change of region counted");
 	}
 
+	test_a_chord_written_again_goes_on {
+		// a model in which a dominant follows itself more cheaply than a tonic does, as the counts on analysts'
+		// labels have it (V, V7): every label a step, a piece that sits on its tonic chord is cheaper as a dominant
+		var edo = RLEDO(12), c = RLScale.major(edo), model = RLFit.handModel, plain, again, once;
+		var piece = this.prIn(c, [0, 0, 0, 0, 0, 0, 4, 0, 0, 0]);
+		model[\major][\step][4][4] = 0;
+		model[\major][\step][0][0] = 1.5;
+		plain = RLFit(piece, RLRegions(edo), model);
+		this.assertEquals(plain.segments.collect { |s| s[\name] }, [\SD], "every label a step: C C C C C C G C C C reads in F major, a fifth below");
+		model[\again] = 0;
+		again = RLFit(piece, RLRegions(edo), model);
+		this.assertEquals(again.segments.collect { |s| s[\name] }, [\T], "a chord written again going on: in C major");
+		once = RLFit(this.prIn(c, [0, 4, 0]), RLRegions(edo), model);
+		this.assertFloatEquals(again.cost, once.cost, "at the cost of C G C, each written once");
+		this.assertEquals(RLFit.handModel[\again], nil, "the hand-set model prices every label, unless asked");
+		this.assertEquals(RLFit.handModel((again: 0))[\again], 0, "asked");
+	}
+
 	test_the_fit_as_data {
 		var edo = RLEDO(12), c = RLScale.major(edo), g = RLScale.major(edo, 7);
 		var fit = RLFit(this.prIn(c, [0, 3, 4, 0, 5, 1, 4, 0]) ++ this.prIn(g, [4, 0, 3, 4, 0, 1, 4, 0]), RLRegions(edo));

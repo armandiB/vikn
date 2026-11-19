@@ -33,7 +33,7 @@
 RLFit {
 	classvar <defaultCosts;
 	var <chords, <regions, <costs, <span, <system, <states, <path, <cost, <segments, <surprises, <chosen, <extra;
-	var triadSpace, triadContext, triadGraph, distances, readings;
+	var triadSpace, triadContext, triadGraph, distances, readings, again;
 
 	*initClass {
 		defaultCosts = IdentityDictionary[
@@ -80,6 +80,8 @@ RLFit {
 	// to a region of each class (0: none); and the costs among the triads.
 	//   handModel: from the hand-set table, a step priced by Schoenberg's kind of root progression.
 	//   readModel: counted on a corpus of analysed scores, in bits (HomewareSC, Math/Category_Theory/fit/dcml_costs.py).
+	// A model with \again (the counted ones: 0) reads a chord written again (the root and tones of the chord
+	// before: another inversion, a repetition) as that chord going on, at that cost in every context.
 	*handModel { |overrides|
 		var c = defaultCosts.copy, kinds = #[\same, \superstrong, \descending, \ascending, \descending, \ascending, \superstrong];
 		var chord, first, step, one, model = IdentityDictionary.new;
@@ -105,6 +107,8 @@ RLFit {
 		model[\far] = c[\far];
 		model[\foreign] = c[\foreign];
 		model[\same] = c[\same];
+		// a chord written again as the chord before going on: only when asked ((again: 0) among the overrides)
+		c[\again] !? { |x| model[\again] = x };
 		model[\unit] = "hand-set";
 		^model
 	}
@@ -161,11 +165,27 @@ RLFit {
 		system = reg.system;
 		span = sp;
 		costs = if(table.notNil and: { table[\major].notNil }) { table } { RLFit.handModel(table) };
+		this.prAgain;
 		this.prTriads;
 		this.prStates;
 		this.prSolve;
 		this.prSegments;
 		this.prSurprises;
+	}
+
+	// A chord written again: the root and the tones of the chord before (another inversion, a repetition). With a
+	// model that has \again, it is the chord before going on, at that cost (0) in every context. How often a
+	// held chord is written again is the writer's habit, not the music's. With every label a step, a chord that
+	// follows itself has a price by its degree, and a dominant follows itself more cheaply than a tonic (it is
+	// the chord that gains a seventh: V, V7): a piece that sits on its tonic chord, written again at each
+	// inversion, is then cheaper read as a dominant, a fifth below its key.
+	prGoesOn { |a, b|
+		^a.notNil and: { b.notNil } and: { a[\root].notNil } and: { a[\root] == b[\root] }
+		and: { a[\pcs].size == b[\pcs].size } and: { a[\pcs].every { |pc| b[\pcs].includesEqual(pc) } }
+	}
+	prAgain {
+		var price = costs[\again];
+		again = chords.collect { |c, i| if(price.notNil and: { i > 0 } and: { this.prGoesOn(chords[i - 1], c) }) { price } };
 	}
 
 	prTriads {
@@ -219,8 +239,17 @@ RLFit {
 		var semitone = system.interval([16, 15]), dim = system.pcAdd(minorThird, minorThird);
 		deg = chords.collect { |c| c[\root] !? { |r| scale.degreeOf(r) } };
 		inside = chords.collect { |c| c[\pcs].every { |pc| scale.holds(pc) } };
-		// where a chord leads: the next chord on another root, at most three chords on (a dominant may be held)
-		target = chords.collect { |c, i| Array.series(3, i + 1).detect { |j| chords[j].notNil and: { chords[j][\root] != c[\root] } } };
+		// where a chord leads: the next chord on another root, at most three chords on (a dominant may be held),
+		// a chord written again not counted
+		target = chords.collect { |c, i|
+			var j = i + 1, seen = 0, found;
+			while { found.isNil and: { j < n } and: { seen < 3 } } {
+				if(again[j].isNil) { seen = seen + 1 };
+				if(chords[j][\root] != c[\root]) { found = j };
+				j = j + 1;
+			};
+			found
+		};
 		kinds = chords.collect { |c, i|
 			var has = { |x| c[\pcs].includesEqual(system.pcAdd(c[\root], x)) }, next = target[i] !? { |j| chords[j] }, to;
 			case
@@ -236,9 +265,10 @@ RLFit {
 		kind = chords.collect { |c, i|
 			switch(kinds[i], \inside, { deg[i] ? 8 }, \foreign, { 8 }, { 7 })
 		};
-		// the cost of each chord given the one before, both read in this region (of the first chord alone at 0)
+		// the cost of each chord given the one before, both read in this region (of the first chord alone at 0);
+		// a chord written again costs what the model says of it, whatever the region
 		step = chords.collect { |c, i|
-			if(i == 0) { table[\first][kind[0]] } { table[\step][kind[i - 1]][kind[i]] }
+			again[i] ?? { if(i == 0) { table[\first][kind[0]] } { table[\step][kind[i - 1]][kind[i]] } }
 		};
 		^(deg: deg, kinds: kinds, kind: kind, step: step, target: target)
 	}
@@ -248,6 +278,7 @@ RLFit {
 		step = chords.collect { |c, i|
 			var d;
 			case
+			{ again[i].notNil } { again[i] }
 			{ tri[i].isNil } { costs[\foreign] }
 			{ (i == 0) or: { tri[i - 1].isNil } } { costs[\first_triad] ? 0 }
 			{
@@ -301,10 +332,18 @@ RLFit {
 	// Which option to take at each chord (0: the chord, k: its k-th alternative), by one programme over the
 	// chords, the contexts and the options. What an alternative leads to is read from the chords as they are.
 	prChoose {
-		var n = chords.size, s = states.size, change, options, what, best, back, pick, bk = 0, ba = 0, low = inf;
+		var n = chords.size, s = states.size, change, options, what, goes, best, back, pick, bk = 0, ba = 0, low = inf;
 		if(n == 0) { ^[] };
 		change = states.collect { |a| states.collect { |b| this.prChange(a, b) } };
 		options = chords.collect { |c| [c] ++ (c[\alternatives] ? []) };
+		// goes[i][a][b]: option a of chord i is option b of the chord before, written again (its cost, or nil)
+		goes = options.collect { |opts, i|
+			opts.collect { |o|
+				if(i == 0) { [] } {
+					options[i - 1].collect { |p| if(costs[\again].notNil and: { this.prGoesOn(p, o) }) { costs[\again] } }
+				}
+			}
+		};
 		// what[i][a][k]: option a of chord i in state k: its kind in a region (0 to 8), its triad among the triads
 		what = options.collect { |opts, i|
 			opts.collect { |o, a|
@@ -334,7 +373,7 @@ RLFit {
 				options[i].do { |o, a|
 					var least = inf, fromB = 0;
 					into.do { |pair, b|
-						var v = pair[0] + this.prStepOf(k, what[i - 1][b][k], what[i][a][k]);
+						var v = pair[0] + (goes[i][a][b] ?? { this.prStepOf(k, what[i - 1][b][k], what[i][a][k]) });
 						if(v < (least - 1e-9)) { least = v; fromB = b };
 					};
 					best[i][k][a] = least + if(a == 0) { 0 } { o[\extra] ? 0 };

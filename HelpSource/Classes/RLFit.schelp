@@ -14,6 +14,8 @@ definitionlist::
 ## counted || link::#*readModel::: how often each kind of chord follows each in a corpus of analysed scores, how often and how far the key changes, as bits. The cost of a reading is then the length of its description, and a passage is in a key when saying so is shorter than not. Count the model on other pieces than the one read.
 ::
 
+A chord written again (the root and the tones of the chord before: another inversion, a repetition) is that chord going on, when the model has code::\again::: it costs that (0 in the counted models) in every context, and is not one of the three chords an artificial dominant may be held. How often a held chord is written again is the writer's habit, not the music's. With every label counted as a step, a chord that follows itself has a price by its degree, and a dominant follows itself more cheaply than a tonic (it is the chord that gains a seventh: V, V7): a piece that sits on its tonic chord, written again at each inversion, is then cheaper read as a dominant, a fifth below its key. The hand-set model prices every label unless asked: code::RLFit(chords, regions, (again: 0))::.
+
 code::
 ~c = RLScale.major(RLEDO(12));
 ~chords = RLFit.events([0, 3, 6, 2, 5, 1, 3, 4, 0].collect { |d| ~c.triads.chord(d) }, ~c);
