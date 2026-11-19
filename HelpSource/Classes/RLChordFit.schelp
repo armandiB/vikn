@@ -37,7 +37,7 @@ argument:: rate
 How many notes' worth of evidence a quarter note of sound is. The one number not counted but chosen: 4 to 6 gave the most of the analysts' roots on three first movements of Beethoven; the best value differs from movement to movement.
 
 METHOD:: readModel
-A model counted by HomewareSC's code::Math/Category_Theory/fit/dcml_notes.py::: how much of their time notes are tones of their chord (by their length), how often a chord sounds its root, third, fifth and seventh, what its lowest note is, where in the bar chords start, and the kinds of chord with their frequencies.
+A model counted by HomewareSC's code::Math/Category_Theory/fit/dcml_notes.py::: how much of their time notes are tones of their chord (by their length, and by how they move: a short note that comes and goes by step is a passing note half the time, one that leaps is a tone of the chord nearly always), how often a chord sounds its root, third, fifth and seventh, what its lowest note is, where in the bar chords start, and the kinds of chord with their frequencies. A model without the table by motion (code::\motion::) prices a note by its length alone.
 
 METHOD:: defaultModel
 
