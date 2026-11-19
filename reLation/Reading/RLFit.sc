@@ -91,6 +91,11 @@ RLFit {
 	//   readModel: counted on a corpus of analysed scores, in bits (HomewareSC, Math/Category_Theory/fit/dcml_costs.py).
 	// A model with \again (the counted ones: 0) reads a chord written again (the root and tones of the chord
 	// before: another inversion, a repetition) as that chord going on, at that cost in every context.
+	// A model with \forms and \added (the counted ones since Nov 19 2026) has sixteen kinds: a chord in a key is
+	// one of the key's triads, whatever is added to it. \forms: in a minor key the triad with a substitute tone
+	// (V, IV, viio) is another kind than the natural one on its degree (v, iv, VII): kinds 7 to 13, then 14 an
+	// artificial dominant, 15 foreign. \added: a chord is of the kind of its triad, a seventh or a sixth being a
+	// tone added that does not make it foreign. kinds gives each chord's kind as read.
 	*handModel { |overrides|
 		var c = defaultCosts.copy, kinds = #[\same, \superstrong, \descending, \ascending, \descending, \ascending, \superstrong];
 		var chord, first, step, one, model = IdentityDictionary.new;
@@ -242,12 +247,35 @@ RLFit {
 		readings = states.collect { |st| if(st[\kind] == \region) { this.prReadRegion(st[\scale], st[\region][1]) } { this.prReadTriads } };
 	}
 
+	// What of a chord says its kind in a key. With a model that has \added, a chord is of the kind of its triad:
+	// its root and the tones a third and a fifth above it. A seventh, a sixth, a ninth are tones added to it and
+	// do not make it foreign: a tonic chord with a flat seventh (the blues' I7, its IV7) is the tonic chord.
+	prCore { |chord|
+		var root = chord[\root], pcs = chord[\pcs], third, minorThird, above, kept;
+		if((costs[\added] != true) or: { root.isNil }) { ^pcs };
+		third = system.interval([5, 4]);
+		minorThird = system.interval([6, 5]);
+		above = [0, minorThird, third, system.pcAdd(minorThird, minorThird), system.interval([3, 2]), system.pcAdd(third, third)];
+		kept = pcs.select { |pc| above.includesEqual(system.pcSub(pc, root)) };
+		^if(kept.size >= 2) { kept } { pcs }
+	}
+
+	// With a model that has \forms, a chord of a key is one of the key's triads, not a degree: in a minor key a
+	// chord with a substitute tone (the raised sixth or seventh: V, IV, viio) is another kind than the natural
+	// one on its degree (v, iv, VII), seven kinds further on. The minor triad on the fifth degree is not the
+	// dominant, and a count that takes them for one reads a piece of i and iv as v and i a fifth below.
+	prForm { |scale, pcs|
+		^if((costs[\forms] == true) and: { pcs.any { |pc| scale.alternates.any { |pair| pair[1] == pc } } }) { 7 } { 0 }
+	}
+
 	prReadRegion { |scale, mode|
-		var n = chords.size, deg, inside, kinds, kind, step, target, table = costs[mode];
+		var n = chords.size, deg, inside, kinds, kind, step, target, table = costs[mode], core;
 		var third = system.interval([5, 4]), minorThird = system.interval([6, 5]), fourth = system.interval([4, 3]);
 		var semitone = system.interval([16, 15]), dim = system.pcAdd(minorThird, minorThird);
+		var wide = costs[\forms] == true, artKind = if(wide) { 14 } { 7 }, foreignKind = if(wide) { 15 } { 8 };
 		deg = chords.collect { |c| c[\root] !? { |r| scale.degreeOf(r) } };
-		inside = chords.collect { |c| c[\pcs].every { |pc| scale.holds(pc) } };
+		core = chords.collect { |c| this.prCore(c) };
+		inside = core.collect { |pcs| pcs.every { |pc| scale.holds(pc) } };
 		// where a chord leads: the next chord on another root, at most three chords on (a dominant may be held),
 		// a chord written again not counted
 		target = chords.collect { |c, i|
@@ -270,9 +298,13 @@ RLFit {
 			} { if(has.(third)) { \dominant } { \leading } }
 			{ \foreign }
 		};
-		// the nine kinds of the model: the root's degree, 7 an artificial dominant, 8 foreign
+		// the kinds of the model: the root's degree (nine kinds: 7 an artificial dominant, 8 foreign); with
+		// \forms, the degree and which of its two triads (sixteen: 14 an artificial dominant, 15 foreign)
 		kind = chords.collect { |c, i|
-			switch(kinds[i], \inside, { deg[i] ? 8 }, \foreign, { 8 }, { 7 })
+			switch(kinds[i],
+				\inside, { (deg[i] !? { |d| d + this.prForm(scale, core[i]) }) ? foreignKind },
+				\foreign, { foreignKind },
+				{ artKind })
 		};
 		// the cost of each chord given the one before, both read in this region (of the first chord alone at 0);
 		// a chord written again costs what the model says of it, whatever the region
@@ -422,13 +454,14 @@ RLFit {
 		var scale = states[k][\scale], read = readings[k], root = chord[\root], deg, j, to, has;
 		var third = system.interval([5, 4]), minorThird = system.interval([6, 5]), fourth = system.interval([4, 3]);
 		var semitone = system.interval([16, 15]), dim = system.pcAdd(minorThird, minorThird);
+		var wide = costs[\forms] == true, artKind = if(wide) { 14 } { 7 }, foreignKind = if(wide) { 15 } { 8 }, core = this.prCore(chord);
 		deg = root !? { scale.degreeOf(root) };
-		if(chord[\pcs].every { |pc| scale.holds(pc) }) { ^deg ? 8 };
+		if(core.every { |pc| scale.holds(pc) }) { ^(deg !? { |d| d + this.prForm(scale, core) }) ? foreignKind };
 		j = Array.series(3, i + 1).detect { |x| chords[x].notNil and: { chords[x][\root] != root } };
-		if(j.isNil or: { root.isNil } or: { chords[j][\root].isNil } or: { read[\kinds][j] != \inside }) { ^8 };
+		if(j.isNil or: { root.isNil } or: { chords[j][\root].isNil } or: { read[\kinds][j] != \inside }) { ^foreignKind };
 		has = { |x| chord[\pcs].includesEqual(system.pcAdd(root, x)) };
 		to = system.pcSub(chords[j][\root], root);
-		^if((has.(third) and: { to == fourth }) or: { has.(minorThird) and: { has.(dim) } and: { to == semitone } }) { 7 } { 8 }
+		^if((has.(third) and: { to == fourth }) or: { has.(minorThird) and: { has.(dim) } and: { to == semitone } }) { artKind } { foreignKind }
 	}
 
 	prSegments {
@@ -583,6 +616,11 @@ RLFit {
 		};
 		^[agreed, total]
 	}
+
+	// Each chord's kind in the model's numbering, as read in its passage's region (nil among the triads): the
+	// root's degree 0 to 6, then with nine kinds 7 an artificial dominant and 8 foreign; with sixteen (\forms)
+	// 7 to 13 the degrees' other triad, 14 an artificial dominant, 15 foreign.
+	kinds { ^chords.collect { |c, i| readings[path[i]][\kind] !? { |k| k[i] } } }
 
 	// The region the reading stays in longest (by the chords' time), as [fifths, mode] from the regions' tonic;
 	// nil when no chord is read in a region. homeShare: how much of the time that is.
