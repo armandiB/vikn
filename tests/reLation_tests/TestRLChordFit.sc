@@ -74,6 +74,55 @@ TestRLChordFit : UnitTest {
 		this.assertEquals([b[\shares], b[\none], b[\total]], [4, 0, 16], "the same by time");
 	}
 
+	test_the_least_cost_when_a_chord_outlasts_a_span {
+		// C major for a quarter note, then E minor for eight and a half: more than a span holds, so two spans in a row
+		var em = [[52, 4], [67, 1], [71, 5]];
+		var rows = this.prBlock(0, 1, [[48, 0], [64, 4], [67, 1]]) ++ this.prBlock(1, 0.5, em) ++ this.prBlock(1.5, 8, em);
+		var fit = RLChordFit(this.prScore(rows, 3));
+		this.assertEquals(fit.chords.collect { |c| [c[\label], c[\onset], c[\dur]] }, [["C M", 0, 1], ["E m", 1, 8.5]],
+			"E minor from where it starts: the reading that ends on it there is kept, though another is cheaper up to there");
+		this.assertFloatEquals(fit.chords.sum { |c| c[\cost] }, fit.cost, "and the costs add up");
+	}
+
+	test_runs_of_differences_without_labels {
+		var theirs = [(onset: 0, dur: 4, root: 9, pcs: [9, 0, 4]), (onset: 4, dur: 4, root: 2, pcs: [2, 6, 9])];
+		var fit = RLChordFit(this.prScore(this.prBlock(0, 8, [[48, 0], [64, 4], [67, 1]]), 2)), b = fit.breakdown(theirs);
+		this.assertEquals(fit.differences(theirs).collect { |d| [d[\from], d[\to], d[\relation]] }, [[0, 4, \shares], [4, 8, \other]],
+			"two chords of theirs are two runs, with labels or without");
+		this.assertEquals([b[\shares], b[\other]], [4, 4], "each with its own time");
+	}
+
+	test_a_note_a_hair_too_long {
+		var rows = [[0, 4.0005, 36, 0]] ++ this.prBlock(0, 4, [[64, 4], [67, 1]]) ++ this.prBlock(4, 4, [[53, -1], [57, 3]]);
+		var fit = RLChordFit(this.prScore(rows, 2));
+		this.assertEquals(this.prLabels(fit), ["C M", "F M"], "C major, then F and A alone: F major");
+		this.assertEquals(fit.chords[1][\bass], 5, "whose lowest note is F, not the C that ended a hair into it");
+		this.assertEquals(fit.candidates(4, 8, 1).first[\label], "F M", "the span read alone says the same");
+	}
+
+	test_a_chord_ends_with_its_last_note {
+		var c = [[48, 0], [64, 4], [67, 1]], fit = RLChordFit(this.prScore(this.prBlock(0, 1, c) ++ this.prBlock(20, 1, c), 6));
+		this.assertEquals(fit.chords.collect { |x| [x[\label], x[\onset], x[\dur]] }, [["C M", 0, 1], ["C M", 20, 1]],
+			"nineteen quarter notes of silence are no chord");
+		this.assertEquals(fit.chords.collect { |x| x[\span] }, [20, 1], "though the first holds until the next, as an analyst would write it");
+		this.assertEquals(fit.agreement([(onset: 0, dur: 20, root: 0, pcs: [0, 4, 7])])[\root], [20, 20], "and is scored so");
+	}
+
+	test_a_kind_with_a_held_tone_says_so {
+		var model = RLChordFit.defaultModel.copy, fit;
+		model[\types] = model[\types] ++ [IdentityDictionary[\name -> "M", \offsets -> #[-1, 0, 3], \p -> 0.03]];
+		fit = RLChordFit(this.prScore(this.prBlock(0, 4, [[43, 1], [60, 0], [64, 4]]), 1), model);
+		this.assertEquals(fit.candidates(0, 4, 2).collect { |c| c[\label] }, ["C M", "G M(64)"], "the six-four over G is not the triad on G");
+	}
+
+	test_an_upbeat_and_a_bar_cut_in_two {
+		var note = { |on| (onset: on.asFloat, dur: 1.0, pitch: 0, pc: 0, tpc: 0, staff: 1, mn: 0) };
+		var measures = [[0, 0.0, 1.0, "4/4"], [1, 1.0, 2.0, "4/4"], [1, 3.0, 2.0, "4/4"], [2, 5.0, 4.0, "4/4"]];
+		var fit = RLChordFit(RLScore(RLEDO(12), [0, 1, 3, 5].collect(note), [], [], measures, IdentityDictionary[\tpc -> 0, \mode -> \major, \duration -> 9.0]));
+		this.assertEquals(fit.prBarStarts, [-3, 1, 1, 5], "the upbeat counted from where its bar would start, the second half of a cut bar from its first");
+		this.assertEquals(RLChordFit.barLength("6/8"), 3, "a bar of 6/8 in quarter notes");
+	}
+
 	test_places_in_the_bar {
 		this.assertEquals(["4/4", "2/2", "3/4", "6/8", "12/8"].collect { |ts| RLChordFit.beat(ts) }, [1, 2, 1, 1.5, 1.5], "the beat, in quarter notes");
 		this.assertEquals([0, 2, 1, 0.5, 0.25].collect { |pos| RLChordFit.place(pos, 2) }, [0, 1, 2, 3, 3], "in 2/2: the downbeat, a beat, a half beat, elsewhere");

@@ -59,7 +59,8 @@ RLChordFit {
 	// rate: how many notes' worth of evidence a quarter note of sound is (4: each sixteenth note of it is one).
 	// The one number here not counted but chosen: 4 to 6 gave the most of the analysts' roots on three first
 	// movements of Beethoven (sonatas 2, 5, 10); the best value differs from movement to movement (1 to 12).
-	*new { |score, model, grain = 0.5, maxSpan = 8, rate = 4| ^super.new.prInit(score, model, grain, maxSpan, rate) }
+	// grain nil: the grid the model was counted on (0.5 when it does not say).
+	*new { |score, model, grain, maxSpan = 8, rate = 4| ^super.new.prInit(score, model, grain, maxSpan, rate) }
 
 	*readModel { |path|
 		var m = if(File.exists(path.asString.standardizePath)) { REJSON.read(path) };
@@ -90,12 +91,35 @@ RLChordFit {
 		var on = { |unit| ((pos / unit) - (pos / unit).round).abs < 1e-6 };
 		^case { pos.abs < 1e-6 } { 0 } { on.(beat) } { 1 } { on.(beat / 2) } { 2 } { 3 }
 	}
+	// A whole bar of a time signature, in quarter notes ("3/4": 3, "6/8": 3).
+	*barLength { |timesig|
+		var parts = timesig.asString.split($/);
+		^if(parts.size != 2) { 4.0 } { parts[0].asInteger * 4 / parts[1].asInteger.max(1) }
+	}
+
+	// Where the bar of each row of the score's measures starts: a bar cut in two (a repeat sign inside it) starts
+	// where its first part does, and a first bar shorter than its time signature (an upbeat) is counted from
+	// where the whole bar would start.
+	prBarStarts {
+		var measures = score.measures, starts = Array.newClear(measures.size), group = 0, first, nominal, len = 0, k = 0;
+		measures.do { |m, i|
+			if((i == 0) or: { measures[i - 1][0] != m[0] }) { group = m[1] };
+			starts[i] = group;
+		};
+		if(measures.notEmpty) {
+			first = measures[0];
+			nominal = RLChordFit.barLength(first[3]);
+			while { (k < measures.size) and: { measures[k][0] == first[0] } } { len = len + measures[k][2]; k = k + 1 };
+			if(len < (nominal - 1e-6)) { k.do { |x| starts[x] = first[1] + len - nominal } };
+		};
+		^starts
+	}
 
 	prInit { |sc, md, gr, ms, rt|
 		score = sc;
 		system = sc.system;
 		model = md ? defaultModel;
-		grain = gr;
+		grain = gr ?? { model[\grain] ? 0.5 };
 		maxSpan = ms;
 		rate = rt;
 		width = (2 * span) + 1;
@@ -120,13 +144,19 @@ RLChordFit {
 		tIn = tOffsets.collect { |offs| offs.size.log2 };
 		tOut = tOffsets.collect { |offs| (system.steps - offs.size).max(1).log2 };
 		tBits = kinds.collect { |t| bits.(t[\p] / total) };
-		tNames = kinds.collect { |t| t[\name].asString };
+		// a kind with a tone that is no third, fifth or seventh of its root (a fourth or a sixth held over it) says so:
+		// "M(64)" is the six-four over a root, not the triad of that name
+		tNames = kinds.collect { |t, i|
+			var figures = IdentityDictionary[-1 -> "4", 3 -> "6", -4 -> "b6", 2 -> "2", -5 -> "b2", 6 -> "#4"], held;
+			held = tOffsets[i].select { |o| RLChordFit.role(o).isNil }.collect { |o| figures[o] ? o.asString };
+			t[\name].asString ++ if(held.isEmpty) { "" } { "(" ++ held.sort { |x, y| x >= y }.join ++ ")" }
+		};
 	}
 
 	// The places a chord may start, and between each two of them what sounds: per tone (a place on the line
 	// of fifths), the time it sounds and what that time saves when the tone is a chord's; the lowest note.
 	prNotes {
-		var bounds = model[\bounds], measures = score.measures, mi = 0, s0 = 0, last = nil, ns;
+		var bounds = model[\bounds], measures = score.measures, barStarts = this.prBarStarts, mi = 0, s0 = 0, last = nil, ns;
 		notes = score.notes.select { |n| n[\tpc].notNil and: { n[\tpc].abs <= span } }.sort { |a, b| a[\onset] <= b[\onset] };
 		times = Array.new;
 		places = Array.new;
@@ -135,7 +165,7 @@ RLChordFit {
 			if(last.isNil or: { t > (last + 1e-9) }) {
 				last = t;
 				while { ((mi + 1) < measures.size) and: { measures[mi + 1][1] <= (t + 1e-9) } } { mi = mi + 1 };
-				pos = t - if(measures.isEmpty) { 0 } { measures[mi][1] };
+				pos = t - if(measures.isEmpty) { 0 } { barStarts[mi] };
 				steps = pos / grain;
 				if(times.isEmpty or: { (steps - steps.round).abs < 1e-6 }) {
 					times = times.add(t);
@@ -162,7 +192,8 @@ RLChordFit {
 			m = s0;
 			while { (m < ns) and: { times[m] < (b - 1e-9) } } {
 				var w = (min(b, times[m + 1]) - max(a, times[m])) * rate;
-				if(w > 1e-9) {
+				// a note that ends a hair after a place (a tuplet's rounding) does not sound in the next span
+				if(w > (0.01 * rate)) {
 					sliceKeys[m] = sliceKeys[m].add(idx);
 					sliceWeights[m] = sliceWeights[m].add(w);
 					sliceSavings[m] = sliceSavings[m].add(w * (cout[c] - cin[c]));
@@ -175,15 +206,18 @@ RLChordFit {
 		};
 	}
 
-	// The cheapest chord for what has been counted, [cost, id]; every chord tried, cheapest first, when all is true.
-	// A chord's root is a tone that sounds. id: root * kinds + kind. startCost: what it costs that a chord starts
-	// here; sameCost: that the chord before goes on (lastId) instead.
-	prBest { |count, saving, keys, total, base, lowKey, lastId, startCost = 0, sameCost = 0, all = false|
-		var bestCost = inf, bestId = nil, nT = tOffsets.size, list = if(all) { Array.new };
-		if(total <= 0) { ^if(all) { [] } { [0, nil] } };
+	// Every chord for what has been counted, priced with the way to it: a chord that starts here after the
+	// cheapest reading so far (gi + startCost + its kind and its root), or the chord a reading already ends on
+	// here, which goes on (arr[id] + sameCost). A chord's root is a tone that sounds. id: root * kinds + kind;
+	// -1 when nothing sounds. Returns [the least total, its id, whether it goes on, the chords within `within`
+	// of the least as [total, id, goes on]]; all: every chord, cheapest first.
+	prBest { |count, saving, keys, total, base, lowKey, arr, gi = 0, startCost = 0, sameCost = 0, within, all = false|
+		var bestCost = inf, bestId = nil, bestOn = false, nT = tOffsets.size, list = Array.new;
+		var goesOn = arr.notNil and: { arr.notEmpty };
+		if(total <= 0) { ^if(all) { [] } { [gi, -1, false, [[gi, -1, false]]] } };
 		keys.do { |r|
 			nT.do { |ti|
-				var offs = tOffsets[ti], roles = tRoles[ti], sum = 0.0, nIn = 0.0, pres = 0.0, bassRole = 4, id = (r * nT) + ti, v;
+				var offs = tOffsets[ti], roles = tRoles[ti], sum = 0.0, nIn = 0.0, pres = 0.0, bassRole = 4, id = (r * nT) + ti, v, t, on = false, prev;
 				offs.do { |o, x|
 					var idx = r + o, role = roles[x], c = if((idx >= 0) and: { idx < width }) { count[idx] } { 0 };
 					if(c > 0) {
@@ -195,28 +229,39 @@ RLChordFit {
 						if(role.notNil) { pres = pres + absentBits[role] };
 					};
 				};
-				v = base - sum + (nIn * tIn[ti]) + ((total - nIn) * tOut[ti]) + pres + bassBits[bassRole]
-					+ if(id == lastId) { sameCost } { startCost + tBits[ti] + rootBits };
-				if(v < bestCost) { bestCost = v; bestId = id };
-				if(all) { list = list.add([v, id]) };
+				v = base - sum + (nIn * tIn[ti]) + ((total - nIn) * tOut[ti]) + pres + bassBits[bassRole];
+				t = gi + startCost + tBits[ti] + rootBits + v;
+				if(goesOn) {
+					prev = arr[id];
+					if(prev.notNil and: { (prev[0] + sameCost + v) < t }) { t = prev[0] + sameCost + v; on = true };
+				};
+				if(t < bestCost) { bestCost = t; bestId = id; bestOn = on };
+				if(all or: { within.notNil and: { t < (bestCost + within) } }) { list = list.add([t, id, on]) };
 			};
 		};
-		^if(all) { list.sort { |a, b| a[0] <= b[0] } } { [bestCost, bestId] }
+		if(all) { ^list.sort { |a, b| a[0] <= b[0] } };
+		^[bestCost, bestId, bestOn, if(within.isNil) { [] } { list.select { |x| x[0] < (bestCost + within) } }]
 	}
 
+	// The cheapest way through, exactly: at each place the least cost of a reading up to it, and, for every chord
+	// a reading may end on there, the least cost of one that does (only those from which going on could beat a
+	// fresh start are kept). A span is at most maxSpan long, so a longer chord is spans in a row: the second
+	// pays for going on, not for a new chord.
 	prSolve {
-		var nb = times.size, best, from, pick, segs = Array.new, j;
+		var nb = times.size, best, arrs, argmin, segs = Array.new, j, c, margin, lows;
 		chords = Array.new;
 		cost = 0;
 		if(nb < 2) { ^this };
 		best = Array.fill(nb, inf);
-		from = Array.newClear(nb);
-		pick = Array.newClear(nb);
+		arrs = Array.fill(nb) { IdentityDictionary.new };   // per place: chord id -> [cost, the place it came from, whether it went on]
+		argmin = Array.newClear(nb);
 		best[0] = 0;
+		// a reading that ends on a chord is worth keeping while going on from it could beat starting that chord anew
+		margin = (startBits - stayBits).maxItem.max(0) + tBits.maxItem + rootBits + 1e-6;
 		(nb - 1).do { |i|
 			if(best[i] < inf) {
 				var t0 = times[i], count = Array.fill(width, 0.0), saving = Array.fill(width, 0.0), keys = List.new;
-				var total = 0.0, base = 0.0, low = inf, lowKey = nil, lastId = pick[i] !? { |p| p[0] }, jj = i + 1, res, v, m;
+				var total = 0.0, base = 0.0, low = inf, lowKey = nil, jj = i + 1, res, v, m, stay;
 				var startCost = if(i == 0) { 0 } { startBits[places[i]] }, sameCost = if(i == 0) { 0 } { stayBits[places[i]] };
 				while { (jj < nb) and: { (jj == (i + 1)) or: { (times[jj] - t0) <= (maxSpan + 1e-9) } } } {
 					m = jj - 1;
@@ -228,37 +273,60 @@ RLChordFit {
 					total = total + sliceTotal[m];
 					base = base + sliceBase[m];
 					if(sliceLow[m][0] < low) { low = sliceLow[m][0]; lowKey = sliceLow[m][1] };
-					res = this.prBest(count, saving, keys, total, base, lowKey, lastId, startCost, sameCost);
+					res = this.prBest(count, saving, keys, total, base, lowKey, arrs[i], best[i], startCost, sameCost, margin);
 					// and that no chord starts at the places inside the span
-					v = best[i] + res[0] + (stayCum[jj] - stayCum[i + 1]);
-					if(v < (best[jj] - 1e-9)) { best[jj] = v; from[jj] = i; pick[jj] = [res[1], v - best[i]] };
+					stay = stayCum[jj] - stayCum[i + 1];
+					v = res[0] + stay;
+					if(v < (best[jj] - 1e-9)) { best[jj] = v; argmin[jj] = res[1] };
+					res[3].do { |cand|
+						var t = cand[0] + stay, old = arrs[jj][cand[1]];
+						if((t < (best[jj] + margin)) and: { old.isNil or: { t < (old[0] - 1e-9) } }) { arrs[jj][cand[1]] = [t, i, cand[2]] };
+					};
 					jj = jj + 1;
 				};
 			};
 		};
 		cost = best[nb - 1];
 		j = nb - 1;
+		c = argmin[j];
 		while { j > 0 } {
-			var i = from[j];
-			segs = segs.addFirst([times[i], times[j], pick[j][0], pick[j][1]]);
+			var e = arrs[j][c], i = e[1], before = if(e[2]) { arrs[i][c][0] } { best[i] };
+			segs = segs.addFirst([times[i], times[j], if(c == -1) { nil } { c }, e[0] - before]);
+			if(e[2].not) { c = argmin[i] };
 			j = i;
 		};
-		// spans in a row under one chord are one chord; a span where nothing sounds is none
+		// Spans in a row under one chord are one chord; a span where nothing sounds is none. A chord sounds as
+		// long as its notes do (\dur) and holds until the next place (\span: the harmony goes on through a rest,
+		// as an analyst writes it); it has its lowest note.
+		lows = Array.new;
 		segs.do { |s|
+			var info;
 			if(s[2].notNil) {
+				info = this.prSpan(s[0], s[1]);
 				if(chords.notEmpty and: { chords.last[\id] == s[2] } and: { (chords.last[\onset] + chords.last[\dur] - s[0]).abs < 1e-6 }) {
-					chords.last[\dur] = s[1] - chords.last[\onset];
+					chords.last[\dur] = info[0] - chords.last[\onset];
+					chords.last[\span] = s[1] - chords.last[\onset];
 					chords.last[\cost] = chords.last[\cost] + s[3];
+					if(info[1].notNil and: { lows.last.isNil or: { info[1][\pitch] < lows.last[\pitch] } }) { lows[lows.size - 1] = info[1] };
 				} {
-					chords = chords.add(this.prChord(s[2], s[0], s[1], s[3]));
+					chords = chords.add(this.prChord(s[2], s[0], info[0], s[3]).put(\span, s[1] - s[0]));
+					lows = lows.add(info[1]);
 				};
 			};
 		};
-		chords.do { |c|
-			var low = nil;
-			score.sounding(c[\onset], c[\onset] + c[\dur]).do { |pair| if(low.isNil or: { pair[0][\pitch] < low[\pitch] }) { low = pair[0] } };
-			c[\bass] = low !? { low[\pc] };
+		chords.do { |ch, k| ch[\bass] = lows[k] !? { |n| n[\pc] } };
+	}
+
+	// What sounds in a span, a note's last hair left out: [where its sound ends, its lowest note].
+	prSpan { |from, to|
+		var low = nil, last = from;
+		score.sounding(from, to).do { |pair|
+			if(pair[1] > 0.01) {
+				if(low.isNil or: { pair[0][\pitch] < low[\pitch] }) { low = pair[0] };
+				last = max(last, min(to, pair[0][\onset] + pair[0][\dur]));
+			};
 		};
+		^[if(last > (from + 1e-9)) { last } { to }, low]
 	}
 
 	prChord { |id, from, to, bits|
@@ -285,7 +353,7 @@ RLChordFit {
 				if(nt[\pitch] < low) { low = nt[\pitch]; lowKey = idx };
 			};
 		};
-		^this.prBest(count, saving, keys, total, base, lowKey, nil, 0, 0, true).keep(n).collect { |pair|
+		^this.prBest(count, saving, keys, total, base, lowKey, nil, 0, 0, 0, nil, true).keep(n).collect { |pair|
 			var c = this.prChord(pair[1], from, to, pair[0]);
 			(label: c[\label], cost: pair[0], root: c[\root], pcs: c[\pcs], type: c[\type])
 		}
@@ -300,7 +368,7 @@ RLChordFit {
 			if(c[\root].notNil) {
 				total = total + c[\dur];
 				chords.do { |m|
-					var lo = max(a, m[\onset]), hi = min(b, m[\onset] + m[\dur]);
+					var lo = max(a, m[\onset]), hi = min(b, m[\onset] + (m[\span] ? m[\dur]));
 					if((hi > (lo + 1e-9)) and: { m[\root] == c[\root] }) {
 						rootTime = rootTime + (hi - lo);
 						if(m[\pcs].asSet == c[\pcs].asSet) { chordTime = chordTime + (hi - lo) };
@@ -321,13 +389,16 @@ RLChordFit {
 			var a = c[\onset], b = a + c[\dur];
 			if(c[\root].notNil) {
 				chords.do { |m|
-					var lo = max(a, m[\onset]), hi = min(b, m[\onset] + m[\dur]), ours, theirs, common, relation;
+					var lo = max(a, m[\onset]), hi = min(b, m[\onset] + (m[\span] ? m[\dur])), ours, theirs, common, relation;
 					if((hi > (lo + 1e-9)) and: { m[\root] != c[\root] }) {
-						if(out.notEmpty and: { (out.last[\to] - lo).abs < 1e-6 } and: { out.last[\ours] == m[\label] } and: { out.last[\theirs] == c[\label] }) {
+						ours = m[\pcs].asSet;
+						theirs = c[\pcs].asSet;
+						// one run while it is the same chord of ours against the same chord of theirs (an inversion
+						// written as a new chord is the same chord: its root and its tones)
+						if(out.notEmpty and: { (out.last[\to] - lo).abs < 1e-6 } and: { out.last[\chord] === m } and: { out.last[\theirs] == c[\label] }
+							and: { out.last[\root] == c[\root] } and: { out.last[\tones] == theirs }) {
 							out.last[\to] = hi
 						} {
-							ours = m[\pcs].asSet;
-							theirs = c[\pcs].asSet;
 							common = (ours & theirs).size;
 							relation = case
 							{ ours == theirs } { \same }
@@ -335,7 +406,8 @@ RLChordFit {
 							{ common == theirs.size } { \holds }
 							{ common >= 2 } { \shares }
 							{ \other };
-							out = out.add((from: lo, to: hi, mn: score.measureAt(lo), ours: m[\label], theirs: c[\label], relation: relation))
+							out = out.add((from: lo, to: hi, mn: score.measureAt(lo), ours: m[\label], theirs: c[\label], relation: relation,
+								chord: m, root: c[\root], tones: theirs))
 						};
 					};
 				};
@@ -351,7 +423,7 @@ RLChordFit {
 		theirs.do { |c|
 			if(c[\root].notNil) {
 				total = total + c[\dur];
-				chords.do { |m| covered = covered + max(0, min(c[\onset] + c[\dur], m[\onset] + m[\dur]) - max(c[\onset], m[\onset])) };
+				chords.do { |m| covered = covered + max(0, min(c[\onset] + c[\dur], m[\onset] + (m[\span] ? m[\dur])) - max(c[\onset], m[\onset])) };
 			};
 		};
 		out[\none] = max(0, total - covered);

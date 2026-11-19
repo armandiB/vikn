@@ -30,9 +30,9 @@ An link::Classes/RLScore::.
 argument:: model
 nil (the hand-set model) or a counted one.
 argument:: grain
-A chord may change where a note starts on this grid of the bar, in quarter notes (0.5: every eighth note).
+A chord may change where a note starts on this grid of the bar, in quarter notes. nil: the grid the model was counted on (0.5, every eighth note, when it does not say).
 argument:: maxSpan
-The longest span tried under one chord, in quarter notes; a longer chord comes out as spans joined.
+The longest span tried under one chord, in quarter notes; a longer chord comes out as spans in a row, joined: the second pays for going on, not for a new chord, and the programme keeps, at each place, the readings that end on each chord worth going on from, so that the reading is the cheapest one exactly.
 argument:: rate
 How many notes' worth of evidence a quarter note of sound is. The one number not counted but chosen: 4 to 6 gave the most of the analysts' roots on three first movements of Beethoven; the best value differs from movement to movement.
 
@@ -51,12 +51,15 @@ METHOD:: beat
 The beat of a time signature in quarter notes: "3/4" 1, "2/2" 2, "6/8" 1.5.
 
 METHOD:: place
-A place in the bar: 0 the downbeat, 1 another beat, 2 a half beat, 3 elsewhere.
+A place in the bar: 0 the downbeat, 1 another beat, 2 a half beat, 3 elsewhere. A bar cut in two by a repeat sign is one bar, and an upbeat is counted from where its whole bar would start.
+
+METHOD:: barLength
+A whole bar of a time signature, in quarter notes.
 
 INSTANCEMETHODS::
 
 METHOD:: chords
-The chords, as link::Classes/RLFit:: takes them.
+The chords, as link::Classes/RLFit:: takes them. A chord ends where its last note does: silence after it is no chord. A note that ends a hair after a place (a tuplet's rounding) does not sound in the span that starts there.
 
 METHOD:: cost
 The reading's cost, in bits with a counted model.

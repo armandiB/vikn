@@ -405,7 +405,7 @@ RLFit {
 			if(c[\key].notNil) {
 				total = total + c[\dur];
 				chords.do { |m, i|
-					var lo = max(c[\onset], m[\onset]), hi = min(c[\onset] + c[\dur], m[\onset] + m[\dur]);
+					var lo = max(c[\onset], m[\onset]), hi = min(c[\onset] + c[\dur], m[\onset] + (m[\span] ? m[\dur]));
 					if((hi > (lo + 1e-9)) and: { this.prReadsIn(i, c[\key]) or: { loose and: { this.prReadsIn(i, c[\applied]) } } }) { agreed = agreed + (hi - lo) };
 				};
 			};
