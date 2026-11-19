@@ -126,6 +126,21 @@ TestREScore : UnitTest {
 		this.assert(this.logHas("cannot compile"), "and is reported");
 	}
 
+	// (Nov 19 2026, VK-6) what a snapshot keeps and a replay sets
+	test_replayable {
+		var outer = 1;
+		var pr = REScore.encodeValue(Prout { outer.yield });
+		this.assert(REScore.replayable(REScore.encodeValue([1, \a, "s", nil, Pseq([1, 2], inf), { 1 }, (k: Env([0, 1], [1]))])),
+			"numbers, symbols, strings, Patterns, closed Functions, Events of them replay");
+		this.assert(pr[\sc].compile.notNil and: { REScore.replayable(pr).not },
+			"a Pattern over a closure compiles (%) but does not replay".format(pr[\sc]));
+		this.assert(REScore.replayable(REScore.encodeValue({ outer })).not, "nor a Function without source");
+		this.assert(REScore.replayable(REScore.encodeValue([1, (a: Object.new)])).not, "nor anything holding a reference");
+		this.assert(REScore.replayable(REScore.encodeValue(IdentityDictionary[\k -> Object.new])).not, "inside a dict too");
+		this.assert(REScore.replayable(IdentityDictionary[\rc -> "beat", \song -> "x", \layer -> "core", \name -> "k"]),
+			"an object reference replays (resolved through the song)");
+	}
+
 	test_rc_refs {
 		var layer = song.layer(\core);
 		var beat = layer.addBeat(\k, [type: \rest, dur_flex: 1, amp: 0.1]);
