@@ -61,7 +61,8 @@ RLEDO : RLPitchSystem {
 
 	prMapping { ^mapping.asSortedArray }
 
-	== { |other| ^other.isKindOf(RLEDO) and: { steps == other.steps } and: { this.prMapping == other.prMapping } }
+	// A subclass (RLScale) is never equal to a plain division, from either side.
+	== { |other| ^(other.class === this.class) and: { steps == other.steps } and: { this.prMapping == other.prMapping } }
 	!= { |other| ^(this == other).not }
 	hash { ^[\RLEDO, steps, this.prMapping].hash }
 
