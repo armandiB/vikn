@@ -131,17 +131,18 @@ REShowRoto {
 	*positionOf { |v| ^(v * 128 / 16383).clip(0, 1) }
 
 	// The mappings freed, the source start connected disconnected, the MIDI client start brought up
-	// disposed (one a session had up before stays as it was).
-	stop {
+	// disposed (one a session had up before stays as it was). keepMidi: the mappings alone, CoreMIDI left as
+	// it is, for a process about to exit (its teardown stalled the console's quit, HL3-G6: macOS frees it).
+	stop { |keepMidi = false|
 		midi !? (_.freeAll);
 		midi = nil;
-		source !? { |s| RCGuard.call(\roto, nil) { MIDIIn.disconnect(sourceIndex, s) } };
+		if(keepMidi.not) {
+			source !? { |s| RCGuard.call(\roto, nil) { MIDIIn.disconnect(sourceIndex, s) } };
+			if(ownsMidi) { RCGuard.call(\roto, nil) { MIDIClient.disposeClient } };
+		};
+		ownsMidi = false;
 		source = nil;
 		sourceIndex = nil;
-		if(ownsMidi) {
-			ownsMidi = false;
-			RCGuard.call(\roto, nil) { MIDIClient.disposeClient };
-		};
 		started = false;
 	}
 

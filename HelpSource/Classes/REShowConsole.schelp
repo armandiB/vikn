@@ -29,6 +29,9 @@ METHOD:: new
 argument:: show
 The show file's path, or an Event / dictionary already read (then code::dir:: in it is the folder its paths are relative to).
 
+METHOD:: dropMidiShutDown
+code::MIDIClient.init::'s teardown removed from the exit's link::Classes/ShutDown:: actions, the others kept: a process about to exit leaves CoreMIDI to the OS. Returns how many were removed.
+
 METHOD:: openEnd
 The end an open cue (code::inf:: inside) is sent with in its code::/fx/cue:: line: 1e9 seconds, exact as a 32-bit float (an code::inf:: on the wire would reach the page as code::Infinity::).
 
@@ -37,7 +40,9 @@ INSTANCEMETHODS::
 METHOD:: start
 The port opened and its handlers installed, the cues' tapes read, the roto started (its MIDI with link::#-startMidi::), the page told (code::/fx/chase 1::, code::/fx/cues::, the code::/fx/cue:: lines), the heartbeat on SystemClock (with link::#-heartbeat::). Nothing plays until Reaper speaks. With link::#-live:: the sends go to the user's bridge, 127.0.0.1:57300.
 METHOD:: stop
-The heartbeat, the handlers and the roto freed, code::/fx/transport 0:: when playing, code::/fx/chase 0::.
+The heartbeat and the handlers freed, code::/fx/transport 0:: when playing, code::/fx/chase 0::, then the roto and the fx pages stopped.
+argument:: keepMidi
+true for a process about to exit (HomewareSC's console quit): their mappings freed, CoreMIDI left as it is for the OS to free. Its teardown stalled the quit in 2 of 3 tries on Oct 31 2026, CoreMIDI waiting for a thread that waits for the interpreter. With link::#*dropMidiShutDown:: the exit does not tear it down either.
 METHOD:: reload
 The show file read again (when the console was given one), the cues rebuilt and sent again, the chase landed where the clock is.
 
