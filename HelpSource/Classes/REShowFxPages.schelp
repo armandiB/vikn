@@ -49,6 +49,8 @@ argument:: withMidi
 
 METHOD:: stop
 The mappings freed, the source disconnected, the client disposed when start brought it up.
+argument:: keepMidi
+true: the mappings alone, CoreMIDI left as it is (a process about to exit; link::Classes/REShowConsole#-stop::).
 
 METHOD:: knobReceived
 Knob code::k:: (0..7) of a page at a place: the chosen effect's parameters (k 7: its mix) sent. Returns the value, nil for a knob the layout leaves free.

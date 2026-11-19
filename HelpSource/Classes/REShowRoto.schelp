@@ -31,6 +31,8 @@ METHOD:: installMappings
 The mappings alone, without touching MIDI (a test drives their MIDIdefs). Returns the link::Classes/RCMidi::.
 METHOD:: stop
 The mappings freed, the source disconnected, the MIDI client disposed when start brought it up.
+argument:: keepMidi
+true: the mappings alone, CoreMIDI left as it is (a process about to exit; link::Classes/REShowConsole#-stop::).
 METHOD:: source
 The device's link::Classes/MIDIEndPoint:: connected by start, nil when it was not found.
 
