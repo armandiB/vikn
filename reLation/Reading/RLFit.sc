@@ -149,10 +149,18 @@ RLFit {
 	prTriads {
 		if(system.isFinite) {
 			triadSpace = RLChordSpace.triads(system);
-			triadContext = RLChordContext(triadSpace);
-			triadGraph = RLRelationContext.triads(system).graph;
+			triadContext = RLRelationContext.triads(system);
+			triadGraph = triadContext.graph;
 			distances = Dictionary.new;
 		};
+	}
+
+	// a step among the triads as its shortest word of P, L, R, in the order played (\LR: L then R); \same
+	prTriadWord { |x, y|
+		var word = "";
+		if(x == y) { ^\same };
+		(triadGraph.shortestPath(x, y) ? []).doAdjacentPairs { |a, b| word = word ++ (triadContext.labels(a, b).first ? "?") };
+		^word.asSymbol
 	}
 
 	// the major or minor triad on a chord's root, when the chord holds one
@@ -298,9 +306,7 @@ RLFit {
 		} {
 			seg[\numerals] = idx.collect { |i| read[\tri][i] !? { |t| t.name } ? "?" };
 			seg[\word] = idx.drop(1).collect { |i|
-				if(read[\tri][i].notNil and: { read[\tri][i - 1].notNil }) {
-					triadContext.rightInterval(read[\tri][i - 1], read[\tri][i]).label.asSymbol
-				}
+				if(read[\tri][i].notNil and: { read[\tri][i - 1].notNil }) { this.prTriadWord(read[\tri][i - 1], read[\tri][i]) }
 			};
 			what = read[\tri];
 		};

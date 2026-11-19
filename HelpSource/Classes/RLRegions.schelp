@@ -21,7 +21,7 @@ table::
 ## || 5 distant || every other region
 ::
 
-The classes are Schoenberg's judgement of the practice up to the end of the 19th century, not a measure. Counted on Beethoven's piano sonatas (the key left as the tonic), classes 1 and 2 hold nine changes of key in ten from a major key, eight in ten from a minor one.
+The classes are Schoenberg's judgement of the practice up to the end of the 19th century, not a measure. Counted on Beethoven's piano sonatas (the key left as the tonic), classes 1 and 2 hold nearly nine changes of key in ten from a major key, three in four from a minor one.
 
 code::
 ~r = RLRegions(RLEDO(12), 0, \major);

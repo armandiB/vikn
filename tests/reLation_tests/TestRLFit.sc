@@ -51,6 +51,15 @@ TestRLFit : UnitTest {
 		this.assertEquals(fit.title(seg), "triads", "its title");
 	}
 
+	test_words_among_the_triads {
+		var edo = RLEDO(12), sp = RLChordSpace.triads(edo), fit, seg;
+		// E major, E major, E minor, C major, then Ab major, Ab minor, E major: no key holds them
+		fit = RLFit(RLFit.events([sp.major(4), sp.major(4), sp.minor(4), sp.major(0), sp.major(8), sp.minor(8), sp.major(4)]), RLRegions(edo, 4, \major));
+		seg = fit.segments.first;
+		this.assertEquals([fit.segments.size, seg[\kind]], [1, \triads], "one passage among the triads");
+		this.assertEquals(seg[\word], [\same, \P, \L, \PL, \P, \L], "each step by its shortest word in the order played, a triad that stays as same");
+	}
+
 	test_artificial_dominants_and_foreign_chords {
 		var edo = RLEDO(12), reg = RLRegions(edo), fit, seg;
 		var one = (pcs: [0, 4, 7], root: 0), four = (pcs: [5, 9, 0], root: 5), five = (pcs: [7, 11, 2], root: 7);
