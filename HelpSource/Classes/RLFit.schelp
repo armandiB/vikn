@@ -68,6 +68,9 @@ What stands out: a foreign chord that leads nowhere, a pattern of three units or
 
 METHOD:: agreement
 How long the fit's regions are the keys the chords carry: code::[quarter notes agreed, labelled]::.
+METHOD:: agreementWith
+The same against chords an analyst wrote on their own time line (each with code::\onset::, code::\dur::, code::\key::), for a fit of other chords than theirs (link::Classes/RLChordFit::'s).
+
 METHOD:: differences
 Where they are not.
 

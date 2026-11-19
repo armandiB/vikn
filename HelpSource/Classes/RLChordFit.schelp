@@ -1,0 +1,87 @@
+TITLE:: RLChordFit
+summary:: The chords of a score, read from its notes alone at the least cost
+categories:: Libraries>reLation
+related:: Classes/RLFit, Classes/RLScore, Classes/RLRegions, Guides/reLation
+
+DESCRIPTION::
+The same idea as link::Classes/RLFit:: one level down. A span of notes can be put under any chord, so "does a chord hold them" tells nothing: a chord is worth the notes it saves describing. Under a chord a note costs little while it is one of the chord's tones and more while it is not (how much depends on its length: a short note is a passing note more often), by the time it sounds: a bass struck eight times weighs what it weighs held. The chord itself costs its kind, its root, the tones of it that do not sound, where its lowest note sits, and where in the bar it starts. The reading is the cheapest way through: a dynamic programme over the places a chord may change, the note onsets on a grid of the bar.
+
+Notes are taken as spelled (their place on the line of fifths, link::Classes/RLScore::'s code::\tpc::), so a diminished seventh has one root, the one its spelling stacks in thirds, and an augmented sixth is no dominant seventh. Nothing an analyst wrote is read: the score's analysed chords only score the reading afterwards (link::#-agreement::, link::#-breakdown::).
+
+code::
+~score = RLScore.read(path);
+~chords = RLChordFit(~score);                       // or RLChordFit(~score, RLChordFit.readModel(modelPath))
+~chords.chords.keep(4).collect { |c| c[\label] };   // -> [ "F m", "C Mm7", "F m", "E o" ]
+~chords.candidates(8, 12);                          // the cheapest chords for a span, with their costs
+~chords.agreement;                                  // (root: [agreed, total], chord: [agreed, total])
+~fit = RLFit(~chords.chords, ~score.regions);       // then the passages
+~fit.agreementWith(~score.chords);                  // its keys against the analysts', on their time line
+::
+
+A chord is an Event code::(onset:, dur:, mn:, root:, pcs:, bass:, type:, label:, cost:, tpc:, tpcs:)::: root and tones as pitch classes of the score's system, and as places on the line of fifths. A kind of chord is a set of tones in fifths from the root: code::[0, 1, 4]:: a major triad, code::[-3, 0, 1]:: a minor one, code::[-2, 0, 1, 4]:: a dominant seventh.
+
+Two models of the costs: the hand-set one (link::#*defaultModel::: nine kinds of chord, numbers near what Beethoven's sonatas give), or one counted on analysed scores (link::#*readModel::), which also brings the kinds of chord the analysts used (suspensions over a root, augmented sixths). Count it on other pieces than the one read.
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: score
+An link::Classes/RLScore::.
+argument:: model
+nil (the hand-set model) or a counted one.
+argument:: grain
+A chord may change where a note starts on this grid of the bar, in quarter notes (0.5: every eighth note).
+argument:: maxSpan
+The longest span tried under one chord, in quarter notes; a longer chord comes out as spans joined.
+argument:: rate
+How many notes' worth of evidence a quarter note of sound is. The one number not counted but chosen: 4 to 6 gave the most of the analysts' roots on three first movements of Beethoven; the best value differs from movement to movement.
+
+METHOD:: readModel
+A model counted by HomewareSC's code::Math/Category_Theory/fit/dcml_notes.py::: how much of their time notes are tones of their chord (by their length), how often a chord sounds its root, third, fifth and seventh, what its lowest note is, where in the bar chords start, and the kinds of chord with their frequencies.
+
+METHOD:: defaultModel
+
+METHOD:: spell
+A place on the line of fifths by name: 0 "C", 1 "G", -4 "Ab", 6 "F#".
+
+METHOD:: role
+What a tone is in its chord, by its fifths from the root: 0 the root, 1 the third, 2 the fifth, 3 the seventh, nil another tone.
+
+METHOD:: beat
+The beat of a time signature in quarter notes: "3/4" 1, "2/2" 2, "6/8" 1.5.
+
+METHOD:: place
+A place in the bar: 0 the downbeat, 1 another beat, 2 a half beat, 3 elsewhere.
+
+INSTANCEMETHODS::
+
+METHOD:: chords
+The chords, as link::Classes/RLFit:: takes them.
+
+METHOD:: cost
+The reading's cost, in bits with a counted model.
+
+METHOD:: times
+The places a chord may start, and the end.
+
+METHOD:: candidates
+The cheapest chords for a span of time, read alone: code::[(label:, cost:, root:, pcs:, type:), ...]::.
+
+METHOD:: agreement
+How long these chords have the roots, and the roots and tones, of chords written by an analyst (the score's own when none are given).
+
+METHOD:: differences
+Where the roots are not an analyst's, run by run, with how the two chords stand: code::\same:: (the same tones under another root: a six-four chord read as its bass or as its fourth), code::\part:: (ours is a part of theirs: a root that does not sound), code::\holds:: (theirs is a part of ours), code::\shares:: (two tones or more in common), code::\other::.
+
+METHOD:: breakdown
+The time of those differences by their relation.
+
+METHOD:: report
+The reading against an analyst's chords, as text.
+
+METHOD:: score
+METHOD:: model
+METHOD:: grain
+METHOD:: maxSpan
+METHOD:: rate
+METHOD:: system

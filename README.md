@@ -99,7 +99,9 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
 - `reLation/Reading`: from a piece to the contexts that explain it. RLScore (the notes of a piece and the chords
   analysts wrote over them, from HomewareSC's `Math/Category_Theory/fit/dcml_read.py`), RLFit (the chords cut
   into passages, each in a region or among the triads, at the least total cost; costs hand-set or counted on a
-  corpus, in bits; patterns, surprises, agreement with the analysts' keys)
+  corpus, in bits; patterns, surprises, agreement with the analysts' keys; the reading as plain data for a
+  page), RLChordFit (the chords read from the notes alone, the same way one level down: the notes cut into
+  spans, each under one chord, at the least total cost; scored against the analysts' chords afterwards)
 
 Chords of any size have a context (tetrads 4:5:6:7 by `RLChordSpace.tetrads`); `RLRelationContext.preserving`
 gives Noll's monoid of a chord and the graded belonging of each pitch class to it.

@@ -391,11 +391,26 @@ RLFit {
 
 	// whether the fit reads chord i in the key the chord carries (\key); loosely: or in the key it is written
 	// "of" (\applied: V7/vi is in vi for a moment)
-	prAgrees { |i, loose = false|
-		var st = states[path[i]], is = { |key|
-			key.notNil and: { st[\kind] == \region } and: { st[\region][1] == key[1] } and: { regions.tonicOf(st[\region]) == regions.tonicOf(key) }
+	prAgrees { |i, loose = false| ^this.prReadsIn(i, chords[i][\key]) or: { loose and: { this.prReadsIn(i, chords[i][\applied]) } } }
+	prReadsIn { |i, key|
+		var st = states[path[i]];
+		^key.notNil and: { st[\kind] == \region } and: { st[\region][1] == key[1] } and: { regions.tonicOf(st[\region]) == regions.tonicOf(key) }
+	}
+
+	// The same against chords an analyst wrote on their own time line (each with \onset, \dur, \key): how
+	// long this reading's regions are their keys, when its own chords are not theirs (RLChordFit's).
+	agreementWith { |labelled, loose = false|
+		var agreed = 0, total = 0;
+		labelled.do { |c|
+			if(c[\key].notNil) {
+				total = total + c[\dur];
+				chords.do { |m, i|
+					var lo = max(c[\onset], m[\onset]), hi = min(c[\onset] + c[\dur], m[\onset] + m[\dur]);
+					if((hi > (lo + 1e-9)) and: { this.prReadsIn(i, c[\key]) or: { loose and: { this.prReadsIn(i, c[\applied]) } } }) { agreed = agreed + (hi - lo) };
+				};
+			};
 		};
-		^is.(chords[i][\key]) or: { loose and: { is.(chords[i][\applied]) } }
+		^[agreed, total]
 	}
 
 	// How long the fit's regions are the keys the chords carry (\key, a region): [quarter notes agreed, labelled].

@@ -1,7 +1,7 @@
 title:: reLation
 summary:: Musical objects and the relations that move them: pitch systems, chords, transformations, walks, and maps between contexts
 categories:: Libraries>reLation
-related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism, Classes/RLExtension, Classes/RLWreath, Classes/RLTimeSpans, Classes/RLMetre, Classes/RLPulse, Classes/RLTimePoints, Classes/RLTimeMap, Classes/RLScale, Classes/RLRegions, Classes/RLScore, Classes/RLFit
+related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism, Classes/RLExtension, Classes/RLWreath, Classes/RLTimeSpans, Classes/RLMetre, Classes/RLPulse, Classes/RLTimePoints, Classes/RLTimeMap, Classes/RLScale, Classes/RLRegions, Classes/RLScore, Classes/RLFit, Classes/RLChordFit
 
 section:: What it is
 
@@ -397,7 +397,18 @@ RLRegions(RLEDO(12)).relation(\D, \sm);                   // 4: A minor seen fro
 ~fit.report.postln;     // one passage in C major; the roots a fourth up five times; then IV where V was expected
 ::
 
-HomewareSC's code::Math/Category_Theory/fit/fit.sh:: reads a movement of a corpus of annotated scores this way.
+The chords need not come from an analyst. link::Classes/RLChordFit:: reads them from the notes alone, by the same principle one level down: the notes cut into spans, each under one chord, so that the whole costs least (a note costs little while it is a tone of its chord, a chord costs its kind, its root, the tones it does not sound, its lowest note and its place in the bar). Its chords go to link::Classes/RLFit:: as they are; an analyst's chords, when there are some, score the reading afterwards.
+
+code::
+~score = RLScore.read(path);
+~chords = RLChordFit(~score);
+~chords.agreement;                                    // against the score's analysed chords: roots, roots and tones
+~fit = RLFit(~chords.chords, ~score.regions);
+~fit.agreementWith(~score.chords);                    // its keys against theirs
+~fit.data;                                            // the reading as plain data: what the page shows
+::
+
+HomewareSC's code::Math/Category_Theory/fit/fit.sh:: reads a movement of a corpus of annotated scores both ways, and code::fit_page.sh:: makes the page of the readings: the piece played from its notes with the passages, the chords, the steps, the costs, the regions, the degrees and the tones on one playhead.
 
 section:: Tests
 
