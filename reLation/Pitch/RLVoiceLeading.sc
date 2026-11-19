@@ -91,7 +91,11 @@ RLVoiceLeading {
 		var system = x.system, from = x.pcs.collect { |c| system.nearest(c, 0.0) };
 		^this.cents(system, from, this.minimal(system, from, y.pcs))
 	}
-	*stepsBetween { |x, y| ^(this.between(x, y) / x.system.stepCents).round.asInteger }
+	// Steps are counted on the pitches themselves, so the degrees of an RLScale count one each whatever their size.
+	*stepsBetween { |x, y|
+		var system = x.system, from = x.pcs.collect { |c| system.nearest(c, 0.0) };
+		^(this.minimal(system, from, y.pcs) - from).abs.sum
+	}
 
 	// Every way the tones of one chord can go to the tones of another of the same size, as the sorted steps
 	// moved (voices that stay are left out): C major to E minor gives [1] among others. In an RLEDO.

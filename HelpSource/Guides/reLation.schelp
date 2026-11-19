@@ -1,7 +1,7 @@
 title:: reLation
 summary:: Musical objects and the relations that move them: pitch systems, chords, transformations, walks, and maps between contexts
 categories:: Libraries>reLation
-related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism, Classes/RLExtension, Classes/RLWreath, Classes/RLTimeSpans, Classes/RLMetre, Classes/RLPulse, Classes/RLTimePoints, Classes/RLTimeMap
+related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism, Classes/RLExtension, Classes/RLWreath, Classes/RLTimeSpans, Classes/RLMetre, Classes/RLPulse, Classes/RLTimePoints, Classes/RLTimeMap, Classes/RLScale, Classes/RLRegions, Classes/RLScore, Classes/RLFit, Classes/RLChordFit
 
 section:: What it is
 
@@ -383,6 +383,32 @@ RLChordGraph.show(~g, \zones, "Cube Dance", ~cd);
 ~path = ~g.hamiltonianCycle;
 RLChordGraph.walk(~g, ~path, RLVoiceLeading.through(~path, [60, 64, 67]));
 ::
+
+section:: Reading a piece
+
+The other way round: from a piece to the contexts that explain it. A scale (link::Classes/RLScale::) is the pitch system of its degrees, mapped into a tuning: chords of a key are chords of that system, and a step between two of them has one of Schoenberg's three kinds of root progression. The keys round a tonic are regions (link::Classes/RLRegions::), named and classed as on his chart. A score with the chords analysts wrote (link::Classes/RLScore::) is cut into passages by link::Classes/RLFit::, each in one region or among the triads under P, L, R, so that the whole costs least; with costs counted on a corpus the cost is a length in bits. Per passage: the chords as Roman numerals, the patterns (a unit of root motions repeated), how much of the notes the chords and the scale hold; and what stands out: a foreign chord, a pattern broken with what it asked for, a far region.
+
+code::
+~c = RLScale.major(RLEDO(12));
+~c.triads.all.collect { |ch| ~c.numeral(ch) };            // I ii iii IV V vi viio
+~c.progression(~c.triads.chord(4), ~c.triads.chord(0));   // ascending
+RLRegions(RLEDO(12)).relation(\D, \sm);                   // 4: A minor seen from G major
+~fit = RLFit(RLFit.events([0, 3, 6, 2, 5, 1, 3, 4, 0].collect { |d| ~c.triads.chord(d) }, ~c), RLRegions(RLEDO(12)));
+~fit.report.postln;     // one passage in C major; the roots a fourth up five times; then IV where V was expected
+::
+
+The chords need not come from an analyst. link::Classes/RLChordFit:: reads them from the notes alone, by the same principle one level down: the notes cut into spans, each under one chord, so that the whole costs least (a note costs little while it is a tone of its chord, a chord costs its kind, its root, the tones it does not sound, its lowest note and its place in the bar). Its chords go to link::Classes/RLFit:: as they are; an analyst's chords, when there are some, score the reading afterwards.
+
+code::
+~score = RLScore.read(path);
+~chords = RLChordFit(~score);
+~chords.agreement;                                    // against the score's analysed chords: roots, roots and tones
+~fit = RLFit(~chords.chords, ~score.regions);
+~fit.agreementWith(~score.chords);                    // its keys against theirs
+~fit.data;                                            // the reading as plain data: what the page shows
+::
+
+HomewareSC's code::Math/Category_Theory/fit/fit.sh:: reads a movement of a corpus of annotated scores both ways, and code::fit_page.sh:: makes the page of the readings: the piece played from its notes with the passages, the chords, the steps, the costs, the regions, the degrees and the tones on one playhead.
 
 section:: Tests
 

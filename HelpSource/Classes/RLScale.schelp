@@ -1,0 +1,96 @@
+TITLE:: RLScale
+summary:: A scale as the pitch system of its degrees
+categories:: Libraries>reLation
+related:: Classes/RLEDO, Classes/RLRegions, Classes/RLChordSpace, Classes/RLFit, Guides/reLation
+
+DESCRIPTION::
+Some pitch classes of a system, in order from a tonic. The scale's pitch classes are its degrees, 0 (the tonic) to n - 1, and its pitches Integers (degree and octave, pitch 0 the tonic at or above the parent's origin). It answers what an link::Classes/RLEDO:: answers, so chord spaces, relations, graphs, walks and voice leading work on degrees as they do on the steps of a division: one step is one degree, whatever its size. Heights are the true ones, through the parent, so a walk on the degrees sounds in the parent's tuning.
+
+A scale is not a morphism of intervals: one step is a tone or a semitone of the parent (link::#-specific::).
+
+A minor scale holds two forms (Schoenberg, emphasis::Structural Functions of Harmony::, chapter II): its degrees are the descending (natural) form, and its sixth and seventh degrees have a substitute, kept in link::#-alternates::.
+
+code::
+~c = RLScale.major(RLEDO(12));
+~c.degrees;                             // [0, 2, 4, 5, 7, 9, 11]
+~c.toParent(8);                         // 14: degree 1 an octave up
+~c.specific(2);                         // [4, 3]: a third is major or minor
+~tri = ~c.triads;                       // a chord space: one type, [0, 2, 4]
+~tri.all.collect { |ch| ~c.numeral(ch) };   // I ii iii IV V vi viio
+~c.progression(~tri.chord(4), ~tri.chord(0));   // ascending
+RLRelationContext.singleStep(~tri).graph.neighbours(~tri.chord(0));   // iii and vi: the ring of thirds
+RLScale.major(RLJust([3, 5])).degrees;  // the just major scale on the lattice
+RLScale.minor(RLEDO(12), 9).alternates; // [[5, 6], [6, 8]]: F sharp and G sharp in A minor
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: parent
+The pitch system the scale lives in.
+argument:: pcs
+Pitch classes of the parent, the tonic first, the rest in any order. Two on one pitch class are an Error.
+argument:: alternates
+code::[[degree, pitch class], ...]::, other forms of some degrees.
+argument:: label
+
+METHOD:: major
+The tones of the major triads on IV, I and V of a tonic (the parent's zero when none is given), in any system: 12 steps, 19, 22, the just lattice.
+
+METHOD:: minor
+The tones of the minor triads on iv, i and v, with the substitutes of the sixth and seventh degrees.
+
+METHOD:: fifths
+A chain of fifths, code::below:: the tonic and code::above:: it.
+
+INSTANCEMETHODS::
+
+METHOD:: parent
+METHOD:: degrees
+The parent's pitch classes, tonic first, ascending.
+METHOD:: alternates
+METHOD:: tonic
+METHOD:: tones
+Every pitch class the scale holds, the natural ones first.
+
+METHOD:: parentPc
+The parent's pitch class of a degree (its natural form).
+METHOD:: degreeOf
+The degree of a parent's pitch class, natural or alternate; nil outside the scale.
+METHOD:: holds
+METHOD:: isNatural
+
+METHOD:: toParent
+The parent's pitch of a pitch of the scale.
+METHOD:: fromParent
+And back; nil for a pitch outside the natural form.
+
+METHOD:: specific
+The sizes a number of steps takes in the parent: two for each in a diatonic scale.
+METHOD:: generic
+The numbers of steps that span a parent's interval somewhere in the scale.
+
+METHOD:: interval
+A just ratio as a number of steps.
+METHOD:: pitchInterval
+
+METHOD:: triads
+METHOD:: sevenths
+METHOD:: chords
+Chord spaces on the scale: a root and every second degree above it.
+
+METHOD:: realize
+A chord of the scale as pitch classes of the parent.
+METHOD:: in
+As a chord of a space of the parent; nil when the space has none with these tones.
+METHOD:: numeral
+The Roman numeral of a chord of thirds: capitals for a major third, o and + for a smaller and a larger fifth.
+
+METHOD:: progression
+Schoenberg's kind of root progression between two chords: code::\ascending:: (strong: a fourth up, a third down), code::\descending:: (a fourth down, a third up), code::\superstrong:: (a step), code::\same::.
+METHOD:: progressionOf
+The same from a number of steps.
+
+METHOD:: mode
+The same tones from another degree.
+METHOD:: commonTones

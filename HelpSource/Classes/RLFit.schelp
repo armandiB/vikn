@@ -1,0 +1,90 @@
+TITLE:: RLFit
+summary:: A list of chords read as passages, each in one context, at the least total cost
+categories:: Libraries>reLation
+related:: Classes/RLScore, Classes/RLRegions, Classes/RLScale, Classes/RLChordContext, Guides/reLation
+
+DESCRIPTION::
+Any two triads are joined by an arrow in every group context, so "is there an arrow" tells nothing: a reading is worth what it saves. Each chord, given the one before, has a cost in each candidate context, each change of context a cost, and the fit is the cheapest way through the piece (a dynamic programme over the chords).
+
+The contexts are the regions round a tonic (link::Classes/RLRegions::) and the triads under P, L, R. In a region a chord is one of nine kinds: the degree of its root, 0 to 6, when its tones are tones of the scale; 7, an artificial dominant (a foreign chord with a major third whose root goes a fourth up to a chord of the region, or a diminished one a semitone under its goal; it may be held up to three chords); 8, another foreign chord. A chord reached from another context is priced as a step of the new one, the chord before read there too: a pivot.
+
+Two models of the costs:
+definitionlist::
+## hand-set (nil) || link::#*defaultCosts::: a step priced by Schoenberg's kind of root progression (link::Classes/RLScale#-progression::), a change of region by its class times a number. A fallback, and what the tests use.
+## counted || link::#*readModel::: how often each kind of chord follows each in a corpus of analysed scores, how often and how far the key changes, as bits. The cost of a reading is then the length of its description, and a passage is in a key when saying so is shorter than not. Count the model on other pieces than the one read.
+::
+
+code::
+~c = RLScale.major(RLEDO(12));
+~chords = RLFit.events([0, 3, 6, 2, 5, 1, 3, 4, 0].collect { |d| ~c.triads.chord(d) }, ~c);
+~fit = RLFit(~chords, RLRegions(RLEDO(12)));
+~fit.segments.first[\numerals];        // I IV viio iii vi ii IV V I
+~fit.segments.first[\patterns];        // the roots a fourth up, five times
+~fit.surprises;                        // after ii the ring asks for V: IV came
+~fit.report.postln;
+
+~score = RLScore.read(path);
+~fit = RLFit(~score.chords, ~score.regions, RLFit.readModel(modelPath));
+~fit.agreement;                        // with the keys the analysts wrote
+~fit.report(~score).postln;
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: chords
+Events with code::\pcs:: and code::\root:: (pitch classes of the regions' system), and what else they have: code::\onset::, code::\dur::, code::\mn::, code::\key:: (the region an analyst wrote).
+argument:: regions
+An link::Classes/RLRegions::.
+argument:: model
+nil, entries of the hand-set table to change, or a counted model.
+argument:: span
+The regions tried: those within so many fifths of the tonic.
+
+METHOD:: events
+Chords for a fit from link::Classes/RLChord::s, of a space of the system or of a scale's space (given the scale).
+
+METHOD:: periods
+The runs of a word that repeat a shorter word: at least two units and three steps.
+
+METHOD:: defaultCosts
+METHOD:: handModel
+METHOD:: readModel
+
+INSTANCEMETHODS::
+
+METHOD:: segments
+The passages, each an Event: code::\first::, code::\last:: (chords), code::\from::, code::\to:: (time), code::\kind:: (code::\region:: or code::\triads::), code::\region::, code::\name::, code::\relation:: (its class from the tonic), code::\scale::, code::\numerals::, code::\word:: (the steps between roots, or P, L, R words), code::\progressions::, code::\patterns::, code::\cost::. The passages' costs add up to the fit's.
+
+METHOD:: path
+The context of each chord, as an index into link::#-states::.
+METHOD:: states
+METHOD:: cost
+METHOD:: costs
+The model used.
+
+METHOD:: surprises
+What stands out: a foreign chord that leads nowhere, a pattern of three units or more that stops before its passage does (with what one more step would have been, and the steps between that and what came), a change to a region of class 3 or beyond.
+
+METHOD:: agreement
+How long the fit's regions are the keys the chords carry: code::[quarter notes agreed, labelled]::.
+METHOD:: agreementWith
+The same against chords an analyst wrote on their own time line (each with code::\onset::, code::\dur::, code::\key::), for a fit of other chords than theirs (link::Classes/RLChordFit::'s).
+
+METHOD:: differences
+Where they are not.
+
+METHOD:: coverage
+Per passage, how much of a score's notes its chords hold, and its scale, with and without its substitutes.
+
+METHOD:: title
+METHOD:: regionTitle
+METHOD:: report
+The reading as text; with a score, the coverage too.
+
+METHOD:: data
+The reading as plain data (numbers, Strings, Arrays and Events of those), for a file or a page: the contexts it
+could choose from (each region's name, class, tonic and scale; Schoenberg's chart), each chord as read (its
+context, passage, numeral, kind, the step into it, what it cost and what the change into its context cost), the
+passages with their patterns, the surprises, where the reading differs from the keys the chords carry. With a
+score, the coverage too. HomewareSC's code::Math/Category_Theory/fit/:: writes it as JSON and shows it as a page.

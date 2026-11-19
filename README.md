@@ -60,7 +60,9 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
 - `reLation/Pitch`: RLPitchSystem, RLEDO (an equal division and its val), RLJust (just intonation as a
   lattice, its commas, its maps to equal divisions), RLTempered (the lattice with some commas tempered out:
   meantone and the other temperaments between the lattice and the divisions, with their tunings),
-  RLVoiceLeading (the least motion between voicings)
+  RLVoiceLeading (the least motion between voicings), RLScale (a scale as the pitch system of its degrees,
+  mapped into a tuning: chords of a key, Roman numerals, Schoenberg's three kinds of root progression),
+  RLRegions (the keys round one tonic: Schoenberg's chart of the regions and his five classes)
 - `reLation/Chords`: RLChordSpace (a system and its chord types), RLChord
 - `reLation/Contexts`: RLChordContext (triads moved by T, I on the left and P, L, R on the right),
   RLTransform, RLMorphism (maps between contexts: temperaments, pushed and lifted walks)
@@ -94,6 +96,12 @@ moves one chord to another, in any tuning. The theory, its sources and its studi
   periods apart, after Popoff and Yust; Cohn's ski-hill paths), RLTimePoints (the context of metre networks:
   layers, grouping and displacement), RLTimeMap (shifts and stretches of time, its automorphisms), RLCanonPage
   (a canon, or the pulse layers of a metre, sent to HomewareVisuals' canon page: one row of bars for each voice)
+- `reLation/Reading`: from a piece to the contexts that explain it. RLScore (the notes of a piece and the chords
+  analysts wrote over them, from HomewareSC's `Math/Category_Theory/fit/dcml_read.py`), RLFit (the chords cut
+  into passages, each in a region or among the triads, at the least total cost; costs hand-set or counted on a
+  corpus, in bits; patterns, surprises, agreement with the analysts' keys; the reading as plain data for a
+  page), RLChordFit (the chords read from the notes alone, the same way one level down: the notes cut into
+  spans, each under one chord, at the least total cost; scored against the analysts' chords afterwards)
 
 Chords of any size have a context (tetrads 4:5:6:7 by `RLChordSpace.tetrads`); `RLRelationContext.preserving`
 gives Noll's monoid of a chord and the graded belonging of each pitch class to it.
