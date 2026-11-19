@@ -62,4 +62,4 @@ METHOD:: show
 A whole walk at once: the division, a clear, then every chord. A walk of an equal division is lifted to the lattice from 1/1; a walk of the lattice is shown as it is, with the division given. Returns the walk shown.
 
 METHOD:: pfunc
-For a beat or a Pbind: a key whose value sends the walker's place on the lattice when each event's sound starts. Put it after code::freq::. The walker stands on the lattice, or follows there (link::Classes/RLWalker#-follow::).
+For a beat or a Pbind: a key whose value sends the walker's place on the lattice when each event's sound starts. Put it after code::freq::. The walker stands on the lattice, or follows there (link::Classes/RLWalker#-follow::). It also sends where the voices are (link::Classes/RLWalker#-rise::) and the octaves they were brought back by at this step (link::Classes/RLWalker#-shifted::): the page draws the voices' height under the lattice, with a jump at each octave.

@@ -17,7 +17,8 @@
 //
 //   ~walker = RLWalker(~ctx, ~ctx.space.major(0), [60, 64, 67], 8.1757989156, 0.75).follow;
 //   RLLattice.config(~ctx.system);  RLLattice.clear;
-//   // in a beat: each chord reaches the page when its sound starts (put the key after freq)
+//   // in a beat: each chord reaches the page when its sound starts (put the key after freq), with how far the
+//   // voices' middle is from where it started and the octaves they were brought back by at that step
 //   ~beat = ~song.layer(\core).addBeat(\harmony, [instrument: \default, dur_flex: 2,
 //       freq: ~walker.asPattern(Pseq([\R, \L], inf)), lattice: RLLattice.pfunc(~walker)]);
 
@@ -78,8 +79,10 @@ RLLattice {
 	}
 
 	// For a beat or a Pbind: a key whose value sends the walker's place on the lattice when each event's sound
-	// starts (the walker must stand on the lattice, or follow there: RLWalker:follow).
+	// starts (the walker must stand on the lattice, or follow there: RLWalker:follow), and after it where its
+	// voices are: their middle in octaves from where it started, and the octaves they were brought back by at
+	// this step (the lattice is of tones without octaves: the page draws the voices' height beside it).
 	*pfunc { |walker|
-		^RCVisuals.notePfunc(this.path(walker.latticeChord), { |ev| this.args(walker.latticeChord, walker.count) })
+		^RCVisuals.notePfunc(this.path(walker.latticeChord), { |ev| this.args(walker.latticeChord, walker.count) ++ [walker.rise, walker.shifted] })
 	}
 }
