@@ -53,6 +53,15 @@ code::
 ~fit.extra;                          // what that costs in the notes
 ::
 
+METHOD:: homed
+A fit of chords with no key written anywhere (a lead sheet's chord symbols, a score alone): read once round the regions given, then again round the region that reading stays in longest (link::#-home::), so that the regions are named from where the piece is at home. The fit's link::#-regions:: say which tonic that is.
+
+code::
+~fit = RLFit.homed(~score.chords, ~score.regions);
+~fit.regions.tonic;                  // the tonic found, as a pitch class
+~fit.homeShare;                      // how much of the time the piece is read there
+::
+
 METHOD:: events
 Chords for a fit from link::Classes/RLChord::s, of a space of the system or of a scale's space (given the scale).
 
@@ -90,6 +99,11 @@ The same against chords an analyst wrote on their own time line (each with code:
 
 METHOD:: differences
 Where they are not.
+
+METHOD:: home
+The region the reading stays in longest, by the chords' time, as code::[fifths, mode]:: from the regions' tonic; nil when no chord is read in a region.
+METHOD:: homeShare
+How much of the time that is, 0 to 1.
 
 METHOD:: coverage
 Per passage, how much of a score's notes its chords hold, and its scale, with and without its substitutes.

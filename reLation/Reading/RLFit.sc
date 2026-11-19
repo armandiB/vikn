@@ -74,6 +74,15 @@ RLFit {
 		^if((second.cost + extra) < (first.cost - 1e-9)) { second.prChosen(pick, extra) } { first.prChosen(pick.collect { 0 }, 0) }
 	}
 
+	// Chords with no key written anywhere (a lead sheet, a score alone): read once round the regions given, then
+	// again round the region that reading stays in longest, so that the regions are named from where the piece
+	// is at home (T, D, SD from its own tonic). The fit's regions say which tonic that is.
+	*homed { |chords, regions, model, span = 7|
+		var first = this.new(chords, regions, model, span), home = first.home;
+		if(home.isNil or: { home == regions.central }) { ^first };
+		^this.new(chords, RLRegions(regions.system, regions.tonicOf(home), home[1]), model, span)
+	}
+
 	// The model the fit prices with. A chord in a region is one of nine kinds: the degree of its root, 0 to 6, when
 	// its tones are tones of the scale; 7, an artificial dominant; 8, another foreign chord. For each mode the
 	// model has the cost of a first chord of each kind and of a step from each kind to each; the cost of a change
@@ -573,6 +582,21 @@ RLFit {
 			};
 		};
 		^[agreed, total]
+	}
+
+	// The region the reading stays in longest (by the chords' time), as [fifths, mode] from the regions' tonic;
+	// nil when no chord is read in a region. homeShare: how much of the time that is.
+	home { ^this.prHome[0] }
+	homeShare { ^this.prHome[1] }
+	prHome {
+		var time = Array.fill(states.size, 0), total = 0, at = 0;
+		chords.do { |c, i|
+			var d = c[\span] ? c[\dur] ? 1;
+			total = total + d;
+			if(states[path[i]][\kind] == \region) { time[path[i]] = time[path[i]] + d };
+		};
+		time.do { |t, k| if(t > (time[at] + 1e-9)) { at = k } };
+		^if(time[at] > 0) { [states[at][\region], time[at] / total] } { [nil, 0] }
 	}
 
 	// Where the fit's context is not the key the chords carry: [(first:, last:, state:, key:), ...], run by run.

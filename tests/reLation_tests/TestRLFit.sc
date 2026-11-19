@@ -136,6 +136,18 @@ TestRLFit : UnitTest {
 		this.assertEquals(RLFit(chords, RLRegions(edo)).agreement, [3, 4], "three quarter notes of four in the key an analyst wrote");
 	}
 
+	test_where_a_piece_is_at_home {
+		// G major's chords read round C: the fit stays in the dominant region; read again round its home, the tonic
+		var edo = RLEDO(12), g = RLScale.major(edo, 7), chords = this.prIn(g, [0, 3, 4, 0, 5, 1, 4, 0]);
+		var fit = RLFit(chords, RLRegions(edo)), homed = RLFit.homed(chords, RLRegions(edo));
+		this.assertEquals(fit.home, [1, \major], "read round C: at home in the dominant region");
+		this.assertFloatEquals(fit.homeShare, 1, "all of its time");
+		this.assertEquals(homed.regions.tonic, 7, "read again round G");
+		this.assertEquals(homed.segments.collect { |s| s[\name] }, [\T], "its one passage is the tonic region");
+		this.assertFloatEquals(homed.cost, fit.cost, "at the same cost");
+		this.assertEquals(RLFit([], RLRegions(edo)).home, nil, "no chord, no home");
+	}
+
 	test_models {
 		var m = RLFit.handModel, dearer = RLFit.handModel(IdentityDictionary[\region -> 10]);
 		this.assertEquals([m[\major][\first].size, m[\major][\step].size, m[\change][\minor].size], [9, 9, 6], "nine kinds of chord, six classes of change");
