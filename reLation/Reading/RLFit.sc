@@ -123,6 +123,8 @@ RLFit {
 		model[\same] = c[\same];
 		// a chord written again as the chord before going on: only when asked ((again: 0) among the overrides)
 		c[\again] !? { |x| model[\again] = x };
+		// a seventh as a tone added to the triad: only when asked ((added: true))
+		c[\added] !? { |x| model[\added] = x };
 		model[\unit] = "hand-set";
 		^model
 	}
@@ -178,6 +180,8 @@ RLFit {
 		regions = reg;
 		system = reg.system;
 		span = sp;
+		// a style prior (RLStylePrior) is taken for its model
+		if(table.isKindOf(RLStylePrior)) { table = table.model };
 		costs = if(table.notNil and: { table[\major].notNil }) { table } { RLFit.handModel(table) };
 		this.prAgain;
 		this.prShared;

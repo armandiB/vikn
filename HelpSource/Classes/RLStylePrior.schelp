@@ -1,0 +1,76 @@
+TITLE:: RLStylePrior
+summary:: A style prior: what a piece is read with, and what that depends on
+categories:: Libraries>vikn>reLation
+related:: Classes/RLFit, Classes/RLChordFit, Classes/RLRegions, Guides/reLation
+
+DESCRIPTION::
+The rules a reading follows are not the same for all music: a minor triad on the fifth degree is rare in Beethoven and plain in Monteverdi; a seventh is a dissonance in Corelli and a colour in a blues. A style prior holds what a reading assumes of a piece, and says what it depends on: mostly the era, the composer, the type of music. link::Classes/RLFit:: takes one where it takes a model.
+
+It has two parts, kept apart:
+definitionlist::
+## formal || The assumptions of theory, stated and not counted: which keys there are, what a minor key holds, what a chord is and what kind it is of in a key, whether a seventh is of the chord or added to it, what a dominant is, how far keys are from each other. Two styles differ formally where they state one of these otherwise (modes, a tonic that is a dominant seventh, chords not built in thirds).
+## habits || What is counted on music, in bits: how often each kind of chord comes and follows each, how the key changes, how long a chord lasts, what a piece opens and closes on.
+::
+and link::#-notYet::: what a reading also rests on and no prior holds yet (metre, which tones stand against a chord in a tuning, the tuning itself).
+
+A prior is made by counting (HomewareSC, code::Math/Category_Theory/fit/style_counts.py::: one for each era, with or without a composer) and read from its file. The counts are of a style: counted on Beethoven, a reading suits music from Corelli to Wagner and misreads music before 1650, which reads well with counts of its own time.
+
+code::
+~prior = RLStylePrior.read(path);
+~prior.depends;                          // (era: "classical", composer: nil, left_out: "mozart")
+~prior.formal[\kinds];                   // "the key's triads: ..."
+~prior.habits[\tables];                  // first, step, change, opens, closes, lasts
+~fit = ~prior.fit(chords, regions);      // RLFit(chords, regions, ~prior)
+~prior.cost(chords, regions);            // the bits these chords cost under it
+RLStylePrior.choose([~a, ~b, ~c], chords, regions);   // [the prior that describes them shortest, its fit]
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: model
+A model as link::Classes/RLFit:: takes one (link::Classes/RLFit#*readModel::, link::Classes/RLFit#*handModel::), or a prior, returned as it is.
+
+METHOD:: read
+The prior of a counted model's file.
+
+METHOD:: hand
+The hand-set costs as a prior: no habit counted, the formal part as RLFit has it built in. Overrides as link::Classes/RLFit#*handModel:: takes them (code::(again: 0)::, code::(added: true)::).
+
+METHOD:: choose
+Of several priors, the one under which these chords cost least, with its fit: code::[prior, fit]::. A piece nobody placed is of the style that describes it shortest: over the corpora counted so far this finds the era of early music and of jazz nearly always, and tells classical from romantic less surely.
+
+INSTANCEMETHODS::
+
+METHOD:: model
+The model: the tables of costs and the switches RLFit reads.
+
+METHOD:: name
+What the prior was counted on, in words.
+
+METHOD:: depends
+What it depends on: code::\era::, code::\composer::, code::\type::, and what was left out of its counts (code::\left_out::).
+METHOD:: era
+METHOD:: composer
+
+METHOD:: formal
+The assumptions of theory it states, in words by name (code::\keys::, code::\minor::, code::\chord::, code::\kinds::, code::\sevenths::, code::\dominant::, code::\distances::). A model that does not say them (the hand-set one, an older file) is read from its switches.
+
+METHOD:: habits
+What it counted: code::\tables::, code::\counted_on::, how a chord written again is taken, whether where the music rests is counted.
+
+METHOD:: notYet
+What a reading also rests on and no prior holds yet.
+
+METHOD:: tables
+The tables of its model: code::\first::, code::\step::, code::\change::, and code::\opens::, code::\closes::, code::\lasts:: when where the music rests was counted.
+
+METHOD:: kinds
+How many kinds of chord a key has under it: nine (the root's degree) or sixteen (the key's triads).
+
+METHOD:: fit
+link::Classes/RLFit:: of these chords under it.
+METHOD:: homed
+link::Classes/RLFit#*homed:: under it: for chords with no key written anywhere.
+METHOD:: cost
+The bits these chords cost under it.
