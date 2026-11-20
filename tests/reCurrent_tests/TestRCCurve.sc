@@ -146,5 +146,6 @@ TestRCCurve : UnitTest {
 		var names = def.allControlNames.collect(_.name);
 		this.assert(names.includesAll([\pitch_env, \pitch_curved, \pitch_tail, \amp_env, \amp_curved]), "course and glide declare their controls (%)".format(names));
 		this.assert(def.children.count { |u| u.isKindOf(IEnvGen) } == 2 and: { def.children.any { |u| u.isKindOf(EnvGen) } }, "the paths read by IEnvGen at an index; the straight glide is still an EnvGen line");
+		this.assert(def.allControlNames.select { |c| c.name.asString.endsWith("_env") }.every { |c| c.rate == \scalar }, "the paths are ir controls: IEnvGen's total stays the one of the envelope it copied (HL3-P18)");
 	}
 }

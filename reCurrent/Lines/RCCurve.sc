@@ -202,9 +202,15 @@ RCCurve {
 	// The controls of a curved coordinate: <key>_env (maxPoints breakpoints, IEnvGen's data, read at
 	// the fraction of the line), <key>_curved (1 to follow it), <key>_tail (the end slope, units per
 	// line length).
+	// <key>_env is an ir control: the path a synth starts with is its path for life. IEnvGen copies its
+	// envelope once, at its start, but reads its stage count and total from its inputs at every cycle:
+	// until Nov 20 2026 (kr) an /n_set of another path (a continuous grain's next glide) left the old
+	// envelope with the new total, and a total longer than the old envelope sent its segment search past
+	// the end of its copy, into whatever the server's memory held there, different run to run (HL3-P18:
+	// Ataxy's take, one Texture tone's azimuth at 78.78 s). The new path's values were never read.
 	*controls { |key|
 		^(
-			env: NamedControl.kr((key ++ "_env").asSymbol, this.prBlankArray),
+			env: NamedControl.ir((key ++ "_env").asSymbol, this.prBlankArray),
 			curved: NamedControl.kr((key ++ "_curved").asSymbol, 0),
 			tail: NamedControl.kr((key ++ "_tail").asSymbol, 0)
 		)
@@ -220,9 +226,10 @@ RCCurve {
 
 	// A coordinate gliding from a to b over dur seconds, started again by trig (a continuous grain's
 	// next target on a running synth), or its path read at the glide's index from the start; the
-	// straight branch is the EnvGen line it always was.
+	// straight branch is the EnvGen line it always was. The path is the synth's first (an ir control, see
+	// *controls): a later glide on a curved key follows that first path again.
 	*glide { |key, a, b, dur, trig = 1|
-		var env = NamedControl.kr((key ++ "_env").asSymbol, this.prBlankArray);
+		var env = NamedControl.ir((key ++ "_env").asSymbol, this.prBlankArray);
 		var curved = NamedControl.kr((key ++ "_curved").asSymbol, 0);
 		^Select.kr(curved, [EnvGen.kr(Env([a, b], [dur]), trig), IEnvGen.kr(env, this.glideIndex(dur, trig))])
 	}
