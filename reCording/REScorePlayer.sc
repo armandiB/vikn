@@ -658,7 +658,8 @@ REScorePlayer {
 	// orgnsms' static attributes (identity keys aside), the registered controls,
 	// the song's seed. A value that cannot be made again (REScore.replayable: an
 	// older take's open Function dur, VK-6, or a reference) is skipped: the beat,
-	// the orgnsm or the control keeps its own (VK-7).
+	// the orgnsm or the control keeps its own (VK-7). A beat's dur list comes back
+	// in place from its next loop when the beat plays from a list (RCBeat.prRecallDurList).
 	*applyState { |song, state, beats = 0|
 		if(state.isNil) { ^this };
 		state[\seed] !? { |s| song.seed = s };
@@ -671,8 +672,9 @@ REScorePlayer {
 			} {
 				keys.keysValuesDo { |k, v|
 					case
-					{ k == \playing } { }
+					{ k == \playing or: { k == \seq_offset } } { }
 					{ REScore.replayable(v).not } { this.prSkipped(voice, k) }
+					{ k == \dur_list } { b.prRecallDurList(REScore.decodeValue(v, song), keys[\seq_offset]) }
 					{
 						v = REScore.decodeValue(v, song);
 						if(beats > 0 and: { v.isNumber } and: { b.keyProxy(k).notNil } and: { b.keyProxy(k).source.isNumber }) {

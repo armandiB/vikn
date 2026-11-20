@@ -40,7 +40,7 @@ RCBeat {
 
 	var <layer, <name, <chan, <midiOut, <terminationKey;
 	var <pbindProxy, <pattern, <player, <playQuant, <editQuant;
-	var <durList, <>seqOffset = 0, <realDur, realDurProxy;
+	var <durList, <>seqOffset = 0, <realDur, realDurProxy, durListLoop;
 	var <keyOrder;
 	var <timeTrack = 0, <lastSwingAdd = 0;
 	var <errorPolicy, <>maxRestarts, <>restartDelay, <restartCount = 0;
@@ -516,14 +516,30 @@ RCBeat {
 		durList = RCDurList(array);
 		durList.owner = this;   // its edits are recorded under this beat
 		seqOffset = 0;
-		^this.realDur_(this.prLoopPattern {
+		durListLoop = this.prLoopPattern {
 			if(durList.size == 0) {
 				RCLog.warn(tag, "empty dur list, resting 1 beat");
 				Pseq([Rest(1)], 1)
 			} {
 				Pseq(durList.array, 1, seqOffset)
 			}
-		}, seed)
+		};
+		^this.realDur_(durListLoop, seed)
+	}
+
+	// Whether the beat plays from its dur list (a dur set since then leaves the list in durList).
+	isOnDurList { ^durList.notNil and: { durListLoop.notNil } and: { realDur === durListLoop } }
+
+	// (Nov 19 2026) A snapshot's dur list (REScorePlayer.applyState): a beat on its list takes the
+	// array at its next loop, the loop not restarted (its phase kept); else it switches to the list
+	// at its next event, as set(\dur_list) does. offset: the list's seqOffset (nil: as it is).
+	prRecallDurList { |array, offset|
+		if(array.isKindOf(SequenceableCollection).not or: { array.isString }) {
+			RCLog.warn(tag, "snapshot: a dur list that is no list (%), ignored".format(array));
+			^this
+		};
+		if(this.isOnDurList) { durList.prSetArray(array) } { this.set(\dur_list, array, quant: nil) };
+		offset !? { |o| if(o.isNumber) { seqOffset = o } };
 	}
 
 	// The dur source, landing at the next event (mirrored under \real_dur).

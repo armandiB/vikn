@@ -26,6 +26,10 @@ RCDurList {
 	}
 	asArray { ^array }
 
+	// (Nov 19 2026) The whole list at once, not recorded (a snapshot recalled): the beat's loop
+	// holds the array it started with, so the new one plays from its next loop.
+	prSetArray { |arrayarg| array = arrayarg.asArray.copy }
+
 	// Turn the hit at `pos` (wrapped) into a rest of the same length.
 	removeHit { |pos|
 		var i;

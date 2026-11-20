@@ -289,6 +289,58 @@ TestREScoreRecorder : UnitTest {
 		this.assertEquals(fn.value, 3, "its control's reference skipped");
 	}
 
+	// (Nov 19 2026) A beat playing from its dur list: the snapshot keeps the list (the loop over
+	// it, a Prout over a closure, cannot be written) and its seqOffset. Recalled, a beat on its
+	// list takes it at its next loop without a restart (the grid of its events kept); a beat off
+	// its list switches to it. On an offline clock, each event's beat logged.
+	test_snapshot_dur_list {
+		var off = REOfflineClock(tempo: 1), times = List.new;
+		var snapSong, b, snapRec, s, state, st, loop, s0, n, list, other;
+		RCSession.boot(Server.default, off, oscPort: nil, initMidi: false);
+		snapSong = RCSong(\snaplist, 1);
+		b = snapSong.layer(\core).addBeat(\d, [type: \rest, dur_list: [1, Rest(1), 0.5, 0.5], probe: { |ev| times.add(off.beats); 0 }]);
+		off.advanceTo(4.25);
+		s0 = times.first ? 0;   // the loops start at s0 + 3k
+		this.assert(b.isOnDurList, "the beat plays from its list");
+		snapRec = snapSong.scoreRecorder;
+		snapRec.arm(inputs: #[\actions]);
+		snapRec.record;   // the default start snapshot
+		s = snapRec.stop;
+		snapRec.disarm;
+		state = s.ofKind(\snapshot).first !? (_[\state]) ? IdentityDictionary.new;
+		st = state[\beats] !? (_['core/d']) ? IdentityDictionary.new;
+		this.assertEquals(st[\dur_list], [1, IdentityDictionary[\sc -> "Rest(1)"], 0.5, 0.5], "the snapshot keeps the list");
+		this.assertEquals(st[\seq_offset], 0, "and its offset");
+		this.assert(st[\real_dur].isNil, "not the loop over it (%)".format(st[\real_dur]));
+		// recalled on its list, the same list (a take's start replayed): nothing restarts
+		loop = b.realDur;
+		off.advanceTo(s0 + 4.25);
+		REScorePlayer.applyState(snapSong, state);
+		this.assert(b.realDur === loop, "recalled on its list: the loop not restarted");
+		list = b.durList.array;
+		this.assert(list.size == 4 and: { list[1].isRest } and: { list[3] == 0.5 }, "the list as recorded (%)".format(list));
+		n = times.size;
+		off.advanceTo(s0 + 13);
+		this.assert(times.drop(n).every { |t| [0, 1, 2, 2.5].any { |g| (((t - s0) mod: 3) - g).abs < 1e-9 } },
+			"the events on the same grid (%)".format(times.drop(n) - s0));
+		// another list, recalled on its list: from its next loop
+		other = IdentityDictionary[\beats -> IdentityDictionary['core/d' -> IdentityDictionary[\dur_list -> [1.5, 1.5], \seq_offset -> 0, \playing -> true]]];
+		off.advanceTo(s0 + 13.25);
+		n = times.size;
+		REScorePlayer.applyState(snapSong, other);
+		this.assert(b.realDur === loop and: { b.durList.array == [1.5, 1.5] }, "another list: taken in place");
+		off.advanceTo(s0 + 20);
+		this.assertEquals(times.drop(n) - s0, [14, 14.5, 15, 16.5, 18, 19.5], "the loop under way ends, the new list plays from the next");
+		// off its list: switches to it
+		b.set(\dur, 1, quant: nil);
+		this.assert(b.isOnDurList.not, "a dur set takes the beat off its list");
+		st = st.copy;
+		st[\seq_offset] = 1;
+		REScorePlayer.applyState(snapSong, IdentityDictionary[\beats -> IdentityDictionary['core/d' -> st]]);
+		this.assert(b.isOnDurList and: { b.durList.array.size == 4 }, "recalled off its list: back on it (%)".format(b.durList.array));
+		this.assertEquals(b.seqOffset, 1, "with its offset");
+	}
+
 	test_raw_midi {
 		var got = nil, s;
 		var def = MIDIdef.noteOn(\re_test_raw, { |vel, note, chan, src| got = [note, vel, chan] });

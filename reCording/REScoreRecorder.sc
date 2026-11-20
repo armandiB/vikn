@@ -590,10 +590,17 @@ REScoreRecorder {
 		if(left.notEmpty) { RCLog.info(\score, { "snapshot, %: % left out (not replayable)".format(what, left.asArray) }) };
 	}
 
+	// A beat playing from its dur list keeps the list (and its seqOffset): the loop over it is a
+	// Prout over a closure, which cannot be written.
 	prBeatState { |b|
 		var res = IdentityDictionary.new, left = List.new;
 		b.keyOrder.do { |k| b.keyProxy(k) !? { |p| this.prPutReplayable(res, k, p.source, left) } };
-		b.realDur !? { |d| this.prPutReplayable(res, \real_dur, d, left) };
+		if(b.isOnDurList) {
+			this.prPutReplayable(res, \dur_list, b.durList.array, left);
+			res[\dur_list] !? { res[\seq_offset] = REScore.encodeValue(b.seqOffset) };
+		} {
+			b.realDur !? { |d| this.prPutReplayable(res, \real_dur, d, left) };
+		};
 		res[\playing] = b.isPlaying;
 		this.prSayLeft(this.prBeatVoice(b).asString, left);
 		^res
