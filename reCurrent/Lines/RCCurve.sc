@@ -3,14 +3,15 @@
 // A line (RCLines) glides each coordinate straight from its `from` value to its `to` value. A
 // curved line also carries `path`: an Event key → Env whose times are fractions of the note
 // (summing to 1) and whose curves are sclang's envelope curves (a number per segment, 0 linear); a
-// key without an Env stays straight. A synth reads an Env at an index, the fraction of the line, from
-// a control array of maxPoints breakpoints (<key>_env, IEnvGen's data), switched on by <key>_curved;
-// through a gliding release the coordinate goes on along its end tangent (<key>_tail, units per line
-// length). A warped index re-times the course (RCAttractor's time mode).
+// key without an Env stays straight. A synth plays an Env from a control array of at most maxPoints
+// breakpoints (<key>_env, EnvGen's layout), switched on by <key>_curved: along the glide's time
+// (EnvGen) or read at an index, the fraction of the line (*course); a later /n_set of another path
+// reaches the running synth. Through a gliding release the coordinate goes on along its end tangent
+// (<key>_tail, units per line length). A warped index re-times the course (RCAttractor's time mode).
 //
 //   ~env = RCCurve.fit({ |s| s.squared });       // a curve of s in 0..1 → at most 8 breakpoints
 //   RCCurve.at(~env, 0.5);                       // ≈ 0.25
-//   RCCurve.serverArray(~env);                   // the 32 values of <key>_env
+//   RCCurve.serverArray(~env);                   // the 36 values of <key>_env
 //   RCCurve.lineFrom([[0, (pitch: 0)], [1, (pitch: 0.2)], [2, (pitch: 1)]], 3);   // a line with its path
 //
 // In a SynthDef: RCCurve.course(\pitch, pitch0, pitch1, index) (an index 0 → 1 over the line, on past
@@ -131,22 +132,28 @@ RCCurve {
 	// Whether a path bends: more than two breakpoints, or one curved segment.
 	*isCurved { |env| ^env.notNil and: { (env.levels.size > 2) or: { (env.curves.asArray.first ? 0).abs >= 1e-3 } } }
 
-	// The control array a synth plays, IEnvGen's raw data read at an index (the fraction of the line):
-	// [offset, first level, segments, total, (time, shape 5, curve, level) per segment], the path's
-	// times as fractions (a hand-made Env's normalised), padded to n - 1 segments by flat ones of length
-	// 1 past the end (an index beyond 1 holds the last level). A path with more breakpoints is refitted.
-	// lineDur no longer matters (the index carries the line's time); it stays for the callers.
+	// The control array a synth plays (<key>_env), in EnvGen's layout: [first level, stages, -99, -99
+	// (no release, no loop), (level, time, shape, curve) per stage]. Stage 0 jumps to the first level in
+	// no time (a glide restarted on a running synth starts its path there, not where its EnvGen was),
+	// then the path's segments: their times as fractions of the line (a hand-made Env's normalised),
+	// their curves as they are (shape 5). Padded to n stages by flat ones of length 1 at the last level:
+	// EnvGen stops at its stage count, the reader of *course holds the last level through them. A path
+	// with more breakpoints is refitted. lineDur no longer matters (the synth scales the times by the
+	// line's duration, or reads them at its index); it stays for the callers.
+	// Until Nov 20 2026 IEnvGen's layout ([offset, first level, segments, total, (time, shape, curve,
+	// level) per segment]): IEnvGen played the path its synth started with for life, every curve cut to
+	// an integer, and read past its copy when a later path's total was longer (HL3-P18, VK-8).
 	*serverArray { |env, lineDur = 1, n|
-		var max = n ? maxPoints, segs, pad, times, curves, last;
+		var max = n ? maxPoints, segs, times, curves, first, last;
 		if(env.levels.size > max) { env = this.fit({ |s| env.at(s) }, max) ? Env([env.levels.first, env.levels.first], [1]) };
 		segs = env.times.size;
-		pad = (max - 1 - segs).max(0);
 		times = env.times / env.times.sum.max(1e-9);
 		curves = env.curves.asArray.wrapExtend(segs).collect { |c| if(c.isNumber) { c } { 0 } };
+		first = env.levels.first;
 		last = env.levels.last;
-		^[0, env.levels.first, segs + pad, 1 + pad]
-			++ segs.collect { |i| [times[i], 5, curves[i], env.levels[i + 1]] }.flatten
-			++ pad.collect { [1, 5, 0, last] }.flatten
+		^[first, segs + 1, -99, -99, first, 0, 1, 0]
+			++ segs.collect { |i| [env.levels[i + 1], times[i], 5, curves[i]] }.flatten
+			++ (max - 1 - segs).max(0).collect { [last, 1, 5, 0] }.flatten
 	}
 
 	// The array of a flat path at 0: the controls' default.
@@ -199,9 +206,9 @@ RCCurve {
 
 	//////// synth side (call inside a SynthDef function)
 
-	// The controls of a curved coordinate: <key>_env (maxPoints breakpoints, IEnvGen's data, read at
-	// the fraction of the line), <key>_curved (1 to follow it), <key>_tail (the end slope, units per
-	// line length).
+	// The controls of a curved coordinate: <key>_env (the path, serverArray's layout: read live, an
+	// /n_set of another path reaches a running synth), <key>_curved (1 to follow it), <key>_tail (the
+	// end slope, units per line length).
 	*controls { |key|
 		^(
 			env: NamedControl.kr((key ++ "_env").asSymbol, this.prBlankArray),
@@ -212,19 +219,43 @@ RCCurve {
 
 	// A coordinate along its line at `index` (0 at the note, 1 at the line's end, beyond it through a
 	// gliding release; a warped index re-times the whole course): straight from a to b, or the path
-	// read at the index, then its end tangent.
+	// read at the index (*prRead), then its end tangent.
 	*course { |key, a, b, index|
 		var c = this.controls(key);
-		^Select.kr(c[\curved], [a + ((b - a) * index), IEnvGen.kr(c[\env], index.clip(0, 1)) + (c[\tail] * (index - 1).max(0))])
+		^Select.kr(c[\curved], [a + ((b - a) * index), this.prRead(c[\env], index.clip(0, 1)) + (c[\tail] * (index - 1).max(0))])
 	}
 
 	// A coordinate gliding from a to b over dur seconds, started again by trig (a continuous grain's
-	// next target on a running synth), or its path read at the glide's index from the start; the
-	// straight branch is the EnvGen line it always was.
+	// next glide on a running synth, its path sent with it), or along its path: EnvGen on the control
+	// array, its times scaled by dur. The straight branch is the EnvGen line it always was, from where it
+	// is. A restarted EnvGen begins from its own level, stale when the key was straight before: the
+	// path's stage 0 jumps to its first level, and the block of the restart shows that level.
+	// Until Nov 20 2026: IEnvGen at the glide's index, which kept the path its synth started with (VK-8).
 	*glide { |key, a, b, dur, trig = 1|
 		var env = NamedControl.kr((key ++ "_env").asSymbol, this.prBlankArray);
 		var curved = NamedControl.kr((key ++ "_curved").asSymbol, 0);
-		^Select.kr(curved, [EnvGen.kr(Env([a, b], [dur]), trig), IEnvGen.kr(env, this.glideIndex(dur, trig))])
+		var path = EnvGen.kr(env, trig, timeScale: dur.max(1e-4));
+		// EnvGen's restart (trig > 0 after <= 0) shows the first level; a constant or ir trig never restarts
+		if(trig.rate == \control) { path = Select.kr((Delay1.kr(trig) <= 0) * (trig > 0), [path, env[0]]) };
+		^Select.kr(curved, [EnvGen.kr(Env([a, b], [dur]), trig), path])
+	}
+
+	// A path's value at s (0..1, the fraction of the line) read from its control array, in kr UGens: the
+	// segment where s lies (s against the times summed so far), then the curve rule, curves as they are.
+	// Every value read is one of the array's own. Stage 0 (the jump) is skipped; the padding's flat
+	// stages hold the last level. About 40 UGens a key: the price of an index EnvGen cannot follow.
+	*prRead { |arr, s|
+		var stages = (arr.size - 4) div: 4;
+		var lv = (1..stages - 1).collect { |j| arr[4 + (4 * j)] };
+		var tm = (1..stages - 1).collect { |j| arr[5 + (4 * j)] };
+		var cv = (1..stages - 1).collect { |j| arr[7 + (4 * j)] };
+		var starts = [0] ++ tm.drop(-1).integrate;
+		var k = starts.drop(1).collect { |st| s >= st }.sum;
+		var beg = Select.kr(k, [arr[0]] ++ lv.drop(-1)), end = Select.kr(k, lv);
+		var t = Select.kr(k, tm), st = Select.kr(k, starts), c = Select.kr(k, cv);
+		var pos = ((s - st) / t.max(1e-9)).clip(0, 1);
+		var flat = c.abs < 1e-3, cs = Select.kr(flat, [c, 1]);
+		^Select.kr(flat, [beg + ((end - beg) * ((1 - (pos * cs).exp) / (1 - cs.exp))), beg + ((end - beg) * pos)])
 	}
 
 	// How far a glide is (0 → 1 over dur seconds, held at 1), started again by trig.

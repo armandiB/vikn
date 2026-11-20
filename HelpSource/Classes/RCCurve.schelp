@@ -6,12 +6,12 @@ related:: Classes/RCLines, Classes/RCLineControl, Classes/Env
 DESCRIPTION::
 A line of link::Classes/RCLines:: glides each coordinate straight from its code::from:: value to its code::to:: value. A curved line also carries code::path::: an Event key → link::Classes/Env:: whose times are fractions of the note (summing to 1) and whose curves are sclang's envelope curves (a number per segment, 0 linear). A key without an Env stays straight and costs nothing more.
 
-A synth reads a path at an index, the fraction of the line, from a control array of link::#*maxPoints:: breakpoints, code::<key>_env:: (link::Classes/IEnvGen::'s data), switched on by code::<key>_curved::; a warped index re-times the whole course (the time mode of link::Classes/RCAttractor::); through a gliding release the coordinate goes on along its end tangent, code::<key>_tail:: (units per line length). link::#*course:: and link::#*glide:: build that inside a SynthDef; link::#*eventControls:: sets the controls on a note's event.
+A synth plays a path from a control array of at most link::#*maxPoints:: breakpoints, code::<key>_env:: (link::Classes/EnvGen::'s layout), switched on by code::<key>_curved::: along the glide's time (link::#*glide::, an EnvGen) or read at an index, the fraction of the line (link::#*course::); an code::/n_set:: of another path reaches a running synth (a continuous grain's next glide), and the curves play as they are. A warped index re-times the whole course (the time mode of link::Classes/RCAttractor::); through a gliding release the coordinate goes on along its end tangent, code::<key>_tail:: (units per line length). link::#*course:: and link::#*glide:: build that inside a SynthDef; link::#*eventControls:: sets the controls on a note's event.
 
 code::
 ~env = RCCurve.fit({ |s| s.squared });       // a curve of s in 0..1 → at most 8 breakpoints
 RCCurve.at(~env, 0.5);                       // ≈ 0.25
-RCCurve.serverArray(~env);                   // the 32 values of <key>_env
+RCCurve.serverArray(~env);                   // the 36 values of <key>_env
 RCCurve.lineFrom([[0, (pitch: 0)], [1, (pitch: 0.2)], [2, (pitch: 1)]], 3);   // a line with its path
 ::
 
@@ -22,7 +22,7 @@ CLASSMETHODS::
 subsection:: Settings
 
 METHOD:: maxPoints
-Breakpoints of the synths' control arrays: 8 (7 segments), 32 values.
+Breakpoints of the synths' control arrays: 8 (7 segments, after a jump stage), 36 values.
 
 METHOD:: tolerance
 The fit's error, as a fraction of the curve's excursion: 0.02.
@@ -111,10 +111,10 @@ True when a path bends: more than two breakpoints, or one curved segment.
 argument:: env
 
 METHOD:: serverArray
-The control array a synth plays, IEnvGen's raw data read at an index (the fraction of the line): code::[offset, first level, segments, total, (time, shape 5, curve, level) per segment]::, the path's times as fractions (a hand-made Env's normalised), padded to strong::n:: - 1 segments by flat ones of length 1 past the end (an index beyond 1 holds the last level). A path with more breakpoints is refitted.
+The control array a synth plays, in EnvGen's layout: code::[first level, stages, -99, -99, (level, time, shape, curve) per stage]:: (no release, no loop). Stage 0 jumps to the first level in no time (a glide restarted on a running synth starts its path there); then the path's segments, their times as fractions of the line (a hand-made Env's normalised), their curves as they are (shape 5); padded to strong::n:: stages by flat ones of length 1 at the last level (EnvGen stops at its stage count, the reader of link::#*course:: holds the last level). A path with more breakpoints is refitted. Until Nov 20 2026 the array was IEnvGen's, which kept the path its synth started with and cut every curve to an integer.
 argument:: env
 argument:: lineDur
-No longer used (the index carries the line's time); kept for the callers.
+No longer used (the synth scales the times by the line's duration, or reads them at its index); kept for the callers.
 argument:: n
 Defaults to link::#*maxPoints::.
 
@@ -136,14 +136,14 @@ The controls of a curved coordinate, an Event: code::env:: (code::<key>_env::), 
 argument:: key
 
 METHOD:: course
-A coordinate along its line at strong::index:: (0 at the note, 1 at the line's end, beyond it through a gliding release; a warped index re-times the course): straight from strong::a:: to strong::b::, or the path read at the index (IEnvGen), followed by its end tangent.
+A coordinate along its line at strong::index:: (0 at the note, 1 at the line's end, beyond it through a gliding release; a warped index re-times the course): straight from strong::a:: to strong::b::, or the path read at the index (kr UGens: the segment found by comparing the index with the times summed so far, then the curve rule; about 40 UGens a key), followed by its end tangent.
 argument:: key
 argument:: a
 argument:: b
 argument:: index
 
 METHOD:: glide
-A coordinate gliding from strong::a:: to strong::b:: over strong::dur:: seconds, started again by strong::trig:: (a continuous grain's next target on a running synth): the straight EnvGen line, or its path read at link::#*glideIndex::; the flag picks.
+A coordinate gliding from strong::a:: to strong::b:: over strong::dur:: seconds, started again by strong::trig:: (a continuous grain's next glide on a running synth, its path sent with it): the straight EnvGen line, or its path played by an EnvGen on the control array, its times scaled by strong::dur::; the flag picks. A restart shows the path's first level in its block (an EnvGen that was not playing would start from a stale level).
 argument:: key
 argument:: a
 argument:: b
