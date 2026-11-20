@@ -245,6 +245,50 @@ TestREScoreRecorder : UnitTest {
 		this.assert(b.isPlaying and: { (loops - n) >= 5 }, "the beat keeps playing (% loops in 12 beats)".format(loops - n));
 	}
 
+	// (Nov 19 2026, VK-7) The same for the orgnsms' static attributes and the registered controls:
+	// left out of a snapshot, skipped in an older take; the rest set as before.
+	test_snapshot_orgnsms_and_controls_leave_out_what_cannot_replay {
+		var outer = 3, value = 0.2, fn = { outer }, shape = { |x| x * outer }, walk = Prout { outer.yield };
+		var tpl = RCOrgnsm(\sp, 0, 0, song);
+		var s, state, attrs, ctls, old;
+		tpl.addStaticAttrs((loop_time: 4, curve: Pseq([1, 2], inf), shape: shape, walk: walk));
+		tpl.register;
+		rec.addControl(\knob, IdentityDictionary[\min -> 0, \max -> 1, \warp -> "lin"], get: { value }, set: { |v| value = v });
+		rec.addControl(\fn, nil, get: { fn }, set: { |v| fn = v });
+		rec.arm(inputs: #[\actions]);
+		rec.record;   // the default start snapshot
+		s = rec.stop;
+		state = s.ofKind(\snapshot).first !? (_[\state]) ? IdentityDictionary.new;
+		attrs = state[\orgnsms] !? (_[tpl.name]) ? IdentityDictionary.new;
+		ctls = state[\controls] ? IdentityDictionary.new;
+		this.assertEquals(attrs[\loop_time], 4, "an orgnsm's number is kept");
+		this.assertEquals(attrs[\curve], IdentityDictionary[\sc -> "Pseq([1, 2], inf)"], "a Pattern is kept");
+		this.assert(attrs[\orgnsm].notNil, "and its identity keys");
+		this.assert(attrs[\shape].isNil, "a Function without source is left out (%)".format(attrs[\shape]));
+		this.assert(attrs[\walk].isNil, "a Pattern over a closure is left out (%)".format(attrs[\walk]));
+		this.assertEquals(ctls[\knob], 0.2, "a control's number is kept");
+		this.assert(ctls[\fn].isNil, "a control holding a Function without source is left out (%)".format(ctls[\fn]));
+		// replayed
+		tpl.rPut("loop_time", 8);
+		value = 0.9;
+		REScorePlayer.applyState(song, state);
+		this.assertEquals(tpl.staticAttrs[\loop_time], 4, "replayed: the number comes back");
+		this.assert(tpl.staticAttrs[\shape] === shape and: { tpl.staticAttrs[\walk] === walk }, "the orgnsm keeps what was left out");
+		this.assertEquals(value, 0.2, "the control comes back");
+		this.assertEquals(fn.value, 3, "the other keeps its Function");
+		// an older take holds them as they were written: skipped
+		old = IdentityDictionary[
+			\orgnsms -> IdentityDictionary[tpl.name -> IdentityDictionary[\loop_time -> 6,
+				\shape -> IdentityDictionary[\ref -> "a Function without source"],
+				\walk -> IdentityDictionary[\sc -> "Prout({ \"open Function\" })"]]],
+			\controls -> IdentityDictionary[\knob -> 0.5, \fn -> IdentityDictionary[\ref -> "a Function without source"]]];
+		REScorePlayer.applyState(song, old);
+		this.assertEquals(tpl.staticAttrs[\loop_time], 6, "an older take: its numbers set");
+		this.assert(tpl.staticAttrs[\shape] === shape and: { tpl.staticAttrs[\walk] === walk }, "its reference and open Function skipped");
+		this.assertEquals(value, 0.5, "its control set");
+		this.assertEquals(fn.value, 3, "its control's reference skipped");
+	}
+
 	test_raw_midi {
 		var got = nil, s;
 		var def = MIDIdef.noteOn(\re_test_raw, { |vel, note, chan, src| got = [note, vel, chan] });
