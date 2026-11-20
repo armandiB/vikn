@@ -81,13 +81,14 @@ TestRCCurve : UnitTest {
 		this.assert(this.near(RCCurve.endSlope(padded), 1), "a padded end of no length is skipped");
 	}
 
-	// IEnvGen's reading of its raw data at an index: [offset, first level, segments, total, (time,
-	// shape, curve, level) per segment], shape 5 the curve rule
-	ienvAt { |arr, index|
-		var level = arr[1], t = 0, n = arr[2].asInteger, i = 0, res;
+	// A path array read at an index as RCCurve's synths read it (serverArray's layout, EnvGen's: [first
+	// level, stages, -99, -99, (level, time, shape, curve) per stage], stage 0 a jump in no time)
+	pathAt { |arr, index|
+		var level = arr[0], t = 0, n = arr[1].asInteger, res;
+		index = index.clip(0, 1);
 		block { |break|
-			n.do { |k|
-				var dt = arr[4 + (4 * k)], c = arr[6 + (4 * k)], next = arr[7 + (4 * k)];
+			(1..n - 1).do { |k|
+				var next = arr[4 + (4 * k)], dt = arr[5 + (4 * k)], c = arr[7 + (4 * k)];
 				if(index <= (t + dt)) { res = RCCurve.curveAt(level, next, c, ((index - t) / dt.max(1e-9)).clip(0, 1)); break.value };
 				t = t + dt;
 				level = next;
@@ -98,18 +99,20 @@ TestRCCurve : UnitTest {
 	}
 
 	test_server_array {
-		var env = Env([0, 1, 0.4], [0.5, 0.5], [2, -1]);
+		var env = Env([0, 1, 0.4], [0.5, 0.5], [2.5, -1.3]);
 		var arr = RCCurve.serverArray(env, 2);
 		var big = Env((0..11) / 11, 1 ! 11);
 		var hand = RCCurve.serverArray(Env([0, 1, 0.5], [0.2, 0.3]));
 		var fitted = RCCurve.fit({ |s| (2pi * s).sin });
-		var errs = 41.collect { |i| var s = i / 40; (this.ienvAt(RCCurve.serverArray(fitted), s) - fitted.at(s)).abs };
-		this.assertEquals(arr.size, 4 + (4 * (RCCurve.maxPoints - 1)), "maxPoints breakpoints: 32 values");
-		this.assert(arr[2] == (RCCurve.maxPoints - 1) and: { this.near(arr[4] + arr[8], 1) }, "IEnvGen's data: every segment counted, the path's times as fractions of the note");
-		this.assertEquals(arr.keep(-4), [1, 5, 0, 0.4], "padded past the end by flat segments at the last level");
-		this.assert(this.near(hand[4] + hand[8], 1), "a hand-made Env's times normalised to fractions");
-		this.assert(errs.maxItem < 1e-9, "read at an index as IEnvGen reads it, the array is the path (max error %)".format(errs.maxItem));
-		this.assert(this.near(this.ienvAt(arr, 1.5), 0.4), "an index past the end holds the last level");
+		var errs = 41.collect { |i| var s = i / 40; (this.pathAt(RCCurve.serverArray(fitted), s) - fitted.at(s)).abs };
+		this.assertEquals(arr.size, 4 + (4 * RCCurve.maxPoints), "maxPoints stages, a jump and at most maxPoints - 1 segments: 36 values");
+		this.assertEquals(arr.keep(8), [0, 3, -99, -99, 0, 0, 1, 0], "EnvGen's layout: the first level, the stages counted (the jump, two segments), no release, no loop; stage 0 jumps to the first level in no time");
+		this.assert(this.near(arr[9] + arr[13], 1), "the path's times as fractions of the note");
+		this.assertEquals([arr[11], arr[15]], [2.5, -1.3], "the curves as they are, not cut to integers");
+		this.assertEquals(arr.keep(-4), [0.4, 1, 5, 0], "padded past the end by flat stages at the last level");
+		this.assert(this.near(hand[9] + hand[13], 1), "a hand-made Env's times normalised to fractions");
+		this.assert(errs.maxItem < 1e-9, "read at an index, the array is the path (max error %)".format(errs.maxItem));
+		this.assert(this.near(this.pathAt(arr, 1.5), 0.4), "an index past the end holds the last level");
 		this.assertEquals(RCCurve.serverArray(big, 1).size, arr.size, "a path with more breakpoints is refitted into the array");
 	}
 
@@ -132,7 +135,7 @@ TestRCCurve : UnitTest {
 		var path = (pitch: RCCurve.fit({ |s| s.squared }));
 		var ev = RCCurve.eventControls((), path, [\pitch, \amp], 2);
 		var plain = RCCurve.eventControls((), 0, [\pitch], 2, false);
-		this.assert(ev[\pitch_env].size == 1 and: { ev[\pitch_env][0].size == 32 }, "a curved key: its array, wrapped once");
+		this.assert(ev[\pitch_env].size == 1 and: { ev[\pitch_env][0].size == (4 + (4 * RCCurve.maxPoints)) }, "a curved key: its array, wrapped once");
 		this.assertEquals([ev[\pitch_curved], ev[\amp_curved]], [1, 0], "the flags: on for the curved key, off for the other");
 		this.assert(this.near(ev[\pitch_tail], RCCurve.endSlope(path[\pitch])) and: { ev[\pitch_peak] == 1 }, "its tail and its peak");
 		this.assert(plain[\pitch_curved] == 0 and: { plain[\pitch_tail].isNil }, "no path: the flag off, no tail");
@@ -145,7 +148,49 @@ TestRCCurve : UnitTest {
 		});
 		var names = def.allControlNames.collect(_.name);
 		this.assert(names.includesAll([\pitch_env, \pitch_curved, \pitch_tail, \amp_env, \amp_curved]), "course and glide declare their controls (%)".format(names));
-		this.assert(def.children.count { |u| u.isKindOf(IEnvGen) } == 2 and: { def.children.any { |u| u.isKindOf(EnvGen) } }, "the paths read by IEnvGen at an index; the straight glide is still an EnvGen line");
-		this.assert(def.allControlNames.select { |c| c.name.asString.endsWith("_env") }.every { |c| c.rate == \scalar }, "the paths are ir controls: IEnvGen's total stays the one of the envelope it copied (HL3-P18)");
+		this.assert(def.children.count { |u| u.isKindOf(IEnvGen) } == 0 and: { def.children.count { |u| u.isKindOf(EnvGen) } == 2 }, "no IEnvGen (it keeps its first path, VK-8): the glide's path and its straight line are EnvGens, the course a reader");
+		this.assert(def.allControlNames.select { |c| c.name.asString.endsWith("_env") }.every { |c| c.rate == \control }, "the paths are kr controls: an /n_set of another path reaches a running synth");
+	}
+
+	// On the server (an NRT render, synchronous): a synth started on one path per key and sent another
+	// with t_trig halfway (a continuous grain's next glide) plays the second, its curves as they are.
+	// Until Nov 20 2026 IEnvGen played the first again, every curve cut to an integer (VK-8, HL3-P18).
+	// glide: EnvGen along the glide's time; course: the reader at the glide's index. A third key glides
+	// straight first, then curved: its path starts at its own first level, not where its EnvGen was.
+	test_server_plays_each_glides_path {
+		var stem = PathName.tmp +/+ "TestRCCurve_%_%".format(Date.getDate.stamp, 100000.rand);
+		var osc = stem ++ ".osc", wav = stem ++ ".wav", sr = 48000, half = 0.5, tol = 0.05;
+		var p1 = Env([0, 2, 1], [0.5, 0.5], [0.9, -2.5]), p2 = Env([1, -1, 0.5], [0.4, 0.6], [3.3, 0]);
+		var q1 = Env([1, -1], [1], [1.7]), q2 = Env([-1, 1, 0], [0.5, 0.5], [-0.6, 2.2]);
+		var def = SynthDef(\test_rc_curve_paths, { |line_dur = 0.5, t_trig = 1|
+			var g = RCCurve.glide(\pitch, \pitch0.kr(0), \pitch1.kr(0), line_dur, t_trig);
+			var c = RCCurve.course(\az, \az0.kr(0), \az1.kr(0), RCCurve.glideIndex(line_dur, t_trig));
+			var e = RCCurve.glide(\el, \el0.kr(0), \el1.kr(0), line_dur, t_trig);
+			Out.ar(0, K2A.ar([g, c, e]));
+		});
+		var straight = Env([0, 3], [1]), fracs = [0.2, 0.4, 0.7, 0.85], sf, data, at, errs;
+		Score([
+			[0.0, [\d_recv, def.asBytes]],
+			[0.0, [\s_new, def.name, 1000, 0, 0, \line_dur, half, \pitch_curved, 1, \pitch_env, RCCurve.serverArray(p1), \az_curved, 1, \az_env, RCCurve.serverArray(q1), \el0, 0, \el1, 3].asOSCArgArray],
+			[half, [\n_set, 1000, \t_trig, 1, \pitch_env, RCCurve.serverArray(p2), \az_env, RCCurve.serverArray(q2), \el_curved, 1, \el_env, RCCurve.serverArray(p2)].asOSCArgArray],
+			[2 * half, [\c_set, 0, 0]]
+		]).writeOSCFile(osc);
+		[Platform.resourceDir +/+ "scsynth", "-N", osc, "_", wav, sr, "WAV", "float", "-o", 3, "-i", 0].collect { |a| a.asString.shellQuote }.join(" ").unixCmdGetStdOut;
+		sf = SoundFile.openRead(wav);
+		File.delete(osc);
+		this.assert(sf.notNil, "the render was written (%)".format(wav));
+		if(sf.isNil) { ^this };
+		data = FloatArray.newClear(sf.numFrames * 3);
+		sf.readData(data);
+		sf.close;
+		File.delete(wav);
+		at = { |t, ch| data[((t * sr).round.asInteger + 63) * 3 + ch] };   // the block's value (K2A reaches it at the block's end)
+		errs = { |ch, env, t0| fracs.collect { |s| (at.(t0 + (s * half), ch) - RCCurve.at(env, s)).abs }.maxItem };
+		this.assert(errs.(0, p1, 0) < tol, "glide: the first path, its curves exact (max error %)".format(errs.(0, p1, 0)));
+		this.assert(errs.(0, p2, half) < tol, "glide: the second path, sent to the running synth (max error %; the first again: %)".format(errs.(0, p2, half), errs.(0, p1, half)));
+		this.assert(errs.(1, q1, 0) < tol, "course: the first path, its curve exact (max error %)".format(errs.(1, q1, 0)));
+		this.assert(errs.(1, q2, half) < tol, "course: the second path (max error %; the first again: %)".format(errs.(1, q2, half), errs.(1, q1, half)));
+		this.assert(errs.(2, straight, 0) < tol, "glide: a straight first glide (max error %)".format(errs.(2, straight, 0)));
+		this.assert(errs.(2, p2, half) < tol and: { (at.(half, 2) - p2.levels.first).abs < tol }, "glide: then curved, the path from its own first level (max error %, at the restart %)".format(errs.(2, p2, half), at.(half, 2)));
 	}
 }
