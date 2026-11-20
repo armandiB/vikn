@@ -112,7 +112,7 @@ argument:: server
 
 METHOD:: snapshot
 argument:: name
-The state of what is in scope: the sources of every key of the beats, the static attributes of the orgnsms, the song's seed. (Nov 19 2026) A beat's key whose source a replay cannot make again (link::Classes/REScore#*replayable::: a Function dur or a dur list, a Function without source) is left out: the beat keeps its own at replay.
+The state of what is in scope: the sources of every key of the beats, the static attributes of the orgnsms, the song's seed. (Nov 19 2026) A value a replay cannot make again (link::Classes/REScore#*replayable::: a Function dur's loop, a Function without source, a Pattern over a closure), a beat's key, an orgnsm's attribute or a control's value, is left out: the object keeps its own at replay. A beat playing from its dur list is kept as code::dur_list:: (the array) and code::seq_offset::, not as the loop over it.
 returns:: The event id.
 
 METHOD:: recall

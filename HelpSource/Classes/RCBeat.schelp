@@ -97,7 +97,10 @@ METHOD:: isPlaying
 METHOD:: isFreed
 
 METHOD:: durList
-The link::Classes/RCDurList:: when the dur is a list.
+The link::Classes/RCDurList:: when the dur is a list (kept when a dur is set since: link::#-isOnDurList::).
+
+METHOD:: isOnDurList
+returns:: Whether the beat plays from its dur list now. A snapshot keeps the list of such a beat (link::Classes/REScoreRecorder#-snapshot::).
 METHOD:: seqOffset
 METHOD:: realDur
 

@@ -15,7 +15,7 @@ argument:: song
 METHOD:: applyState
 argument:: song
 argument:: state
-A snapshot's state (the event's code::state:: field). A beat's key source that is not link::Classes/REScore#*replayable:: (an older take's open Function dur, a reference) is skipped.
+A snapshot's state (the event's code::state:: field). A value that is not link::Classes/REScore#*replayable:: (an older take's open Function dur, a reference), a beat's key, an orgnsm's attribute or a control's, is skipped. A code::dur_list:: is taken in place by a beat on its list, from its next loop (no restart, the grid of its events kept); a beat off its list switches to it at its next event, as code::set(\dur_list, ...):: does.
 argument:: beats
 Numeric sources ramp to their target over this many beats (0: at once).
 
