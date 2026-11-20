@@ -546,9 +546,10 @@ REScoreRecorder {
 	}
 
 	// The state of what is in scope, under name: the sources of every key of
-	// the beats, the static attributes of the orgnsms, the song's seed.
+	// the beats, the static attributes of the orgnsms, the song's seed. What a
+	// replay cannot make again is left out (prPutReplayable).
 	snapshot { |name = \snapshot|
-		var ev, st;
+		var ev, st, left;
 		if(state != \recording) { RCLog.warn(\score, "% is not recording: no snapshot".format(song.name)); ^nil };
 		st = IdentityDictionary.new;
 		st[\seed] = song.seed;
@@ -558,15 +559,17 @@ REScoreRecorder {
 		};
 		st[\orgnsms] = IdentityDictionary.new;
 		song.registry.all.do { |o|
-			if(o.isFreed.not and: { this.prInScope(o) }) { st[\orgnsms][o.name] = REScore.encodeValue(o.staticAttrs) };
+			if(o.isFreed.not and: { this.prInScope(o) }) { st[\orgnsms][o.name] = this.prOrgnsmState(o) };
 		};
 		if(controlGetters.notEmpty) {
 			st[\controls] = IdentityDictionary.new;
+			left = List.new;
 			controlGetters.keysValuesDo { |k, get|
 				if(this.prInputInScope(\control, k)) {
-					RCGuard.call(\score, nil) { st[\controls][k] = REScore.encodeValue(get.value) };
+					RCGuard.call(\score, nil) { this.prPutReplayable(st[\controls], k, get.value, left) };
 				};
 			};
+			this.prSayLeft("the controls", left);
 		};
 		ev = this.prEvent(\snapshot, nil);
 		ev[\name] = name.asSymbol;
@@ -574,20 +577,40 @@ REScoreRecorder {
 		^this.prAdd(ev)
 	}
 
-	// (Nov 19 2026, VK-6) A key whose value a replay cannot make again is left out, and the beat
-	// keeps its own at replay: a Function dur's loop (written Prout({ |inval| "open Function" }),
-	// which compiles) set at replay stopped the beat after a loop; a Function without source is a
-	// reference (REScore.replayable).
+	// (Nov 19 2026, VK-6, VK-7) value encoded into dict[key] when a replay can make it again
+	// (REScore.replayable), else key added to `left`, and the object keeps its own at replay: a
+	// Function dur's loop (written Prout({ |inval| "open Function" }), which compiles) set at
+	// replay stopped the beat after a loop; a Function without source is a reference.
+	prPutReplayable { |dict, key, value, left|
+		var enc = REScore.encode(value);
+		if(enc[1] and: { REScore.replayable(enc[0]) }) { dict[key] = enc[0] } { left.add(key) };
+	}
+
+	prSayLeft { |what, left|
+		if(left.notEmpty) { RCLog.info(\score, { "snapshot, %: % left out (not replayable)".format(what, left.asArray) }) };
+	}
+
+	// A beat playing from its dur list keeps the list (and its seqOffset): the loop over it is a
+	// Prout over a closure, which cannot be written.
 	prBeatState { |b|
 		var res = IdentityDictionary.new, left = List.new;
-		var put = { |k, v|
-			var enc = REScore.encode(v);
-			if(enc[1] and: { REScore.replayable(enc[0]) }) { res[k] = enc[0] } { left.add(k) };
+		b.keyOrder.do { |k| b.keyProxy(k) !? { |p| this.prPutReplayable(res, k, p.source, left) } };
+		if(b.isOnDurList) {
+			this.prPutReplayable(res, \dur_list, b.durList.array, left);
+			res[\dur_list] !? { res[\seq_offset] = REScore.encodeValue(b.seqOffset) };
+		} {
+			b.realDur !? { |d| this.prPutReplayable(res, \real_dur, d, left) };
 		};
-		b.keyOrder.do { |k| b.keyProxy(k) !? { |p| put.(k, p.source) } };
-		b.realDur !? { |d| put.(\real_dur, d) };
 		res[\playing] = b.isPlaying;
-		if(left.notEmpty) { RCLog.info(\score, { "snapshot: % keeps % (not replayable)".format(this.prBeatVoice(b), left.asArray) }) };
+		this.prSayLeft(this.prBeatVoice(b).asString, left);
+		^res
+	}
+
+	// The static attributes, one by one (what was encodeValue(staticAttrs): the same form).
+	prOrgnsmState { |o|
+		var res = IdentityDictionary.new, left = List.new;
+		o.staticAttrs.keysValuesDo { |k, v| this.prPutReplayable(res, k.asSymbol, v, left) };
+		this.prSayLeft(o.name.asString, left);
 		^res
 	}
 
