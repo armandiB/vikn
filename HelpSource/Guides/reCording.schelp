@@ -91,7 +91,7 @@ table::
 
 A subclass that specialises one of these overrides its private twin (link::Classes/RCPathControl:: overrides code::prStart::, not code::start::): the public method records, then dispatches.
 
-Inputs: MIDI mappings (name, raw and mapped value), OSC defs (key, path, arguments), keyboard messages (channel, note, velocity, bend, pressure, CC), code lines (text). Snapshots: the sources of every key of the beats in scope, the static attributes of the orgnsms, the registered controls' values. A take also starts with a snapshot (code::record(startSnapshot: false):: skips it) so that it replays from silence.
+Inputs: MIDI mappings (name, raw and mapped value), OSC defs (key, path, arguments), keyboard messages (channel, note, velocity, bend, pressure, CC), code lines (text). Snapshots: the sources of every key of the beats in scope (a beat on its dur list as the list, recalled from its next loop), the static attributes of the orgnsms, the registered controls' values; a value a replay cannot make again is left out and the object keeps its own (a Function dur's loop, a Function without source, a Pattern over a closure; link::Classes/REScore#*replayable::). A take also starts with a snapshot (code::record(startSnapshot: false):: skips it) so that it replays from silence.
 
 subsection:: Voices
 

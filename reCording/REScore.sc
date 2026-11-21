@@ -1054,6 +1054,23 @@ REScore {
 
 	*isRef { |x| ^x.isKindOf(Dictionary) and: { x[\rc].notNil or: { x[\ref].notNil } } }
 
+	// Whether an encoded value can be made again at replay: no {ref} in it (what the encoder
+	// could not write) and no {sc} holding an open Function. (Nov 19 2026, VK-6) A Pattern over a
+	// closure, a beat's Function dur among them (RCBeat.prLoopPattern), is written
+	// Prout({ |inval| "open Function" }): it compiles, so the encoder keeps it, into a pattern that
+	// yields nothing. An {rc} reference is replayable (resolved through the song).
+	*replayable { |x|
+		case
+		{ x.isKindOf(Dictionary) } {
+			if(x.size == 1 and: { x[\sc].isString }) { ^x[\sc].contains("\"open Function\"").not };
+			if(x[\rc].notNil) { ^true };
+			if(x.size == 1 and: { x[\ref].notNil }) { ^false };
+			^x.values.every { |v| this.replayable(v) }
+		}
+		{ x.isKindOf(SequenceableCollection) and: { x.isString.not } } { ^x.every { |el| this.replayable(el) } }
+		{ ^true };
+	}
+
 	//////// reCurrent object references
 
 	*rcRef { |obj|

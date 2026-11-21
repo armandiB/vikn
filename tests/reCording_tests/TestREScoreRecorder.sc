@@ -193,6 +193,154 @@ TestREScoreRecorder : UnitTest {
 		this.assertFloatEquals(value, 0.2, "and lands on the snapshot's value after its beats");
 	}
 
+	// (Nov 19 2026, VK-6) A snapshot leaves out what a replay cannot make again, and a replay skips it
+	// in an older take: a Function dur's loop (a Prout over a closure, written Prout({ |inval| "open
+	// Function" }), which compiles into a pattern that yields nothing) stopped the beat after a loop;
+	// a Function without source is a reference. On an offline clock, the loops counted by the dur
+	// Function (called once a loop).
+	test_snapshot_leaves_out_what_cannot_replay {
+		var off = REOfflineClock(tempo: 1), outer = 0.3, loops = 0;
+		var snapSong, b, snapRec, s, state, st, n, loopDur, old;
+		RCSession.boot(Server.default, off, oscPort: nil, initMidi: false);
+		snapSong = RCSong(\snap, 1);
+		b = snapSong.layer(\core).addBeat(\k, [type: \rest, dur: { loops = loops + 1; Pseq([1, 1], 1) },
+			amp: 0.1, pan: Pseq([0, 0.5], inf), vk6: { |ev| outer }]);
+		off.advanceTo(4.5);
+		this.assert(loops >= 2, "the beat loops on the offline clock (% loops)".format(loops));
+		loopDur = b.realDur;
+		snapRec = snapSong.scoreRecorder;
+		snapRec.arm(inputs: #[\actions]);
+		snapRec.record;   // the default start snapshot
+		s = snapRec.stop;
+		snapRec.disarm;
+		state = s.ofKind(\snapshot).first !? (_[\state]);
+		st = state !? { |x| x[\beats]['core/k'] } ? IdentityDictionary.new;
+		this.assert(st[\real_dur].isNil, "a Function dur's loop is left out (%)".format(st[\real_dur]));
+		this.assert(st[\vk6].isNil, "a key whose Function has no source is left out (%)".format(st[\vk6]));
+		this.assertEquals(st[\amp], 0.1, "a number is kept");
+		this.assertEquals(st[\pan], IdentityDictionary[\sc -> "Pseq([0, 0.5], inf)"], "a Pattern is kept");
+		this.assertEquals(st[\playing], true, "and the transport");
+		// replayed: the plain values come back, the beat keeps its own dur and goes on looping
+		b.set(\amp, 0.5, quant: nil);
+		b.set(\pan, 0, quant: nil);
+		REScorePlayer.applyState(snapSong, state);
+		this.assertEquals(b.keyProxy(\amp).source, 0.1, "replayed: a number comes back");
+		this.assertEquals(b.keyProxy(\pan).source.asCompileString, "Pseq([0, 0.5], inf)", "a Pattern comes back");
+		this.assert(b.realDur === loopDur, "the beat keeps its own dur");
+		this.assert(b.keyProxy(\vk6).source.isKindOf(Function), "and its Function key");
+		n = loops;
+		off.advanceTo(off.beats + 12);
+		this.assert(b.isPlaying and: { (loops - n) >= 5 }, "and keeps playing (% loops in 12 beats, 2 beats a loop)".format(loops - n));
+		// an older take holds them as they were written: skipped
+		old = IdentityDictionary[\beats -> IdentityDictionary['core/k' -> IdentityDictionary[
+			\real_dur -> IdentityDictionary[\sc -> "Prout({ |inval| \"open Function\" })"],
+			\vk6 -> IdentityDictionary[\ref -> "a Function without source"],
+			\amp -> 0.2, \playing -> true]]];
+		REScorePlayer.applyState(snapSong, old);
+		this.assertEquals(b.keyProxy(\amp).source, 0.2, "an older take: its numbers set");
+		this.assert(b.realDur === loopDur, "its open Function dur skipped");
+		this.assert(b.keyProxy(\vk6).source.isKindOf(Function), "its reference skipped");
+		n = loops;
+		off.advanceTo(off.beats + 12);
+		this.assert(b.isPlaying and: { (loops - n) >= 5 }, "the beat keeps playing (% loops in 12 beats)".format(loops - n));
+	}
+
+	// (Nov 19 2026, VK-7) The same for the orgnsms' static attributes and the registered controls:
+	// left out of a snapshot, skipped in an older take; the rest set as before.
+	test_snapshot_orgnsms_and_controls_leave_out_what_cannot_replay {
+		var outer = 3, value = 0.2, fn = { outer }, shape = { |x| x * outer }, walk = Prout { outer.yield };
+		var tpl = RCOrgnsm(\sp, 0, 0, song);
+		var s, state, attrs, ctls, old;
+		tpl.addStaticAttrs((loop_time: 4, curve: Pseq([1, 2], inf), shape: shape, walk: walk));
+		tpl.register;
+		rec.addControl(\knob, IdentityDictionary[\min -> 0, \max -> 1, \warp -> "lin"], get: { value }, set: { |v| value = v });
+		rec.addControl(\fn, nil, get: { fn }, set: { |v| fn = v });
+		rec.arm(inputs: #[\actions]);
+		rec.record;   // the default start snapshot
+		s = rec.stop;
+		state = s.ofKind(\snapshot).first !? (_[\state]) ? IdentityDictionary.new;
+		attrs = state[\orgnsms] !? (_[tpl.name]) ? IdentityDictionary.new;
+		ctls = state[\controls] ? IdentityDictionary.new;
+		this.assertEquals(attrs[\loop_time], 4, "an orgnsm's number is kept");
+		this.assertEquals(attrs[\curve], IdentityDictionary[\sc -> "Pseq([1, 2], inf)"], "a Pattern is kept");
+		this.assert(attrs[\orgnsm].notNil, "and its identity keys");
+		this.assert(attrs[\shape].isNil, "a Function without source is left out (%)".format(attrs[\shape]));
+		this.assert(attrs[\walk].isNil, "a Pattern over a closure is left out (%)".format(attrs[\walk]));
+		this.assertEquals(ctls[\knob], 0.2, "a control's number is kept");
+		this.assert(ctls[\fn].isNil, "a control holding a Function without source is left out (%)".format(ctls[\fn]));
+		// replayed
+		tpl.rPut("loop_time", 8);
+		value = 0.9;
+		REScorePlayer.applyState(song, state);
+		this.assertEquals(tpl.staticAttrs[\loop_time], 4, "replayed: the number comes back");
+		this.assert(tpl.staticAttrs[\shape] === shape and: { tpl.staticAttrs[\walk] === walk }, "the orgnsm keeps what was left out");
+		this.assertEquals(value, 0.2, "the control comes back");
+		this.assertEquals(fn.value, 3, "the other keeps its Function");
+		// an older take holds them as they were written: skipped
+		old = IdentityDictionary[
+			\orgnsms -> IdentityDictionary[tpl.name -> IdentityDictionary[\loop_time -> 6,
+				\shape -> IdentityDictionary[\ref -> "a Function without source"],
+				\walk -> IdentityDictionary[\sc -> "Prout({ \"open Function\" })"]]],
+			\controls -> IdentityDictionary[\knob -> 0.5, \fn -> IdentityDictionary[\ref -> "a Function without source"]]];
+		REScorePlayer.applyState(song, old);
+		this.assertEquals(tpl.staticAttrs[\loop_time], 6, "an older take: its numbers set");
+		this.assert(tpl.staticAttrs[\shape] === shape and: { tpl.staticAttrs[\walk] === walk }, "its reference and open Function skipped");
+		this.assertEquals(value, 0.5, "its control set");
+		this.assertEquals(fn.value, 3, "its control's reference skipped");
+	}
+
+	// (Nov 19 2026) A beat playing from its dur list: the snapshot keeps the list (the loop over
+	// it, a Prout over a closure, cannot be written) and its seqOffset. Recalled, a beat on its
+	// list takes it at its next loop without a restart (the grid of its events kept); a beat off
+	// its list switches to it. On an offline clock, each event's beat logged.
+	test_snapshot_dur_list {
+		var off = REOfflineClock(tempo: 1), times = List.new;
+		var snapSong, b, snapRec, s, state, st, loop, s0, n, list, other;
+		RCSession.boot(Server.default, off, oscPort: nil, initMidi: false);
+		snapSong = RCSong(\snaplist, 1);
+		b = snapSong.layer(\core).addBeat(\d, [type: \rest, dur_list: [1, Rest(1), 0.5, 0.5], probe: { |ev| times.add(off.beats); 0 }]);
+		off.advanceTo(4.25);
+		s0 = times.first ? 0;   // the loops start at s0 + 3k
+		this.assert(b.isOnDurList, "the beat plays from its list");
+		snapRec = snapSong.scoreRecorder;
+		snapRec.arm(inputs: #[\actions]);
+		snapRec.record;   // the default start snapshot
+		s = snapRec.stop;
+		snapRec.disarm;
+		state = s.ofKind(\snapshot).first !? (_[\state]) ? IdentityDictionary.new;
+		st = state[\beats] !? (_['core/d']) ? IdentityDictionary.new;
+		this.assertEquals(st[\dur_list], [1, IdentityDictionary[\sc -> "Rest(1)"], 0.5, 0.5], "the snapshot keeps the list");
+		this.assertEquals(st[\seq_offset], 0, "and its offset");
+		this.assert(st[\real_dur].isNil, "not the loop over it (%)".format(st[\real_dur]));
+		// recalled on its list, the same list (a take's start replayed): nothing restarts
+		loop = b.realDur;
+		off.advanceTo(s0 + 4.25);
+		REScorePlayer.applyState(snapSong, state);
+		this.assert(b.realDur === loop, "recalled on its list: the loop not restarted");
+		list = b.durList.array;
+		this.assert(list.size == 4 and: { list[1].isRest } and: { list[3] == 0.5 }, "the list as recorded (%)".format(list));
+		n = times.size;
+		off.advanceTo(s0 + 13);
+		this.assert(times.drop(n).every { |t| [0, 1, 2, 2.5].any { |g| (((t - s0) mod: 3) - g).abs < 1e-9 } },
+			"the events on the same grid (%)".format(times.drop(n) - s0));
+		// another list, recalled on its list: from its next loop
+		other = IdentityDictionary[\beats -> IdentityDictionary['core/d' -> IdentityDictionary[\dur_list -> [1.5, 1.5], \seq_offset -> 0, \playing -> true]]];
+		off.advanceTo(s0 + 13.25);
+		n = times.size;
+		REScorePlayer.applyState(snapSong, other);
+		this.assert(b.realDur === loop and: { b.durList.array == [1.5, 1.5] }, "another list: taken in place");
+		off.advanceTo(s0 + 20);
+		this.assertEquals(times.drop(n) - s0, [14, 14.5, 15, 16.5, 18, 19.5], "the loop under way ends, the new list plays from the next");
+		// off its list: switches to it
+		b.set(\dur, 1, quant: nil);
+		this.assert(b.isOnDurList.not, "a dur set takes the beat off its list");
+		st = st.copy;
+		st[\seq_offset] = 1;
+		REScorePlayer.applyState(snapSong, IdentityDictionary[\beats -> IdentityDictionary['core/d' -> st]]);
+		this.assert(b.isOnDurList and: { b.durList.array.size == 4 }, "recalled off its list: back on it (%)".format(b.durList.array));
+		this.assertEquals(b.seqOffset, 1, "with its offset");
+	}
+
 	test_raw_midi {
 		var got = nil, s;
 		var def = MIDIdef.noteOn(\re_test_raw, { |vel, note, chan, src| got = [note, vel, chan] });

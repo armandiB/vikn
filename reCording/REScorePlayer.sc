@@ -655,7 +655,11 @@ REScorePlayer {
 
 	// Sets what a snapshot recorded: the beats' key sources (a numeric source
 	// ramps to a numeric target over `beats` when given), their transport, the
-	// orgnsms' static attributes (identity keys aside), the song's seed.
+	// orgnsms' static attributes (identity keys aside), the registered controls,
+	// the song's seed. A value that cannot be made again (REScore.replayable: an
+	// older take's open Function dur, VK-6, or a reference) is skipped: the beat,
+	// the orgnsm or the control keeps its own (VK-7). A beat's dur list comes back
+	// in place from its next loop when the beat plays from a list (RCBeat.prRecallDurList).
 	*applyState { |song, state, beats = 0|
 		if(state.isNil) { ^this };
 		state[\seed] !? { |s| song.seed = s };
@@ -667,7 +671,11 @@ REScorePlayer {
 				RCLog.warn(\player, "snapshot: no beat %".format(voice));
 			} {
 				keys.keysValuesDo { |k, v|
-					if(k != \playing) {
+					case
+					{ k == \playing or: { k == \seq_offset } } { }
+					{ REScore.replayable(v).not } { this.prSkipped(voice, k) }
+					{ k == \dur_list } { b.prRecallDurList(REScore.decodeValue(v, song), keys[\seq_offset]) }
+					{
 						v = REScore.decodeValue(v, song);
 						if(beats > 0 and: { v.isNumber } and: { b.keyProxy(k).notNil } and: { b.keyProxy(k).source.isNumber }) {
 							b.set(k, this.ramp(b.keyProxy(k).source, v, beats), quant: nil);
@@ -687,8 +695,15 @@ REScorePlayer {
 			if(o.isNil) {
 				RCLog.warn(\player, "snapshot: no orgnsm %".format(name));
 			} {
-				attrs = REScore.decodeValue(attrs, song);
-				attrs.keysValuesDo { |k, v| if(orgnsmIdentityKeys.includes(k).not) { o.rPut(k, v) } };
+				// encoded one attribute at a time: an Event's object, or {dict} for another Dictionary
+				if(attrs.size == 1 and: { attrs[\dict].isKindOf(Dictionary) }) { attrs = attrs[\dict] };
+				attrs.keysValuesDo { |k, v|
+					k = k.asSymbol;
+					case
+					{ orgnsmIdentityKeys.includes(k) } { }
+					{ REScore.replayable(v).not } { this.prSkipped(name, k) }
+					{ o.rPut(k, REScore.decodeValue(v, song)) };
+				};
 			};
 		};
 		// the registered controls (REScoreRecorder.addControl with set:): at once, or ramped
@@ -697,10 +712,12 @@ REScorePlayer {
 			var rec = song.scoreRecorder;
 			ctls.keysValuesDo { |name, v|
 				var set = rec.controlSetter(name), get = rec.controlGetter(name), from;
-				v = REScore.decodeValue(v, song);
-				if(set.isNil) {
+				case
+				{ REScore.replayable(v).not } { this.prSkipped("the control", name) }
+				{ set.isNil } {
 					RCLog.warn(\player, "snapshot: no setter for the control %".format(name));
 				} {
+					v = REScore.decodeValue(v, song);
 					from = get !? { RCGuard.call(\player, nil) { get.value } };
 					if(beats > 0 and: { v.isNumber } and: { from.isNumber }) {
 						this.rampControl(set, from, v, beats, rec.controls[name], song.clock);
@@ -711,6 +728,8 @@ REScorePlayer {
 			};
 		};
 	}
+
+	*prSkipped { |who, key| RCLog.info(\player, { "snapshot: % keeps its % (not replayable)".format(who, key) }) }
 
 	// A source that moves from one value to another over `beats`, then holds.
 	*ramp { |fromValue, toValue, beats, curve = \lin|

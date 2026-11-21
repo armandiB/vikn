@@ -9,13 +9,21 @@
 // one), is permanent (Cmd-Period leaves it), and is freed by free(name),
 // freeMatching(prefix), freeCC(cc, chan) or freeAll. A second mapping on a
 // (cc, chan) the song already listens to is warned about: both would fire.
+// A mapping for a device that is absent listens to nothing (HL3-P8, Nov 19: it listened to every source, and another
+// device's CCs, the Seaboard's, drove knobs into takes); it is made whole all the same (its replay works), and
+// rebind, once the device is plugged in, connects it and makes its mappings again on its source.
+//   ~song.midi.rebind;   // after plugging a device in: its mappings listen to it
 
 RCMidi {
 	classvar fineValues;   // srcID → chan → ccNum → defKey → lsb value
 	// seconds an MSB waits for its LSB before it fires alone (a sender may leave out an LSB of 0)
 	classvar <>pairWait = 0.02;
+	// the source filter of a mapping whose device is absent: never a source's uid (an Integer), so nothing reaches it
+	classvar <absentID = \rc_midi_absent;
+	// the MIDI sources looked through (nil: MIDIClient.sources) and the way one is connected: what a test stands in for
+	classvar <>sourceList, <>connectFunc;
 
-	var <song, <defs, <ccMap, throttles, pairs, <actions, <devices;
+	var <song, <defs, <ccMap, throttles, pairs, <actions, <devices, <pending;
 
 	*initClass {
 		fineValues = IdentityDictionary.new;
@@ -31,6 +39,7 @@ RCMidi {
 		pairs = IdentityDictionary.new;       // name → a fine mapping's MSB and the one waiting for its LSB
 		actions = IdentityDictionary.new;     // name → action, for replay
 		devices = IdentityDictionary.new;     // name → device name
+		pending = IdentityDictionary.new;     // name → control's arguments, while its device is absent (rebind)
 	}
 
 	// The mapping names of a device (every mapping when deviceName is nil), sorted:
@@ -50,12 +59,12 @@ RCMidi {
 
 	defKey { |name| ^("rc_" ++ song.name ++ "_" ++ name).asSymbol }
 
-	// uid of the first MIDI source named deviceName; nil (+ warning) when absent.
-	*findSrcId { |deviceName|
-		(MIDIClient.sources ? []).do { |endpoint|
+	// uid of the first MIDI source named deviceName; nil (+ warning, unless warn is false) when absent.
+	*findSrcId { |deviceName, warn = true|
+		(sourceList ?? { MIDIClient.sources } ? []).do { |endpoint|
 			if(endpoint.name == deviceName.asString) { ^endpoint.uid };
 		};
-		RCLog.warn(\midi, "MIDI device \"%\" not found: mapping listens to all sources".format(deviceName));
+		if(warn) { RCLog.warn(\midi, "MIDI device \"%\" not found".format(deviceName)) };
 		^nil
 	}
 
@@ -83,13 +92,20 @@ RCMidi {
 	// batch costs milliseconds each, which starves the clock. The first message
 	// fires at once; the ones arriving within the window are swallowed and the
 	// last of them fires when it closes, re-arming while messages keep coming.
+	// A device named and absent: the mapping is made, its MIDIdefs on absentID (nothing reaches them), kept for rebind.
 	control { |name, ccNum, chan, deviceName, valFunc, action, fine = false, throttle|
-		var srcID = this.class.findSrcId(deviceName);
+		var srcID = this.class.findSrcId(deviceName, false);
+		var absent = deviceName.notNil and: { srcID.isNil }, listen;
 		var key, lsbKey, keys, slot, fire, deliver, state, pair;
 		name = name.asSymbol;
 		key = this.defKey(name);
 		keys = [key];
 		this.free(name);
+		listen = if(absent) { absentID } { srcID };
+		if(absent) {
+			pending[name] = [name, ccNum, chan, deviceName, valFunc, action, fine, throttle];
+			RCLog.warn(\midi, "MIDI device \"%\" not found: % listens to nothing until it is plugged in and rebound (~song.midi.rebind)".format(deviceName, name));
+		};
 		slot = ccMap[[ccNum, chan]] ? [];
 		if(slot.size > 0) {
 			RCLog.warn(\midi, "% already listens to cc % chan % (%): both mappings will fire".format(song.name, ccNum, chan, slot));
@@ -142,7 +158,7 @@ RCMidi {
 				RCMidi.setFineValue(srcID, chan, ccNum, key, val);
 				pair[\waiting] = nil;
 				pair[\msb] !? { |msb| deliver.(msb + (val / 128)) };   // before any MSB: nothing to complete
-			}, ccNum + 32, chan, srcID).permanent_(true);
+			}, ccNum + 32, chan, listen).permanent_(true);
 			keys = keys ++ [lsbKey];
 		};
 		MIDIdef.cc(key, { |val|
@@ -158,7 +174,7 @@ RCMidi {
 			} {
 				deliver.(val);
 			};
-		}, ccNum, chan, srcID).permanent_(true);
+		}, ccNum, chan, listen).permanent_(true);
 		defs[name] = keys;
 		actions[name] = action;
 		devices[name] = deviceName !? (_.asString);
@@ -195,6 +211,7 @@ RCMidi {
 			actions.removeAt(name);
 			devices.removeAt(name);
 			throttles.removeAt(name);   // a pending throttled value is dropped with its mapping
+			pending.removeAt(name);     // and its wait for an absent device
 			pairs.removeAt(name);       // and an MSB waiting for its LSB
 			this.prForgetFineValues(keys);
 			ccMap.keysValuesDo { |cc, names| ccMap[cc] = names.reject { |n| n == name } };
@@ -218,6 +235,33 @@ RCMidi {
 
 	freeAll {
 		defs.keys.copy.do { |name| this.free(name) };
+	}
+
+	// The mappings made while their device was absent, made again for the devices found now: the sources listed again
+	// (MIDIClient.list), each found device's source connected (a session connects the sources there are at its start,
+	// not one plugged in later), its mappings made on its uid. The others keep waiting. Returns the names rebound.
+	rebind {
+		var done = List.new, connected = List.new, sources;
+		if(pending.isEmpty) { ^[] };
+		if(sourceList.isNil) {
+			if(MIDIClient.initialized.not) { RCLog.warn(\midi, "MIDI not initialized: nothing to rebind"); ^[] };
+			RCGuard.call(\midi, nil) { MIDIClient.list };
+		};
+		sources = sourceList ?? { MIDIClient.sources } ? [];
+		pending.keys.asArray.sort.do { |name|
+			var args = pending[name], deviceName = args[3].asString, index;
+			index = sources.detectIndex { |e| e.name == deviceName };
+			if(index.notNil) {
+				if(connected.includesEqual(deviceName).not) {
+					RCGuard.call(\midi, nil) { (connectFunc ? { |i, e| MIDIIn.connect(i, e) }).value(index, sources[index]) };
+					connected.add(deviceName);
+				};
+				this.control(*args);   // frees the waiting mapping, makes it on the device's uid
+				done.add(name);
+			};
+		};
+		RCLog.post(\midi, "rebind: % mapping(s) on %; % still waiting".format(done.size, connected.asArray, pending.size), true);
+		^done.asArray
 	}
 
 	prForgetFineValues { |keys|
