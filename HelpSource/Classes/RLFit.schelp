@@ -14,6 +14,12 @@ definitionlist::
 ## counted || link::#*readModel::: how often each kind of chord follows each in a corpus of analysed scores, how often and how far the key changes, as bits. The cost of a reading is then the length of its description, and a passage is in a key when saying so is shorter than not. Count the model on other pieces than the one read.
 ::
 
+A counted model has sixteen kinds, not nine, when it says so (code::\forms::, code::\added::): in a key a chord is one of the key's triads, whatever is added to it. With code::\forms::, in a minor key the triad that holds a substitute tone (the raised sixth or seventh: V, IV, viio) is another kind than the natural one on its degree (v, iv, VII): counted by degree alone, the minor triad on the fifth degree is priced as the dominant, and a piece of i and iv is read as v and i a fifth below. With code::\added::, a chord is of the kind of its triad (its root and the tones a third and a fifth above it): a seventh or a sixth is a tone added and does not make the chord foreign, so that a tonic chord with a flat seventh (the blues) is the tonic chord. The counts are of a style: Beethoven's read music from Corelli to Wagner and jazz better under these kinds, and music before 1650 worse, which reads better under them with counts of its own time. link::#-kinds:: gives each chord's kind.
+
+A counted model may also say where the music rests (code::\lasts::, code::\opens::, code::\closes:: in a mode's table; the counted ones since Nov 20 2026): what a chord costs for lasting what it lasts, by its kind (four classes of length: under a quarter note, under two, under four, four or more; a chord written again counted into the one it goes on from), what the first chord costs as an opening, and what ending the piece on the last chord costs. Chord sequences alone take any two chords a fourth apart for a dominant and its tonic; where the music begins, stays and ends says which is the tonic.
+
+A chord written again (the root and the tones of the chord before: another inversion, a repetition) is that chord going on, when the model has code::\again::: it costs that (0 in the counted models) in every context, and is not one of the three chords an artificial dominant may be held. How often a held chord is written again is the writer's habit, not the music's. With every label counted as a step, a chord that follows itself has a price by its degree, and a dominant follows itself more cheaply than a tonic (it is the chord that gains a seventh: V, V7): a piece that sits on its tonic chord, written again at each inversion, is then cheaper read as a dominant, a fifth below its key. The hand-set model prices every label unless asked: code::RLFit(chords, regions, (again: 0))::.
+
 code::
 ~c = RLScale.major(RLEDO(12));
 ~chords = RLFit.events([0, 3, 6, 2, 5, 1, 3, 4, 0].collect { |d| ~c.triads.chord(d) }, ~c);
@@ -49,6 +55,15 @@ code::
 ~fit = RLFit.choosing(~chords.withAlternatives, ~score.regions);
 ~fit.chosen.count { |x| x > 0 };     // how many chords the passage changed
 ~fit.extra;                          // what that costs in the notes
+::
+
+METHOD:: homed
+A fit of chords with no key written anywhere (a lead sheet's chord symbols, a score alone): read once round the regions given, then again round the region that reading stays in longest (link::#-home::), so that the regions are named from where the piece is at home. The fit's link::#-regions:: say which tonic that is.
+
+code::
+~fit = RLFit.homed(~score.chords, ~score.regions);
+~fit.regions.tonic;                  // the tonic found, as a pitch class
+~fit.homeShare;                      // how much of the time the piece is read there
 ::
 
 METHOD:: events
@@ -88,6 +103,14 @@ The same against chords an analyst wrote on their own time line (each with code:
 
 METHOD:: differences
 Where they are not.
+
+METHOD:: kinds
+Each chord's kind in the model's numbering, as read in its passage's region (nil among the triads). With nine kinds: the root's degree 0 to 6, 7 an artificial dominant, 8 foreign. With sixteen (a model with code::\forms::): 7 to 13 the degrees' other triad in a minor key, 14 an artificial dominant, 15 foreign.
+
+METHOD:: home
+The region the reading stays in longest, by the chords' time, as code::[fifths, mode]:: from the regions' tonic; nil when no chord is read in a region.
+METHOD:: homeShare
+How much of the time that is, 0 to 1.
 
 METHOD:: coverage
 Per passage, how much of a score's notes its chords hold, and its scale, with and without its substitutes.

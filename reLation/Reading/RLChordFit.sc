@@ -3,8 +3,9 @@
 //
 // The same idea as RLFit one level down. A span of notes can be put under any chord, so "does a chord hold
 // them" tells nothing: a chord is worth the notes it saves describing. Under a chord a note costs little while
-// it is one of the chord's tones and more while it is not (how much depends on its length: a short note is a
-// passing note more often), by the time it sounds: a bass struck eight times weighs what it weighs held. The
+// it is one of the chord's tones and more while it is not (how much depends on its length and on how it moves:
+// a short note that comes and goes by step is a passing note half the time, one that leaps is nearly always a
+// tone of the chord), by the time it sounds: a bass struck eight times weighs what it weighs held. The
 // chord itself costs its kind, its root, the tones of it that do not sound, where its lowest note sits, and
 // where in the bar it starts (a chord starts on a downbeat more often than off the beat). The reading is the
 // cheapest way through (a dynamic programme over the places a chord may change: the note onsets on a grid of
@@ -34,13 +35,15 @@ RLChordFit {
 	classvar <defaultModel;
 	var <score, <model, <grain, <maxSpan, <rate, <system, <chords, <cost, <times;
 	var tOffsets, tRoles, tIn, tOut, tBits, tNames, cin, cout, presentBits, absentBits, bassBits, rootBits, startBits, stayBits;
-	var notes, places, stayCum, sliceKeys, sliceWeights, sliceSavings, sliceBase, sliceTotal, sliceLow, span = 24, width;
+	var notes, moves, places, stayCum, sliceKeys, sliceWeights, sliceSavings, sliceBase, sliceTotal, sliceLow, span = 24, width;
 
 	*initClass {
 		defaultModel = IdentityDictionary[
 			\source -> "hand-set",
 			\bounds -> #[0.25, 0.5, 1.0, 2.0],
 			\inside -> #[0.69, 0.76, 0.84, 0.92, 0.93],
+			// by length (rows) and by how the note moves: by leap, reached by step, left by step, by step both ways
+			\motion -> #[[0.93, 0.86, 0.79, 0.48], [0.97, 0.93, 0.81, 0.49], [0.96, 0.95, 0.85, 0.67], [0.97, 0.96, 0.90, 0.85], [0.92, 0.95, 0.93, 0.94]],
 			\present -> #[0.94, 0.87, 0.79, 0.95],
 			\bass -> #[0.5, 0.25, 0.11, 0.04, 0.1],
 			\change -> #[0.79, 0.43, 0.16, 0.12],
@@ -77,6 +80,32 @@ RLChordFit {
 	// What a tone is in its chord, by its fifths from the root: 0 the root, 1 the third, 2 the fifth, 3 the
 	// seventh; nil for another tone (a fourth held over a root).
 	*role { |offset| ^#[0, nil, 1, nil, 2, nil, 3][(offset * 4) % 7] }
+
+	// How each note moves: 0 reached and left by leap (or by nothing), 1 reached by step, 2 left by step, 3 by
+	// step both ways. A step: at most a tone, to a note that starts where this one ends, from a note that ends
+	// where this one starts (within a fiftieth of a quarter note), whatever the voice.
+	prMoves {
+		var step = system.pitchInterval([9, 8]), n = notes.size, on = notes.collect { |x| x[\onset] }, ends, endTimes, lower;
+		ends = notes.collect { |x| [x[\onset] + x[\dur], x[\pitch]] }.sort { |a, b| a[0] <= b[0] };
+		endTimes = ends.collect { |e| e[0] };
+		// the first place whose value is not under v, the values rising
+		lower = { |arr, v| var a = 0, b = arr.size, m; while { a < b } { m = (a + b).div(2); if(arr[m] < v) { a = m + 1 } { b = m } }; a };
+		^notes.collect { |x|
+			var start = x[\onset], end = start + x[\dur], p = x[\pitch], i = lower.(on, end - 0.02), k = lower.(endTimes, start - 0.02);
+			var left = false, came = false, d;
+			while { (i < n) and: { left.not } and: { on[i] <= (end + 0.02) } } {
+				d = (notes[i][\pitch] - p).abs;
+				if((d > 0) and: { d <= step }) { left = true };
+				i = i + 1;
+			};
+			while { (k < n) and: { came.not } and: { endTimes[k] <= (start + 0.02) } } {
+				d = (ends[k][1] - p).abs;
+				if((d > 0) and: { d <= step }) { came = true };
+				k = k + 1;
+			};
+			(if(came) { 1 } { 0 }) + (if(left) { 2 } { 0 })
+		}
+	}
 
 	// The beat of a time signature in quarter notes ("3/4": 1, "2/2": 2, "6/8": 1.5), and a place in the bar:
 	// 0 the downbeat, 1 another beat, 2 a half beat, 3 elsewhere.
@@ -131,8 +160,10 @@ RLChordFit {
 	prModel {
 		var bits = { |p| p.clip(1e-9, 1).log2.neg }, kinds = model[\types], total = kinds.sum { |t| t[\p] };
 		var change = model[\change] ? #[0.5, 0.5, 0.5, 0.5];
-		cin = model[\inside].collect { |p| bits.(p) };
-		cout = model[\inside].collect { |p| bits.(1 - p) };
+		// a note's chance of being a tone of its chord: by its length and how it moves when the model says
+		// (\motion), by its length alone otherwise
+		cin = if(model[\motion].notNil) { model[\motion].collect { |row| row.collect { |p| bits.(p) } } } { model[\inside].collect { |p| bits.(p) ! 4 } };
+		cout = if(model[\motion].notNil) { model[\motion].collect { |row| row.collect { |p| bits.(1 - p) } } } { model[\inside].collect { |p| bits.(1 - p) ! 4 } };
 		presentBits = model[\present].collect { |p| bits.(p) };
 		absentBits = model[\present].collect { |p| bits.(1 - p) };
 		bassBits = model[\bass].collect { |p| bits.(p) };
@@ -158,6 +189,7 @@ RLChordFit {
 	prNotes {
 		var bounds = model[\bounds], measures = score.measures, barStarts = this.prBarStarts, mi = 0, s0 = 0, last = nil, ns;
 		notes = score.notes.select { |n| n[\tpc].notNil and: { n[\tpc].abs <= span } }.sort { |a, b| a[\onset] <= b[\onset] };
+		moves = this.prMoves;
 		times = Array.new;
 		places = Array.new;
 		notes.do { |n|
@@ -186,8 +218,8 @@ RLChordFit {
 		sliceBase = Array.fill(ns, 0.0);
 		sliceTotal = Array.fill(ns, 0.0);
 		sliceLow = Array.fill(ns) { [inf, nil] };
-		notes.do { |n|
-			var a = n[\onset], b = a + n[\dur], idx = n[\tpc] + span, c = bounds.count { |x| n[\dur] >= (x - 1e-9) }, m;
+		notes.do { |n, k|
+			var a = n[\onset], b = a + n[\dur], idx = n[\tpc] + span, c = bounds.count { |x| n[\dur] >= (x - 1e-9) }, mv = moves[k], m;
 			while { ((s0 + 1) < ns) and: { times[s0 + 1] <= (a + 1e-9) } } { s0 = s0 + 1 };
 			m = s0;
 			while { (m < ns) and: { times[m] < (b - 1e-9) } } {
@@ -196,8 +228,8 @@ RLChordFit {
 				if(w > (0.01 * rate)) {
 					sliceKeys[m] = sliceKeys[m].add(idx);
 					sliceWeights[m] = sliceWeights[m].add(w);
-					sliceSavings[m] = sliceSavings[m].add(w * (cout[c] - cin[c]));
-					sliceBase[m] = sliceBase[m] + (w * cout[c]);
+					sliceSavings[m] = sliceSavings[m].add(w * (cout[c][mv] - cin[c][mv]));
+					sliceBase[m] = sliceBase[m] + (w * cout[c][mv]);
 					sliceTotal[m] = sliceTotal[m] + w;
 					if(n[\pitch] < sliceLow[m][0]) { sliceLow[m] = [n[\pitch], idx] };
 				};
@@ -341,15 +373,15 @@ RLChordFit {
 	prCandidates { |from, to|
 		var count = Array.fill(width, 0.0), saving = Array.fill(width, 0.0), keys = List.new, total = 0.0, base = 0.0, low = inf, lowKey = nil;
 		var bounds = model[\bounds];
-		notes.do { |nt|
-			var a = max(nt[\onset], from), b = min(nt[\onset] + nt[\dur], to), w = (b - a) * rate, idx = nt[\tpc] + span, c;
+		notes.do { |nt, k|
+			var a = max(nt[\onset], from), b = min(nt[\onset] + nt[\dur], to), w = (b - a) * rate, idx = nt[\tpc] + span, c, mv = moves[k];
 			if(w > (0.01 * rate)) {
 				c = bounds.count { |x| nt[\dur] >= (x - 1e-9) };
 				if(count[idx] <= 0) { keys.add(idx) };
 				count[idx] = count[idx] + w;
-				saving[idx] = saving[idx] + (w * (cout[c] - cin[c]));
+				saving[idx] = saving[idx] + (w * (cout[c][mv] - cin[c][mv]));
 				total = total + w;
-				base = base + (w * cout[c]);
+				base = base + (w * cout[c][mv]);
 				if(nt[\pitch] < low) { low = nt[\pitch]; lowKey = idx };
 			};
 		};

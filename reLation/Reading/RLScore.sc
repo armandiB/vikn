@@ -15,6 +15,8 @@
 // A pitch is the system's (steps from its origin, middle C); chords written by analysts keep their label, their
 // key as a region [fifths, mode] from the global tonic, their root and tones as pitch classes. A chord written
 // "of" a degree (V7/vi) also has that degree's key (\applied): analysts write a short stay in a key either way.
+// Chords may come without a key (the chord symbols of a lead sheet: HomewareSC's fit/jazz_read.py); when the
+// file's global key is a placeholder (info[\given] false), RLFit.homed finds where the piece is at home.
 
 RLScore {
 	var <system, <notes, <chords, <marks, <measures, <info;
@@ -39,14 +41,14 @@ RLScore {
 			var pcOf = { |f| sys.pc((base + f) * fifth) };
 			(
 				onset: h[\onset].asFloat, dur: h[\dur].asFloat, mn: h[\mn], label: h[\label].asString,
-				key: [h[\key][0], h[\key][1].asSymbol], applied: h[\applied] !? { |a| [a[0], a[1].asSymbol] },
+				key: h[\key] !? { |k| [k[0], k[1].asSymbol] }, applied: h[\applied] !? { |a| [a[0], a[1].asSymbol] },
 				root: pcOf.(h[\root]), bass: h[\bass] !? { |b| pcOf.(b) },
 				pcs: h[\tones].collect { |f| pcOf.(f) }, type: h[\type].asString, numeral: h[\numeral].asString
 			)
 		};
 		^this.new(sys, notes, chords, d[\marks] ? [], d[\measures] ? [],
 			IdentityDictionary[\piece -> d[\piece].asString, \source -> d[\source].asString, \tpc -> base, \mode -> mode,
-				\name -> global[\name].asString, \duration -> d[\duration].asFloat])
+				\name -> global[\name].asString, \duration -> d[\duration].asFloat, \given -> (global[\given] != false)])
 	}
 
 	// A spelled note as a pitch of an equal division: its fifths, and the octaves that put it at its MIDI height.

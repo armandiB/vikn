@@ -138,6 +138,26 @@ TestRLChordFit : UnitTest {
 			"another list of chords is scored like the reading's own");
 	}
 
+	test_how_notes_move {
+		// C D E in a row, then G alone a bar later
+		var fit = RLChordFit(this.prScore([[0, 1, 60, 0], [1, 1, 62, 2], [2, 1, 64, 4], [4, 1, 67, 1]], 2)), plain, old;
+		this.assertEquals(fit.prMoves, [2, 3, 1, 0], "left by step, by step both ways, reached by step, by leap (or by nothing)");
+		// a model that says nothing of motion prices a note by its length alone, as before
+		old = RLChordFit.defaultModel.copy;
+		old.removeAt(\motion);
+		plain = RLChordFit(this.prCadence, old);
+		this.assertEquals(this.prLabels(plain), ["C M", "F M", "G Mm7", "C M"], "a model without motion still reads");
+	}
+
+	test_a_passing_note_is_cheap {
+		// under C major held a bar: D between C and E (it comes and goes by step), or D reached and left by leap
+		var held = this.prBlock(0, 4, [[48, 0], [52, 4], [55, 1]]);
+		var passing = RLChordFit(this.prScore(held ++ [[0, 1, 72, 0], [1, 1, 74, 2], [2, 2, 76, 4]], 1));
+		var leaping = RLChordFit(this.prScore(held ++ [[0, 1, 79, 1], [1, 1, 74, 2], [2, 2, 79, 1]], 1));
+		this.assertEquals([this.prLabels(passing), this.prLabels(leaping)], [["C M"], ["C M"]], "C major both times");
+		this.assert(passing.cost < leaping.cost, "the D that passes by step costs less to leave outside the chord than the D that leaps");
+	}
+
 	test_places_in_the_bar {
 		this.assertEquals(["4/4", "2/2", "3/4", "6/8", "12/8"].collect { |ts| RLChordFit.beat(ts) }, [1, 2, 1, 1.5, 1.5], "the beat, in quarter notes");
 		this.assertEquals([0, 2, 1, 0.5, 0.25].collect { |pos| RLChordFit.place(pos, 2) }, [0, 1, 2, 3, 3], "in 2/2: the downbeat, a beat, a half beat, elsewhere");

@@ -42,6 +42,24 @@ TestRLFit : UnitTest {
 		this.assertFloatEquals(fit.segments.sum { |s| s[\cost] }, fit.cost, "the passages' costs add up, the change of region counted");
 	}
 
+	test_a_chord_written_again_goes_on {
+		// a model in which a dominant follows itself more cheaply than a tonic does, as the counts on analysts'
+		// labels have it (V, V7): every label a step, a piece that sits on its tonic chord is cheaper as a dominant
+		var edo = RLEDO(12), c = RLScale.major(edo), model = RLFit.handModel, plain, again, once;
+		var piece = this.prIn(c, [0, 0, 0, 0, 0, 0, 4, 0, 0, 0]);
+		model[\major][\step][4][4] = 0;
+		model[\major][\step][0][0] = 1.5;
+		plain = RLFit(piece, RLRegions(edo), model);
+		this.assertEquals(plain.segments.collect { |s| s[\name] }, [\SD], "every label a step: C C C C C C G C C C reads in F major, a fifth below");
+		model[\again] = 0;
+		again = RLFit(piece, RLRegions(edo), model);
+		this.assertEquals(again.segments.collect { |s| s[\name] }, [\T], "a chord written again going on: in C major");
+		once = RLFit(this.prIn(c, [0, 4, 0]), RLRegions(edo), model);
+		this.assertFloatEquals(again.cost, once.cost, "at the cost of C G C, each written once");
+		this.assertEquals(RLFit.handModel[\again], nil, "the hand-set model prices every label, unless asked");
+		this.assertEquals(RLFit.handModel((again: 0))[\again], 0, "asked");
+	}
+
 	test_the_fit_as_data {
 		var edo = RLEDO(12), c = RLScale.major(edo), g = RLScale.major(edo, 7);
 		var fit = RLFit(this.prIn(c, [0, 3, 4, 0, 5, 1, 4, 0]) ++ this.prIn(g, [4, 0, 3, 4, 0, 1, 4, 0]), RLRegions(edo));
@@ -116,6 +134,75 @@ TestRLFit : UnitTest {
 		chords.do { |ch| ch[\key] = [0, \major] };
 		chords[3][\key] = [1, \major];
 		this.assertEquals(RLFit(chords, RLRegions(edo)).agreement, [3, 4], "three quarter notes of four in the key an analyst wrote");
+	}
+
+	test_the_kinds_of_chords_in_a_key {
+		// every step at one price, so that the regions tie and the fit stays in the one it was given: what is
+		// read is the chords' kinds
+		var edo = RLEDO(12), ch = { |root, pcs| (root: root, pcs: pcs, dur: 1) };
+		var flat = { |n, more|
+			var one = { IdentityDictionary[\first -> (1.0 ! n), \step -> ({ 1.0 ! n } ! n)] }, m = RLFit.handModel;
+			m[\major] = one.value;
+			m[\minor] = one.value;
+			// and the triads dear, so that the chords are read in a key
+			m[\same] = 5;
+			m[\generator] = 5;
+			m[\first_triad] = 5;
+			more.keysValuesDo { |k, v| m[k] = v };
+			m
+		};
+		var minorChords = [ch.(0, [0, 3, 7]), ch.(7, [7, 10, 2]), ch.(0, [0, 3, 7]), ch.(7, [7, 11, 2]), ch.(0, [0, 3, 7]), ch.(5, [5, 9, 0]), ch.(5, [5, 8, 0])];
+		var blues = [ch.(0, [0, 4, 7]), ch.(0, [0, 4, 7, 10]), ch.(5, [5, 9, 0]), ch.(5, [5, 9, 0, 3]), ch.(0, [0, 4, 7])];
+		this.assertEquals(RLFit(minorChords, RLRegions(edo, 0, \minor), flat.(9, ())).kinds, [0, 4, 0, 4, 0, 3, 3],
+			"nine kinds: in C minor, G minor and G major are one kind, the fifth degree; F major and F minor the fourth");
+		this.assertEquals(RLFit(minorChords, RLRegions(edo, 0, \minor), flat.(16, (forms: true))).kinds, [0, 4, 0, 11, 0, 10, 3],
+			"sixteen: the chord with a raised tone is another kind, seven further on (V is not v, IV is not iv)");
+		this.assertEquals(RLFit(blues, RLRegions(edo, 0, \major), flat.(9, ())).kinds, [0, 7, 3, 8, 0],
+			"every tone counting: C7 before F is an artificial dominant, F7 is foreign to C major");
+		this.assertEquals(RLFit(blues, RLRegions(edo, 0, \major), flat.(9, (added: true))).kinds, [0, 0, 3, 3, 0],
+			"a seventh as a tone added: C7 is the tonic chord, F7 the fourth degree");
+	}
+
+	test_where_the_music_rests {
+		// C long, F short, C long, read round F with every step at one price: nothing says whether C is the
+		// tonic or F's dominant, and the fit stays where it was put. A model that has counted where music rests
+		// (a tonic opens, lasts and closes) reads C major
+		var edo = RLEDO(12), ch = { |root, pcs, dur| (root: root, pcs: pcs, dur: dur) };
+		var chords = [ch.(0, [0, 4, 7], 4), ch.(5, [5, 9, 0], 1), ch.(0, [0, 4, 7], 4)];
+		var flat = { |rests|
+			var one = {
+				var t = IdentityDictionary[\first -> (1.0 ! 9), \step -> ({ 1.0 ! 9 } ! 9)];
+				if(rests) {
+					t[\opens] = [0.5] ++ (4.0 ! 8);
+					t[\closes] = [1.0] ++ (6.0 ! 8);
+					t[\lasts] = [[3, 3, 2, 0.5]] ++ ({ [1.0, 1.0, 1.0, 3.0] } ! 8);
+				};
+				t
+			}, m = RLFit.handModel;
+			m[\major] = one.value;
+			m[\minor] = one.value;
+			m[\same] = 5;
+			m[\generator] = 5;
+			m[\first_triad] = 5;
+			m
+		};
+		var plain = RLFit(chords, RLRegions(edo, 5, \major), flat.(false)), rested = RLFit(chords, RLRegions(edo, 5, \major), flat.(true));
+		this.assertEquals(plain.segments.collect { |s| s[\name] }, [\T], "chords alone: read where it was put, F major, as V I V");
+		this.assertEquals(rested.segments.collect { |s| s[\name] }, [\D], "where it opens, stays and closes: C major, as I IV I");
+		this.assertEquals(rested.kinds, [0, 3, 0], "its kinds there");
+		this.assertFloatEquals(rested.segments.sum { |s| s[\cost] }, rested.cost, "the passages' costs still add up to the fit's");
+	}
+
+	test_where_a_piece_is_at_home {
+		// G major's chords read round C: the fit stays in the dominant region; read again round its home, the tonic
+		var edo = RLEDO(12), g = RLScale.major(edo, 7), chords = this.prIn(g, [0, 3, 4, 0, 5, 1, 4, 0]);
+		var fit = RLFit(chords, RLRegions(edo)), homed = RLFit.homed(chords, RLRegions(edo));
+		this.assertEquals(fit.home, [1, \major], "read round C: at home in the dominant region");
+		this.assertFloatEquals(fit.homeShare, 1, "all of its time");
+		this.assertEquals(homed.regions.tonic, 7, "read again round G");
+		this.assertEquals(homed.segments.collect { |s| s[\name] }, [\T], "its one passage is the tonic region");
+		this.assertFloatEquals(homed.cost, fit.cost, "at the same cost");
+		this.assertEquals(RLFit([], RLRegions(edo)).home, nil, "no chord, no home");
 	}
 
 	test_models {

@@ -33,7 +33,7 @@
 RLFit {
 	classvar <defaultCosts;
 	var <chords, <regions, <costs, <span, <system, <states, <path, <cost, <segments, <surprises, <chosen, <extra;
-	var triadSpace, triadContext, triadGraph, distances, readings;
+	var triadSpace, triadContext, triadGraph, distances, readings, again, cores, targets, shapes, lengths;
 
 	*initClass {
 		defaultCosts = IdentityDictionary[
@@ -74,12 +74,28 @@ RLFit {
 		^if((second.cost + extra) < (first.cost - 1e-9)) { second.prChosen(pick, extra) } { first.prChosen(pick.collect { 0 }, 0) }
 	}
 
+	// Chords with no key written anywhere (a lead sheet, a score alone): read once round the regions given, then
+	// again round the region that reading stays in longest, so that the regions are named from where the piece
+	// is at home (T, D, SD from its own tonic). The fit's regions say which tonic that is.
+	*homed { |chords, regions, model, span = 7|
+		var first = this.new(chords, regions, model, span), home = first.home;
+		if(home.isNil or: { home == regions.central }) { ^first };
+		^this.new(chords, RLRegions(regions.system, regions.tonicOf(home), home[1]), model, span)
+	}
+
 	// The model the fit prices with. A chord in a region is one of nine kinds: the degree of its root, 0 to 6, when
 	// its tones are tones of the scale; 7, an artificial dominant; 8, another foreign chord. For each mode the
 	// model has the cost of a first chord of each kind and of a step from each kind to each; the cost of a change
 	// to a region of each class (0: none); and the costs among the triads.
 	//   handModel: from the hand-set table, a step priced by Schoenberg's kind of root progression.
 	//   readModel: counted on a corpus of analysed scores, in bits (HomewareSC, Math/Category_Theory/fit/dcml_costs.py).
+	// A model with \again (the counted ones: 0) reads a chord written again (the root and tones of the chord
+	// before: another inversion, a repetition) as that chord going on, at that cost in every context.
+	// A model with \forms and \added (the counted ones since Nov 19 2026) has sixteen kinds: a chord in a key is
+	// one of the key's triads, whatever is added to it. \forms: in a minor key the triad with a substitute tone
+	// (V, IV, viio) is another kind than the natural one on its degree (v, iv, VII): kinds 7 to 13, then 14 an
+	// artificial dominant, 15 foreign. \added: a chord is of the kind of its triad, a seventh or a sixth being a
+	// tone added that does not make it foreign. kinds gives each chord's kind as read.
 	*handModel { |overrides|
 		var c = defaultCosts.copy, kinds = #[\same, \superstrong, \descending, \ascending, \descending, \ascending, \superstrong];
 		var chord, first, step, one, model = IdentityDictionary.new;
@@ -105,6 +121,10 @@ RLFit {
 		model[\far] = c[\far];
 		model[\foreign] = c[\foreign];
 		model[\same] = c[\same];
+		// a chord written again as the chord before going on: only when asked ((again: 0) among the overrides)
+		c[\again] !? { |x| model[\again] = x };
+		// a seventh as a tone added to the triad: only when asked ((added: true))
+		c[\added] !? { |x| model[\added] = x };
 		model[\unit] = "hand-set";
 		^model
 	}
@@ -160,12 +180,63 @@ RLFit {
 		regions = reg;
 		system = reg.system;
 		span = sp;
+		// a style prior (RLStylePrior) is taken for its model
+		if(table.isKindOf(RLStylePrior)) { table = table.model };
 		costs = if(table.notNil and: { table[\major].notNil }) { table } { RLFit.handModel(table) };
+		this.prAgain;
+		this.prShared;
 		this.prTriads;
 		this.prStates;
 		this.prSolve;
 		this.prSegments;
 		this.prSurprises;
+	}
+
+	// A chord written again: the root and the tones of the chord before (another inversion, a repetition). With a
+	// model that has \again, it is the chord before going on, at that cost (0) in every context. How often a
+	// held chord is written again is the writer's habit, not the music's. With every label a step, a chord that
+	// follows itself has a price by its degree, and a dominant follows itself more cheaply than a tonic (it is
+	// the chord that gains a seventh: V, V7): a piece that sits on its tonic chord, written again at each
+	// inversion, is then cheaper read as a dominant, a fifth below its key.
+	prGoesOn { |a, b|
+		^a.notNil and: { b.notNil } and: { a[\root].notNil } and: { a[\root] == b[\root] }
+		and: { a[\pcs].size == b[\pcs].size } and: { a[\pcs].every { |pc| b[\pcs].includesEqual(pc) } }
+	}
+	prAgain {
+		var price = costs[\again];
+		again = chords.collect { |c, i| if(price.notNil and: { i > 0 } and: { this.prGoesOn(chords[i - 1], c) }) { price } };
+		// how long each chord lasts, a chord written again counted into the one it goes on from
+		lengths = Array.newClear(chords.size);
+		chords.inject(0) { |head, c, i|
+			var at = if(again[i].isNil) { i } { head };
+			lengths[at] = (lengths[at] ? 0) + (c[\span] ? c[\dur] ? 0);
+			at
+		};
+	}
+
+	// Where the music rests, with a model that has counted it (\lasts, \closes in a mode's table): what a chord
+	// of this kind costs more for lasting what it lasts (four classes: under a quarter note, under two, under
+	// four, four or more), and for being the one the piece ends on. Chord sequences alone take any two chords a
+	// fourth apart for a dominant and its tonic; where the music begins, stays and ends says which is the tonic.
+	prRest { |table, i, kind|
+		var more = 0, d;
+		if(table[\lasts].notNil and: { again[i].isNil }) {
+			d = lengths[i] ? 0;
+			if(d > 0) { more = more + table[\lasts][kind][if(d < 1) { 0 } { if(d < 2) { 1 } { if(d < 4) { 2 } { 3 } } }] };
+		};
+		if(table[\closes].notNil and: { i == (chords.size - 1) }) { more = more + table[\closes][kind] };
+		^more
+	}
+	// the same among the triads, where no kind says more than another: any of four lengths, a middling ending
+	prRestTriads { |i|
+		var more = 0, table = costs[\major];
+		if(table[\lasts].notNil and: { again[i].isNil } and: { (lengths[i] ? 0) > 0 }) { more = more + 2.0 };
+		if(table[\closes].notNil and: { i == (chords.size - 1) }) { more = more + table[\closes].copy.sort[table[\closes].size div: 2] };
+		^more
+	}
+	prRestIn { |k, i, now|
+		var st = states[k];
+		^if(st[\kind] == \region) { if(now.isNil) { 0 } { this.prRest(costs[st[\region][1]], i, now) } } { this.prRestTriads(i) }
 	}
 
 	prTriads {
@@ -213,34 +284,91 @@ RLFit {
 		readings = states.collect { |st| if(st[\kind] == \region) { this.prReadRegion(st[\scale], st[\region][1]) } { this.prReadTriads } };
 	}
 
+	// What of a chord says its kind in a key. With a model that has \added, a chord is of the kind of its triad:
+	// its root and the tones a third and a fifth above it. A seventh, a sixth, a ninth are tones added to it and
+	// do not make it foreign: a tonic chord with a flat seventh (the blues' I7, its IV7) is the tonic chord.
+	prCore { |chord|
+		var root = chord[\root], pcs = chord[\pcs], third, minorThird, above, kept;
+		if((costs[\added] != true) or: { root.isNil }) { ^pcs };
+		third = system.interval([5, 4]);
+		minorThird = system.interval([6, 5]);
+		above = [0, minorThird, third, system.pcAdd(minorThird, minorThird), system.interval([3, 2]), system.pcAdd(third, third)];
+		kept = pcs.select { |pc| above.includesEqual(system.pcSub(pc, root)) };
+		^if(kept.size >= 2) { kept } { pcs }
+	}
+
+	// With a model that has \forms, a chord of a key is one of the key's triads, not a degree: in a minor key a
+	// chord with a substitute tone (the raised sixth or seventh: V, IV, viio) is another kind than the natural
+	// one on its degree (v, iv, VII), seven kinds further on. The minor triad on the fifth degree is not the
+	// dominant, and a count that takes them for one reads a piece of i and iv as v and i a fifth below.
+	prForm { |scale, pcs|
+		^if((costs[\forms] == true) and: { pcs.any { |pc| scale.alternates.any { |pair| pair[1] == pc } } }) { 7 } { 0 }
+	}
+
+	// What of the chords does not depend on the key they are read in, looked at once: each chord's core, where it
+	// leads (the next chord on another root, at most three chords on: a dominant may be held; a chord written
+	// again not counted), and whether it has a major third, a minor third, a diminished fifth.
+	prShared {
+		var n = chords.size, third = system.interval([5, 4]), minorThird = system.interval([6, 5]), dim = system.pcAdd(minorThird, minorThird);
+		cores = chords.collect { |c| this.prCore(c) };
+		targets = chords.collect { |c, i|
+			var j = i + 1, seen = 0, found;
+			while { found.isNil and: { j < n } and: { seen < 3 } } {
+				if(again[j].isNil) { seen = seen + 1 };
+				if(chords[j][\root] != c[\root]) { found = j };
+				j = j + 1;
+			};
+			found
+		};
+		shapes = chords.collect { |c|
+			var has = { |x| c[\pcs].includesEqual(system.pcAdd(c[\root], x)) };
+			if(c[\root].isNil) { [false, false, false] } { [has.(third), has.(minorThird), has.(dim)] }
+		};
+	}
+
 	prReadRegion { |scale, mode|
-		var n = chords.size, deg, inside, kinds, kind, step, target, table = costs[mode];
-		var third = system.interval([5, 4]), minorThird = system.interval([6, 5]), fourth = system.interval([4, 3]);
-		var semitone = system.interval([16, 15]), dim = system.pcAdd(minorThird, minorThird);
-		deg = chords.collect { |c| c[\root] !? { |r| scale.degreeOf(r) } };
-		inside = chords.collect { |c| c[\pcs].every { |pc| scale.holds(pc) } };
-		// where a chord leads: the next chord on another root, at most three chords on (a dominant may be held)
-		target = chords.collect { |c, i| Array.series(3, i + 1).detect { |j| chords[j].notNil and: { chords[j][\root] != c[\root] } } };
+		var n = chords.size, deg, inside, kinds, kind, step, table = costs[mode];
+		var fourth = system.interval([4, 3]), semitone = system.interval([16, 15]);
+		var wide = costs[\forms] == true, artKind = if(wide) { 14 } { 7 }, foreignKind = if(wide) { 15 } { 8 };
+		var count = if(system.isKindOf(RLEDO)) { system.steps }, degOf, raised, degree, isRaised;
+		// the scale looked at once for every pitch class of a division, not once a chord
+		if(count.notNil and: { count.isInteger }) {
+			degOf = Array.fill(count) { |pc| scale.degreeOf(pc) };
+			raised = Array.fill(count) { |pc| scale.alternates.any { |pair| pair[1] == pc } };
+			degree = { |pc| if(pc.isInteger and: { pc >= 0 } and: { pc < count }) { degOf[pc] } { scale.degreeOf(pc) } };
+			isRaised = { |pc| if(pc.isInteger and: { pc >= 0 } and: { pc < count }) { raised[pc] } { scale.alternates.any { |pair| pair[1] == pc } } };
+		} {
+			degree = { |pc| scale.degreeOf(pc) };
+			isRaised = { |pc| scale.alternates.any { |pair| pair[1] == pc } };
+		};
+		deg = chords.collect { |c| c[\root] !? { |r| degree.(r) } };
+		inside = cores.collect { |pcs| pcs.every { |pc| degree.(pc).notNil } };
 		kinds = chords.collect { |c, i|
-			var has = { |x| c[\pcs].includesEqual(system.pcAdd(c[\root], x)) }, next = target[i] !? { |j| chords[j] }, to;
+			var j = targets[i], shape = shapes[i], to;
 			case
 			{ inside[i] } { \inside }
-			{ next.isNil or: { c[\root].isNil } or: { next[\root].isNil } or: { inside[target[i]].not } } { \foreign }
+			{ j.isNil or: { c[\root].isNil } or: { chords[j][\root].isNil } or: { inside[j].not } } { \foreign }
 			{
-				to = system.pcSub(next[\root], c[\root]);
-				(has.(third) and: { to == fourth }) or: { has.(minorThird) and: { has.(dim) } and: { to == semitone } }
-			} { if(has.(third)) { \dominant } { \leading } }
+				to = system.pcSub(chords[j][\root], c[\root]);
+				(shape[0] and: { to == fourth }) or: { shape[1] and: { shape[2] } and: { to == semitone } }
+			} { if(shape[0]) { \dominant } { \leading } }
 			{ \foreign }
 		};
-		// the nine kinds of the model: the root's degree, 7 an artificial dominant, 8 foreign
+		// the kinds of the model: the root's degree (nine kinds: 7 an artificial dominant, 8 foreign); with
+		// \forms, the degree and which of its two triads (sixteen: 14 an artificial dominant, 15 foreign)
 		kind = chords.collect { |c, i|
-			switch(kinds[i], \inside, { deg[i] ? 8 }, \foreign, { 8 }, { 7 })
+			switch(kinds[i],
+				\inside, { (deg[i] !? { |d| d + if(wide and: { cores[i].any { |pc| isRaised.(pc) } }) { 7 } { 0 } }) ? foreignKind },
+				\foreign, { foreignKind },
+				{ artKind })
 		};
-		// the cost of each chord given the one before, both read in this region (of the first chord alone at 0)
+		// the cost of each chord given the one before, both read in this region (of the first chord alone at 0);
+		// a chord written again costs what the model says of it, whatever the region
 		step = chords.collect { |c, i|
-			if(i == 0) { table[\first][kind[0]] } { table[\step][kind[i - 1]][kind[i]] }
+			(again[i] ?? { if(i == 0) { (table[\opens] ? table[\first])[kind[0]] } { table[\step][kind[i - 1]][kind[i]] } })
+			+ this.prRest(table, i, kind[i])
 		};
-		^(deg: deg, kinds: kinds, kind: kind, step: step, target: target)
+		^(deg: deg, kinds: kinds, kind: kind, step: step, target: targets)
 	}
 
 	prReadTriads {
@@ -248,6 +376,7 @@ RLFit {
 		step = chords.collect { |c, i|
 			var d;
 			case
+			{ again[i].notNil } { again[i] }
 			{ tri[i].isNil } { costs[\foreign] }
 			{ (i == 0) or: { tri[i - 1].isNil } } { costs[\first_triad] ? 0 }
 			{
@@ -256,6 +385,7 @@ RLFit {
 			} { same }
 			{ min(d * costs[\generator], costs[\far]) }
 		};
+		step = step.collect { |x, i| x + this.prRestTriads(i) };
 		^(tri: tri, step: step)
 	}
 
@@ -269,22 +399,22 @@ RLFit {
 	}
 
 	prSolve {
-		var n = chords.size, s = states.size, best, back, change, last, at;
+		var n = chords.size, s = states.size, best, back, change, into, last, at;
 		if(n == 0) { path = []; cost = 0; ^this };
 		change = states.collect { |a| states.collect { |b| this.prChange(a, b) } };
+		// into[k][j]: what coming to state k from state j costs (a column of change, as one array to add at once)
+		into = Array.fill(s) { |k| Array.fill(s) { |j| change[j][k] } };
 		best = Array.fill(n) { Array.fill(s, inf) };
 		back = Array.fill(n) { Array.fill(s, 0) };
 		s.do { |k| best[0][k] = readings[k][\step][0] };
 		Array.series(n - 1, 1).do { |i|
+			var before = best[i - 1];
 			s.do { |k|
-				// staying is tried first, so that a tie keeps the passage whole; a chord reached from another
+				// staying is taken on a tie, so that a tie keeps the passage whole; a chord reached from another
 				// context is priced as a step of the new one, the chord before read there too (a pivot)
-				var low = best[i - 1][k] + change[k][k], from = k;
-				s.do { |j|
-					var v = best[i - 1][j] + change[j][k];
-					if(v < (low - 1e-9)) { low = v; from = j };
-				};
-				best[i][k] = low + readings[k][\step][i];
+				var all = before + into[k], low = all.minItem, from = k;
+				if(all[k] > (low + 1e-9)) { from = all.minIndex };
+				best[i][k] = all[from] + readings[k][\step][i];
 				back[i][k] = from;
 			};
 		};
@@ -301,10 +431,18 @@ RLFit {
 	// Which option to take at each chord (0: the chord, k: its k-th alternative), by one programme over the
 	// chords, the contexts and the options. What an alternative leads to is read from the chords as they are.
 	prChoose {
-		var n = chords.size, s = states.size, change, options, what, best, back, pick, bk = 0, ba = 0, low = inf;
+		var n = chords.size, s = states.size, change, options, what, goes, best, back, pick, bk = 0, ba = 0, low = inf;
 		if(n == 0) { ^[] };
 		change = states.collect { |a| states.collect { |b| this.prChange(a, b) } };
 		options = chords.collect { |c| [c] ++ (c[\alternatives] ? []) };
+		// goes[i][a][b]: option a of chord i is option b of the chord before, written again (its cost, or nil)
+		goes = options.collect { |opts, i|
+			opts.collect { |o|
+				if(i == 0) { [] } {
+					options[i - 1].collect { |p| if(costs[\again].notNil and: { this.prGoesOn(p, o) }) { costs[\again] } }
+				}
+			}
+		};
 		// what[i][a][k]: option a of chord i in state k: its kind in a region (0 to 8), its triad among the triads
 		what = options.collect { |opts, i|
 			opts.collect { |o, a|
@@ -319,7 +457,7 @@ RLFit {
 		};
 		best = options.collect { |opts| Array.fill(s) { Array.fill(opts.size, inf) } };
 		back = options.collect { |opts| Array.fill(s) { Array.newClear(opts.size) } };
-		s.do { |k| options[0].do { |o, a| best[0][k][a] = this.prStepOf(k, nil, what[0][a][k]) + if(a == 0) { 0 } { o[\extra] ? 0 } } };
+		s.do { |k| options[0].do { |o, a| best[0][k][a] = this.prStepOf(k, nil, what[0][a][k]) + this.prRestIn(k, 0, what[0][a][k]) + if(a == 0) { 0 } { o[\extra] ? 0 } } };
 		Array.series(n - 1, 1).do { |i|
 			s.do { |k|
 				// the cheapest way into state k after each option of the chord before, staying tried first
@@ -334,10 +472,10 @@ RLFit {
 				options[i].do { |o, a|
 					var least = inf, fromB = 0;
 					into.do { |pair, b|
-						var v = pair[0] + this.prStepOf(k, what[i - 1][b][k], what[i][a][k]);
+						var v = pair[0] + (goes[i][a][b] ?? { this.prStepOf(k, what[i - 1][b][k], what[i][a][k]) });
 						if(v < (least - 1e-9)) { least = v; fromB = b };
 					};
-					best[i][k][a] = least + if(a == 0) { 0 } { o[\extra] ? 0 };
+					best[i][k][a] = least + this.prRestIn(k, i, what[i][a][k]) + if(a == 0) { 0 } { o[\extra] ? 0 };
 					back[i][k][a] = [into[fromB][1], fromB];
 				};
 			};
@@ -359,7 +497,7 @@ RLFit {
 		var st = states[k], table, d;
 		if(st[\kind] == \region) {
 			table = costs[st[\region][1]];
-			^if(before.isNil) { table[\first][now] } { table[\step][before][now] }
+			^if(before.isNil) { (table[\opens] ? table[\first])[now] } { table[\step][before][now] }
 		};
 		^case
 		{ now.isNil } { costs[\foreign] }
@@ -374,13 +512,14 @@ RLFit {
 		var scale = states[k][\scale], read = readings[k], root = chord[\root], deg, j, to, has;
 		var third = system.interval([5, 4]), minorThird = system.interval([6, 5]), fourth = system.interval([4, 3]);
 		var semitone = system.interval([16, 15]), dim = system.pcAdd(minorThird, minorThird);
+		var wide = costs[\forms] == true, artKind = if(wide) { 14 } { 7 }, foreignKind = if(wide) { 15 } { 8 }, core = this.prCore(chord);
 		deg = root !? { scale.degreeOf(root) };
-		if(chord[\pcs].every { |pc| scale.holds(pc) }) { ^deg ? 8 };
+		if(core.every { |pc| scale.holds(pc) }) { ^(deg !? { |d| d + this.prForm(scale, core) }) ? foreignKind };
 		j = Array.series(3, i + 1).detect { |x| chords[x].notNil and: { chords[x][\root] != root } };
-		if(j.isNil or: { root.isNil } or: { chords[j][\root].isNil } or: { read[\kinds][j] != \inside }) { ^8 };
+		if(j.isNil or: { root.isNil } or: { chords[j][\root].isNil } or: { read[\kinds][j] != \inside }) { ^foreignKind };
 		has = { |x| chord[\pcs].includesEqual(system.pcAdd(root, x)) };
 		to = system.pcSub(chords[j][\root], root);
-		^if((has.(third) and: { to == fourth }) or: { has.(minorThird) and: { has.(dim) } and: { to == semitone } }) { 7 } { 8 }
+		^if((has.(third) and: { to == fourth }) or: { has.(minorThird) and: { has.(dim) } and: { to == semitone } }) { artKind } { foreignKind }
 	}
 
 	prSegments {
@@ -534,6 +673,26 @@ RLFit {
 			};
 		};
 		^[agreed, total]
+	}
+
+	// Each chord's kind in the model's numbering, as read in its passage's region (nil among the triads): the
+	// root's degree 0 to 6, then with nine kinds 7 an artificial dominant and 8 foreign; with sixteen (\forms)
+	// 7 to 13 the degrees' other triad, 14 an artificial dominant, 15 foreign.
+	kinds { ^chords.collect { |c, i| readings[path[i]][\kind] !? { |k| k[i] } } }
+
+	// The region the reading stays in longest (by the chords' time), as [fifths, mode] from the regions' tonic;
+	// nil when no chord is read in a region. homeShare: how much of the time that is.
+	home { ^this.prHome[0] }
+	homeShare { ^this.prHome[1] }
+	prHome {
+		var time = Array.fill(states.size, 0), total = 0, at = 0;
+		chords.do { |c, i|
+			var d = c[\span] ? c[\dur] ? 1;
+			total = total + d;
+			if(states[path[i]][\kind] == \region) { time[path[i]] = time[path[i]] + d };
+		};
+		time.do { |t, k| if(t > (time[at] + 1e-9)) { at = k } };
+		^if(time[at] > 0) { [states[at][\region], time[at] / total] } { [nil, 0] }
 	}
 
 	// Where the fit's context is not the key the chords carry: [(first:, last:, state:, key:), ...], run by run.
