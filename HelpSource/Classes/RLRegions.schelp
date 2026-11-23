@@ -33,6 +33,31 @@ code::
 ~r.scale(\sm);                           // RLScale: A minor
 ::
 
+subsection:: Regions of any mode: the context of modes
+
+A region may be of any diatonic mode (link::Classes/RLScale#*modes::): code::[1, \mixolydian]:: is the Mixolydian on G. Major and minor regions are two of the seven; the chart knows only them. The modes make one context. A region there is a centre and a signature (which seven fifths its tones are), and two regions stand apart by an interval, code::[how many fifths the centre moves, how many the signature does]::. Three relations generate it:
+
+table::
+## R || the same tones about another centre || C major, D Dorian, G Mixolydian, A minor
+## S || the same centre, one tone changed || C major, C Mixolydian
+## T || the same mode a fifth away || G Mixolydian, D Mixolydian
+::
+
+How many of these steps part two regions is their distance, and the class of a region where the chart has no word. It measures tones in common, not Schoenberg's relationships: the parallel minor is three steps from a major key, and on the chart in class 2.
+
+code::
+RLRegions.interval(\major, 1, \mixolydian);     // [1, 0]: G Mixolydian has C major's tones, a fifth up
+RLRegions.interval(\major, 0, \mixolydian);     // [0, -1]: C Mixolydian is C major with one flat more
+RLRegions.steps(\major, 2, \dorian);            // 1: D Dorian from C major
+RLRegions.classBetween(\major, 0, \dorian);     // 2: C Dorian, two tones changed
+~r.scale([2, \dorian]).degrees;                 // [2, 4, 5, 7, 9, 11, 0]
+~ctx = ~r.context(2);                           // a relation context: 35 regions, R, S, T
+~ctx.graph.distance([0, \major], [0, \dorian]); // 2
+~ctx.act(\R, [0, \major]);                      // the six other modes with C major's tones
+::
+
+A reading uses them through its style prior (link::Classes/RLStylePrior#-modes::): link::Classes/RLFit:: offers the modes the prior names.
+
 CLASSMETHODS::
 
 METHOD:: new
@@ -47,9 +72,20 @@ The charts: code::[name, fifths, mode, class]:: for each named region.
 METHOD:: chart
 
 METHOD:: classBetween
-The class (0 the same key, 1 to 5) of a key of code::toMode:: whose tonic is code::fifths:: from the tonic of a key of code::fromMode::.
+The class (0 the same key, 1 to 5) of a key of code::toMode:: whose tonic is code::fifths:: from the tonic of a key of code::fromMode::. Between major and minor keys: the chart. For a region of another mode, or for every region when code::byModes:: is true: its link::#*steps:: in the context of modes (5 for more).
 METHOD:: nameBetween
 Its name on the chart, or nil.
+
+METHOD:: below
+A mode's place among the seven (link::Classes/RLScale#*below::).
+METHOD:: third
+code::\major:: or code::\minor::: the mode of a mode's tonic triad. A Mixolydian region is a major one (the written key G major is met by the Mixolydian on G), a Dorian a minor.
+METHOD:: charted
+Whether the chart knows the mode (major and minor).
+METHOD:: interval
+The interval between two regions in the context of modes: code::[centre, signature]::, in fifths.
+METHOD:: steps
+How many steps of R, S and T part them.
 
 INSTANCEMETHODS::
 
@@ -68,6 +104,9 @@ METHOD:: scale
 Its link::Classes/RLScale::.
 
 METHOD:: regions
-Every region within code::span:: fifths of the tonic.
+Every region within code::span:: fifths of the tonic: major and minor, or the code::modes:: named.
+
+METHOD:: context
+The context of modes as an link::Classes/RLRelationContext::: the regions within code::span:: fifths (every mode when none is named) under R, S and T. Its graph gives the distances (link::#*steps::, away from the span's edge); a piece's regions are a walk on it.
 METHOD:: names
 METHOD:: central

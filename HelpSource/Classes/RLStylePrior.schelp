@@ -68,6 +68,11 @@ The tables of its model: code::\first::, code::\step::, code::\change::, and cod
 METHOD:: kinds
 How many kinds of chord a key has under it: nine (the root's degree) or sixteen (the key's triads).
 
+METHOD:: modes
+The modes a region may be of under it: major and minor, and for a prior of modal music others (code::\mixolydian::, code::\dorian::), each with its own tables. Which modes a style has is one of its formal assumptions; link::Classes/RLFit:: offers their regions.
+METHOD:: isModal
+Whether it names a mode other than major and minor.
+
 METHOD:: fit
 link::Classes/RLFit:: of these chords under it.
 METHOD:: homed

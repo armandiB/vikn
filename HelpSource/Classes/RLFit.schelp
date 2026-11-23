@@ -18,6 +18,8 @@ A counted model has sixteen kinds, not nine, when it says so (code::\forms::, co
 
 A counted model may also say where the music rests (code::\lasts::, code::\opens::, code::\closes:: in a mode's table; the counted ones since Nov 20 2026): what a chord costs for lasting what it lasts, by its kind (four classes of length: under a quarter note, under two, under four, four or more; a chord written again counted into the one it goes on from), what the first chord costs as an opening, and what ending the piece on the last chord costs. Chord sequences alone take any two chords a fourth apart for a dominant and its tonic; where the music begins, stays and ends says which is the tonic.
 
+A model may name other modes than major and minor (code::\modes::, as code::[\major, \minor, \mixolydian, \dorian]::; the counted ones for music before 1650 and for jazz since Nov 22 2026): a region may then be the scale of any of them about a centre (link::Classes/RLRegions::, the context of modes), each mode with its own tables, its chords the triads of its own scale. Three more entries go with it. code::\final::: such a region is offered on the piece's final alone (the root of its last chord), and only to a piece that ends where it began: a mode is named from the tone a piece ends on, and chords alone do not tell the Mixolydian on G from C major or A minor, which have its tones. code::\substitutes::: tones a style gives a mode as a second form of a degree, in fifths from the tonic (the Dorian of that music with its flat sixth and its leading tone, code::(dorian: [-4, 5])::), as the minor scale has its two everywhere. code::\distances:: code::"modes":: classes every change of region by the steps in the context of modes; without it the chart stands between major and minor, and the steps serve where the chart has no word. A key written major is met by a region of any mode with a major third on its tonic. link::#-modes::, link::#-final::.
+
 A chord written again (the root and the tones of the chord before: another inversion, a repetition) is that chord going on, when the model has code::\again::: it costs that (0 in the counted models) in every context, and is not one of the three chords an artificial dominant may be held. How often a held chord is written again is the writer's habit, not the music's. With every label counted as a step, a chord that follows itself has a price by its degree, and a dominant follows itself more cheaply than a tonic (it is the chord that gains a seventh: V, V7): a piece that sits on its tonic chord, written again at each inversion, is then cheaper read as a dominant, a fifth below its key. The hand-set model prices every label unless asked: code::RLFit(chords, regions, (again: 0))::.
 
 code::
@@ -111,6 +113,14 @@ METHOD:: home
 The region the reading stays in longest, by the chords' time, as code::[fifths, mode]:: from the regions' tonic; nil when no chord is read in a region.
 METHOD:: homeShare
 How much of the time that is, 0 to 1.
+
+METHOD:: modes
+The modes a region may be of: major and minor, or those the model names. A mode named with no table is an Error.
+
+METHOD:: final
+The root of the last chord that has one.
+METHOD:: opening
+The root of the first.
 
 METHOD:: coverage
 Per passage, how much of a score's notes its chords hold, and its scale, with and without its substitutes.
