@@ -40,6 +40,33 @@ RLScale : RLEDO {
 		^this.prRatios(parent, tonic, #[[1, 1], [9, 8], [6, 5], [4, 3], [3, 2], [8, 5], [9, 5]], #[[5, [5, 3]], [6, [15, 8]]], "minor")
 	}
 
+	// The diatonic modes, by how many of a mode's seven fifths lie below its tonic: none for the Lydian, one for
+	// the major scale, six for the Locrian. \ionian is \major; \minor stands where \aeolian does.
+	*modes { ^#[\lydian, \major, \mixolydian, \dorian, \aeolian, \phrygian, \locrian] }
+	*below { |name|
+		var n = switch(name, \ionian, { \major }, \minor, { \aeolian }, { name });
+		^this.modes.indexOf(n) ?? { Error("RLScale: no mode named %".format(name)).throw }
+	}
+
+	// A diatonic mode about a tonic: the tones of a major scale from another of its degrees (the Mixolydian on G
+	// is C major from G, in any tuning). \major and \minor are the two scales above, the minor with its two
+	// substitutes; the other modes have their seven tones and no substitute (the leading tone of a modal cadence
+	// is then a tone from outside, the chord that holds it an artificial dominant of the mode's own tonic).
+	// leading: true gives a mode whose seventh degree is a tone below its tonic and whose second a tone above
+	// (Mixolydian, Dorian, Aeolian) the tone a semitone below the tonic as a substitute, as the minor scale has
+	// its raised seventh. A mode with it holds eight tones, and so the music of more keys than its own.
+	*modal { |parent, tonic, name = \major, leading = false|
+		var sys = parent ?? { RLEDO(12) }, t = tonic ?? { sys.pcZero }, below, degree, scale, lead;
+		if(name == \minor) { ^this.minor(sys, t) };
+		below = this.below(name);
+		if(below == 1) { ^this.major(sys, t) };
+		// the degree of the major scale this tonic is, and that scale's own tonic
+		degree = (4 * (below - 1)) % 7;
+		scale = this.major(sys, sys.pcSub(t, sys.interval(#[[1, 1], [9, 8], [5, 4], [4, 3], [3, 2], [5, 3], [15, 8]][degree]))).mode(degree, name.asString);
+		lead = sys.pcAdd(t, sys.interval([15, 8]));
+		^if(leading and: { below >= 2 } and: { below <= 4 }) { this.new(sys, scale.degrees, [[6, lead]], name.asString) } { scale }
+	}
+
 	// A chain of fifths: below the tonic and above it (1 and 5: the diatonic scale in Pythagorean order).
 	*fifths { |parent, tonic, below = 1, above = 5, label|
 		var sys = parent ?? { RLEDO(12) }, t = tonic ?? { sys.pcZero }, fifth = sys.interval([3, 2]);

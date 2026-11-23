@@ -1,7 +1,7 @@
 title:: reLation
 summary:: Musical objects and the relations that move them: pitch systems, chords, transformations, walks, and maps between contexts
 categories:: Libraries>reLation
-related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism, Classes/RLExtension, Classes/RLWreath, Classes/RLTimeSpans, Classes/RLMetre, Classes/RLPulse, Classes/RLTimePoints, Classes/RLTimeMap, Classes/RLScale, Classes/RLRegions, Classes/RLScore, Classes/RLFit, Classes/RLChordFit
+related:: Classes/RLEDO, Classes/RLJust, Classes/RLChordSpace, Classes/RLChordContext, Classes/RLTransform, Classes/RLWalk, Classes/RLMorphism, Classes/RLVoiceLeading, Classes/RLRelation, Classes/RLRelationContext, Classes/RLCategory, Classes/RLGraph, Classes/RLQuantale, Classes/RLNetwork, Classes/RLAutomorphism, Classes/RLExtension, Classes/RLWreath, Classes/RLTimeSpans, Classes/RLMetre, Classes/RLPulse, Classes/RLTimePoints, Classes/RLTimeMap, Classes/RLScale, Classes/RLRegions, Classes/RLScore, Classes/RLFit, Classes/RLChordFit, Classes/RLLine, Classes/RLRecall
 
 section:: What it is
 
@@ -409,6 +409,14 @@ code::
 ::
 
 HomewareSC's code::Math/Category_Theory/fit/fit.sh:: reads a movement of a corpus of annotated scores both ways, and code::fit_page.sh:: makes the page of the readings: the piece played from its notes with the passages, the chords, the steps, the costs, the regions, the degrees and the tones on one playhead.
+
+And back again, from chords to a line over them: link::Classes/RLLine:: draws a rhythm and its pitches note by note from tables counted on solos (the steps before, the chord, the key, the register) and from what the line itself has done so far (link::Classes/RLRecall::), so that it takes up its own figures.
+
+code::
+~line = RLLine.read(pitchModelPath, rhythmModelPath);     // written by HomewareSC's jazz_know.py and jazz_rhythm.py
+~notes = ~line.draw(~chords, 0, 48, key: [5, \major], median: 65, tempo: 180, seed: 4);
+RLLine.pbind(~notes, 48).play(TempoClock(3));
+::
 
 section:: Tests
 

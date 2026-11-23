@@ -43,6 +43,25 @@ The tones of the minor triads on iv, i and v, with the substitutes of the sixth 
 METHOD:: fifths
 A chain of fifths, code::below:: the tonic and code::above:: it.
 
+METHOD:: modes
+The seven diatonic modes, by how many of a mode's seven fifths lie below its tonic: code::\lydian:: (none), code::\major::, code::\mixolydian::, code::\dorian::, code::\aeolian::, code::\phrygian::, code::\locrian:: (six).
+
+METHOD:: below
+That number for a mode's name. code::\ionian:: is code::\major::; code::\minor:: stands where code::\aeolian:: does.
+
+METHOD:: modal
+A diatonic mode about a tonic: the tones of a major scale from another of its degrees (the Mixolydian on G is C major from G, in any tuning). code::\major:: and code::\minor:: are the two scales above, the minor with its two substitutes; the other modes have their seven tones and no substitute.
+code::
+RLScale.modal(RLEDO(12), 7, \mixolydian).degrees;   // [7, 9, 11, 0, 2, 4, 5]
+RLScale.modal(RLEDO(12), 2, \dorian).degrees;       // [2, 4, 5, 7, 9, 11, 0]
+RLScale.modal(RLJust([3, 5]), nil, \dorian).degrees; // on the lattice: the just major scale from its second degree
+::
+argument:: parent
+argument:: tonic
+argument:: name
+argument:: leading
+True gives the Mixolydian, the Dorian and the Aeolian the tone a semitone below the tonic as a substitute (the leading tone of their cadences), as the minor scale has its raised seventh. A mode with it holds eight tones, and so the music of more keys than its own: a reading that offered such modes everywhere took the Mixolydian on G for A minor.
+
 INSTANCEMETHODS::
 
 METHOD:: parent

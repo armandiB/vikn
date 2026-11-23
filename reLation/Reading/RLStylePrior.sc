@@ -50,12 +50,17 @@ RLStylePrior {
 	// a model that does not say its assumptions (the hand-set one, an older file): read from its switches
 	prFormal {
 		^IdentityDictionary[
-			\keys -> ["major", "minor"],
+			\keys -> this.modes.collect(_.asString),
 			\kinds -> if(model[\forms] == true) { "the key's triads" } { "the degree of the root" },
 			\sevenths -> if(model[\added] == true) { "tones added to the triad" } { "tones of the chord like the others" }
 		]
 	}
 	tables { ^[\first, \step, \opens, \closes, \lasts].select { |k| model[\major][k].notNil } ++ [\change] }
+	// the modes a region may be of under it: major and minor, and for a prior of modal music others
+	// (\mixolydian, \dorian), each with its own tables
+	modes { ^(model[\modes] ? #[\major, \minor]).collect(_.asSymbol) }
+	// whether it reads modes other than major and minor
+	isModal { ^this.modes.any { |m| RLRegions.charted(m).not } }
 	// how many kinds of chord a key has under it
 	kinds { ^model[\major][\first].size }
 
@@ -74,5 +79,9 @@ RLStylePrior {
 		^[best, bestFit]
 	}
 
-	printOn { |stream| stream << "RLStylePrior(" << this.name << "; " << this.kinds << " kinds; " << this.tables.join(", ") << ")" }
+	printOn { |stream|
+		stream << "RLStylePrior(" << this.name << "; " << this.kinds << " kinds; " << this.tables.join(", ");
+		if(this.isModal) { stream << "; modes " << this.modes.join(", ") };
+		stream << ")"
+	}
 }
