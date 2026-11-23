@@ -230,6 +230,45 @@ TestRLFit : UnitTest {
 		this.assert(fit.report(score).contains("C major (T)"), "a report names the passage");
 	}
 
+	test_regions_of_other_modes {
+		// a model that names other modes gives them regions, each with its own table; here the hand-set costs,
+		// major and minor made dearer so that the Mixolydian is taken where its scale holds the chords
+		var edo = RLEDO(12), r = RLRegions(edo, 0, \major), tri, model, dear, chords, fit, open, modal, bad;
+		tri = { |root, minor = false| (pcs: [root, (root + if(minor) { 3 } { 4 }) % 12, (root + 7) % 12], root: root, key: [1, \major]) };
+		model = RLFit.handModel((modes: [\major, \minor, \mixolydian]));
+		dear = { |t| IdentityDictionary[\first -> (t[\first] + 1), \step -> t[\step].collect { |row| row + 1 }] };
+		model[\major] = dear.(model[\major]);
+		model[\minor] = dear.(model[\minor]);
+		// G F C G d F G: the Mixolydian on G
+		chords = [tri.(7), tri.(5), tri.(0), tri.(7), tri.(2, true), tri.(5), tri.(7)].collect { |c, i| c[\onset] = i; c[\dur] = 1; c };
+		fit = RLFit(chords, r, model);
+		this.assertEquals(fit.modes, [\major, \minor, \mixolydian], "the modes the model names");
+		this.assertEquals(fit.segments.collect { |s| s[\region] }, [[1, \mixolydian]], "one passage, in the Mixolydian on G");
+		this.assertEquals(fit.title(fit.segments[0]), "G mixolydian", "its title");
+		this.assertEquals(fit.segments[0][\numerals], ["I", "VII", "IV", "I", "v", "VII", "I"], "its chords are its own scale's");
+		this.assertEquals(fit.agreement, [7, 7], "the key written G major is met by the Mixolydian on G: the same tonic, the same third");
+		this.assertEquals(fit.data[\chords][0][\agrees], true, "chord by chord");
+		this.assertEquals(RLFit(chords, r).states.any { |st| (st[\kind] == \region) and: { st[\region][1] == \mixolydian } }, false,
+			"without the modes named, no such region");
+		bad = RLFit.handModel;
+		bad[\modes] = [\major, \minor, \dorian];
+		this.assertException({ RLFit(chords, r, bad) }, Error, "a mode named with no table is refused");
+		// the final: with a model that says so, another mode is offered on the root of the last chord alone,
+		// and only to a piece that ends where it began
+		this.assertEquals([fit.opening, fit.final], [7, 7], "the piece opens and ends on G");
+		model[\final] = true;
+		modal = { |f| f.states.select { |st| (st[\kind] == \region) and: { st[\region][1] == \mixolydian } }.collect { |st| r.tonicOf(st[\region]) }.asSet.asArray.sort };
+		this.assertEquals(modal.(RLFit(chords, r, model)), [7], "the Mixolydian is offered on G alone");
+		this.assertEquals(RLFit(chords, r, model).segments.collect { |s| s[\region] }, [[1, \mixolydian]], "and taken");
+		open = chords.keep(6) ++ [tri.(0).putAll((onset: 6, dur: 1))];
+		this.assertEquals(modal.(RLFit(open, r, model)).size, 0, "a piece that ends elsewhere than it began has no final to name a mode from");
+		// substitutes of a style: the major scale with its seventh a tone below the tonic as a second form
+		model[\substitutes] = IdentityDictionary[\major -> [-2]];
+		fit = RLFit(chords, r, model);
+		this.assertEquals(fit.states.detect { |st| st[\region] == [0, \major] }[\scale].alternates, [[6, 10]], "C major then holds B flat, on its seventh degree");
+		this.assertEquals(fit.states.detect { |st| st[\region] == [0, \minor] }[\scale].alternates, RLScale.minor(edo, 0).alternates, "the minor keeps its own two");
+	}
+
 	test_spelled_notes_in_other_divisions {
 		this.assertEquals(RLScore.pitchOf(RLEDO(12), 68, -4), 8, "A flat above middle C in 12 steps");
 		this.assertEquals(RLScore.pitchOf(RLEDO(19), 68, -4), 13, "in 19 steps");

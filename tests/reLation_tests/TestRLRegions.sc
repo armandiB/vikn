@@ -56,4 +56,47 @@ TestRLRegions : UnitTest {
 		this.assertEquals(RLRegions(RLJust([3, 5])).scale(\D).tonic, [1, 0], "on the lattice the dominant region is a fifth up");
 		this.assertEquals(r.regions(1), [[-1, \major], [-1, \minor], [0, \major], [0, \minor], [1, \major], [1, \minor]], "the regions within a fifth");
 	}
+
+	test_regions_of_any_mode {
+		var edo = RLEDO(12), r = RLRegions(edo, 0, \major), d = RLRegions(edo, 2, \dorian);
+		this.assertEquals(r.scale([1, \mixolydian]).degrees, [7, 9, 11, 0, 2, 4, 5], "the Mixolydian region on G");
+		this.assertEquals(r.scale([2, \dorian]).tonic, 2, "the Dorian on D");
+		this.assertEquals(r.regions(0, [\major, \minor, \dorian]), [[0, \major], [0, \minor], [0, \dorian]], "the regions of the modes named");
+		this.assertEquals([\mixolydian, \lydian, \major, \dorian, \phrygian, \minor].collect { |m| RLRegions.third(m) },
+			[\major, \major, \major, \minor, \minor, \minor], "a mode is seen as major or minor by the third on its tonic");
+		this.assertEquals(RLRegions.interval(\major, 1, \mixolydian), [1, 0], "G Mixolydian from C major: the centre a fifth up, the same tones");
+		this.assertEquals(RLRegions.interval(\major, 0, \mixolydian), [0, -1], "C Mixolydian: the same centre, one flat more");
+		this.assertEquals(RLRegions.interval(\major, 3, \minor), [3, 0], "the relative minor has the same tones");
+		this.assertEquals(RLRegions.interval(\dorian, 1, \dorian), [1, 1], "the same mode a fifth up: one sharp more");
+		this.assertEquals([RLRegions.steps(\major, 2, \dorian), RLRegions.steps(\major, 0, \mixolydian), RLRegions.steps(\major, 0, \dorian),
+			RLRegions.steps(\major, 1, \major), RLRegions.steps(\major, 0, \minor), RLRegions.steps(\major, 0, \major)], [1, 1, 2, 1, 3, 0],
+			"the steps between two regions");
+		this.assertEquals(RLRegions.classBetween(\major, 1, \mixolydian), 1, "where the chart has no word, the steps");
+		this.assertEquals(RLRegions.classBetween(\major, 0, \minor), 2, "between major and minor the chart: the parallel minor is indirect but close");
+		this.assertEquals(RLRegions.classBetween(\major, 0, \minor, true), 3, "by the modes it is three tones away");
+		this.assertEquals(RLRegions.classBetween(\major, 6, \dorian), 5, "five at the most");
+		this.assertEquals(RLRegions.classBetween(\dorian, 0, \dorian), 0, "the same region");
+		this.assertEquals(r.relation([0, \major], [2, \dorian]), 1, "D Dorian seen from C major");
+		this.assertEquals(r.nameOf([2, \dorian]), nil, "the chart has no name for it");
+		this.assertEquals(d.central, [0, \dorian], "regions round a Dorian centre");
+		this.assertEquals(d.scale(d.central).degrees, [2, 4, 5, 7, 9, 11, 0], "its scale");
+		this.assertEquals(edo.name(d.tonicOf([-2, \major])), "C", "C major from D Dorian, two fifths down");
+		this.assertEquals(d.relation(d.central, [-2, \major]), 1, "one step away");
+	}
+
+	test_the_context_of_modes {
+		var edo = RLEDO(12), r = RLRegions(edo, 0, \major), ctx = r.context(3), g = ctx.graph, near = r.regions(1, RLScale.modes), differ = 0;
+		this.assertEquals(r.context(2).objects.size, 35, "five centres, seven modes");
+		this.assertEquals(ctx.generators, [\R, \S, \T], "three relations");
+		this.assert(ctx.act(\R, [0, \major]).includesEqual([1, \mixolydian]) and: { ctx.act(\R, [0, \major]).includesEqual([2, \dorian]) },
+			"R: the same tones about another centre");
+		this.assertEquals(ctx.act(\S, [0, \major]).size, 2, "S: one tone changed about the same centre, either way");
+		this.assert(ctx.act(\S, [0, \major]).includesEqual([0, \mixolydian]) and: { ctx.act(\S, [0, \major]).includesEqual([0, \lydian]) }, "C Mixolydian and C Lydian");
+		this.assert(ctx.act(\T, [0, \dorian]).includesEqual([1, \dorian]), "T: the same mode a fifth away");
+		this.assert(ctx.isWalk([[0, \major], [1, \mixolydian], [1, \major]], [\R, \S]), "C major, G Mixolydian, G major is a walk: R then S");
+		this.assertEquals(g.distance([0, \major], [0, \dorian]), 2, "C Dorian is two steps from C major");
+		// away from the span's edge the graph's distances are the formula's
+		near.do { |a| near.do { |b| if(g.distance(a, b) != RLRegions.steps(a[1], b[0] - a[0], b[1])) { differ = differ + 1 } } };
+		this.assertEquals(differ, 0, "the graph's distances are *steps for the regions within a fifth");
+	}
 }

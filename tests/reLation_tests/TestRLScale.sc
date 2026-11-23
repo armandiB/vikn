@@ -90,4 +90,30 @@ TestRLScale : UnitTest {
 		this.assertEquals(RLScale.major(RLJust([3, 5])).commonTones(RLScale.minor(RLJust([3, 5]), [-1, 1])).size, 6,
 			"on the lattice the relative minor shares six: its fourth degree is a comma away");
 	}
+
+	test_the_diatonic_modes {
+		var edo = RLEDO(12), just = RLJust([3, 5]), dorian, below;
+		this.assertEquals(RLScale.modes.size, 7, "seven modes");
+		this.assertEquals([\lydian, \major, \ionian, \mixolydian, \dorian, \minor, \aeolian, \phrygian, \locrian].collect { |m| RLScale.below(m) },
+			[0, 1, 1, 2, 3, 4, 4, 5, 6], "each by how many of its fifths lie below its tonic");
+		this.assertEquals(RLScale.modal(edo, 7, \mixolydian).degrees, [7, 9, 11, 0, 2, 4, 5], "the Mixolydian on G: C major's tones from G");
+		this.assertEquals(RLScale.modal(edo, 2, \dorian).degrees, [2, 4, 5, 7, 9, 11, 0], "the Dorian on D");
+		this.assertEquals(RLScale.modal(edo, 4, \phrygian).degrees, [4, 5, 7, 9, 11, 0, 2], "the Phrygian on E");
+		this.assertEquals(RLScale.modal(edo, 5, \lydian).degrees, [5, 7, 9, 11, 0, 2, 4], "the Lydian on F");
+		this.assertEquals(RLScale.modal(edo, 9, \aeolian).degrees, [9, 11, 0, 2, 4, 5, 7], "the Aeolian on A");
+		this.assertEquals(RLScale.modal(edo, 11, \locrian).degrees, [11, 0, 2, 4, 5, 7, 9], "the Locrian on B");
+		this.assertEquals(RLScale.modal(edo, 9, \aeolian).alternates, [], "a mode has its seven tones and no substitute");
+		this.assertEquals(RLScale.modal(edo, 9, \minor), RLScale.minor(edo, 9), "minor is the minor scale, with its two");
+		this.assertEquals(RLScale.modal(edo, 0, \major), RLScale.major(edo, 0), "major the major scale");
+		this.assertEquals(RLScale.modal(edo, 2, \dorian, true).alternates, [[6, 1]], "asked for, the leading tone as a substitute");
+		this.assertEquals(RLScale.modal(edo, 4, \phrygian, true).alternates, [], "the Phrygian takes none");
+		this.assertEquals(RLScale.modal(edo, 7, \mixolydian).triads.all.collect { |ch| RLScale.modal(edo, 7, \mixolydian).numeral(ch) },
+			["I", "ii", "iiio", "IV", "v", "vi", "VII"], "its triads are its own scale's: a minor fifth degree, a major seventh");
+		// in any tuning: the tones of a major scale about another of its degrees
+		dorian = RLScale.modal(just, nil, \dorian);
+		below = RLScale.major(just, just.pcSub(just.pcZero, just.interval([9, 8])));
+		this.assertEquals(dorian.tonic, just.pcZero, "on the lattice the Dorian is about its own tonic");
+		this.assert(dorian.degrees.every { |pc| below.degrees.includesEqual(pc) }, "with the tones of the just major scale a tone below");
+		this.assertException({ RLScale.below(\blues) }, Error, "an unknown mode is refused");
+	}
 }

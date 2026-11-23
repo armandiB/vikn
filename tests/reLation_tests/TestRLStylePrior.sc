@@ -34,6 +34,16 @@ TestRLStylePrior : UnitTest {
 		this.assertEquals(prior.notYet, ["metre"], "and what it does not hold yet");
 	}
 
+	test_a_prior_of_modal_music {
+		var plain = RLStylePrior.hand, modal = RLStylePrior.hand((modes: [\major, \minor, \dorian]));
+		this.assertEquals(plain.modes, [\major, \minor], "a prior reads major and minor keys");
+		this.assertEquals(plain.isModal, false, "and is not modal");
+		this.assertEquals(modal.modes, [\major, \minor, \dorian], "or the modes it names");
+		this.assert(modal.isModal, "then it is modal");
+		this.assertEquals(modal.formal[\keys], ["major", "minor", "dorian"], "and says so among its formal assumptions");
+		this.assert(modal.asString.contains("dorian"), "and in its name");
+	}
+
 	test_the_prior_that_describes_shortest {
 		// two priors: one at home with steps a fourth up, one that finds them dear; a ring of fifths chooses the first
 		var edo = RLEDO(12), c = RLScale.major(edo), chords = this.prChords(c, [0, 3, 6, 2, 5, 1, 4, 0]);

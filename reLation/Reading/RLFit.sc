@@ -116,6 +116,16 @@ RLFit {
 		model[\major] = one.value;
 		model[\minor] = one.value;
 		model[\change] = IdentityDictionary[\major -> Array.fill(6) { |k| c[\region] * k }, \minor -> Array.fill(6) { |k| c[\region] * k }];
+		// other modes a region may be of, only when asked ((modes: [\major, \minor, \dorian])): the same costs;
+		// and the classes of all regions by their steps in the context of modes ((distances: "modes"))
+		c[\modes] !? { |list|
+			model[\modes] = list;
+			list.do { |m|
+				model[m.asSymbol] = model[m.asSymbol] ?? { one.value };
+				model[\change][m.asSymbol] = Array.fill(6) { |k| c[\region] * k };
+			};
+		};
+		c[\distances] !? { |d| model[\distances] = d };
 		model[\context] = c[\context];
 		model[\generator] = c[\generator];
 		model[\far] = c[\far];
@@ -274,15 +284,59 @@ RLFit {
 
 	// every state reads every chord: what the chord is there, what it costs, what the step into it costs
 	prStates {
-		var n = chords.size, central = regions.central, list;
-		list = regions.regions(span).sort { |a, b|
+		var n = chords.size, central = regions.central, list, final;
+		list = regions.regions(span, this.modes).sort { |a, b|
 			var ka = [a[0].abs, if(a[1] == central[1]) { 0 } { 1 }, a[0]], kb = [b[0].abs, if(b[1] == central[1]) { 0 } { 1 }, b[0]];
 			(ka[0] < kb[0]) or: { (ka[0] == kb[0]) and: { (ka[1] < kb[1]) or: { (ka[1] == kb[1]) and: { ka[2] >= kb[2] } } } }
 		};
-		states = list.collect { |r| (kind: \region, region: r, scale: regions.scale(r)) };
+		// with a model that says so (\final), a region of another mode than major and minor is offered on the
+		// piece's final alone: a mode is named from the tone a piece ends on. A piece that does not end where
+		// it began (a scene, an excerpt) has no final to name one from, and is read in major and minor keys.
+		if(costs[\final] == true) {
+			final = if(this.opening == this.final) { this.final };
+			list = list.select { |r| RLRegions.charted(r[1]) or: { final.notNil and: { regions.tonicOf(r) == final } } };
+		};
+		states = list.collect { |r| (kind: \region, region: r, scale: this.prScale(r)) };
 		if(triadSpace.notNil) { states = states.add((kind: \triads)) };
 		readings = states.collect { |st| if(st[\kind] == \region) { this.prReadRegion(st[\scale], st[\region][1]) } { this.prReadTriads } };
 	}
+
+	// The final: the root of the last chord that has one (a pitch class of the system; nil when none has); and
+	// the opening: the root of the first.
+	final {
+		chords.reverseDo { |c| if(c[\root].notNil) { ^c[\root] } };
+		^nil
+	}
+	opening {
+		chords.do { |c| if(c[\root].notNil) { ^c[\root] } };
+		^nil
+	}
+
+	// A region's scale: the regions' own, and the substitutes the model gives its mode beside them (\substitutes:
+	// for a mode, fifths from the tonic). The minor scale has two forms of its sixth and seventh degrees
+	// everywhere; a style may state the same of another degree: music before 1650 has the major scale's seventh
+	// a tone below the tonic as well as a semitone ((major: [-2])), and the triads that hold it are then of the
+	// scale, the other form on their degree.
+	prScale { |r|
+		var scale = regions.scale(r), more = costs[\substitutes] !? { |s| s[r[1]] }, fifth;
+		if(more.isNil or: { more.isEmpty }) { ^scale };
+		fifth = system.interval([3, 2]);
+		^RLScale(system, scale.degrees,
+			scale.alternates ++ more.collect { |f| [(4 * f) % 7, system.pcAdd(scale.tonic, system.pcScale(fifth, f.asInteger))] }, scale.label)
+	}
+
+	// The modes a region may be of: major and minor, or those the model names (\modes: a style prior that reads
+	// modal music has \mixolydian and \dorian beside them, each with its own tables).
+	modes {
+		var list = (costs[\modes] ? #[\major, \minor]).collect(_.asSymbol);
+		list.do { |m| if(costs[m].isNil) { Error("RLFit: the model names the mode % and has no table for it".format(m)).throw } };
+		^list
+	}
+
+	// The class of a region seen from another: Schoenberg's chart between major and minor regions, the steps in
+	// the context of modes for a region of another mode, and for every region with a model whose \distances
+	// says "modes" (RLRegions.classBetween).
+	prClass { |a, b| ^RLRegions.classBetween(a[1], b[0] - a[0], b[1], costs[\distances].asString == "modes") }
 
 	// What of a chord says its kind in a key. With a model that has \added, a chord is of the kind of its triad:
 	// its root and the tones a third and a fifth above it. A seventh, a sixth, a ninth are tones added to it and
@@ -392,7 +446,7 @@ RLFit {
 	prChange { |a, b|
 		^case
 		{ (a[\kind] == \region) and: { b[\kind] == \region } } {
-			costs[\change][a[\region][1]][if(a === b) { 0 } { regions.relation(a[\region], b[\region]) }]
+			costs[\change][a[\region][1]][if(a === b) { 0 } { this.prClass(a[\region], b[\region]) }]
 		}
 		{ a === b } { 0 }
 		{ costs[\context] }
@@ -544,7 +598,7 @@ RLFit {
 			seg[\region] = st[\region];
 			seg[\scale] = st[\scale];
 			seg[\name] = regions.nameOf(st[\region]);
-			seg[\relation] = regions.classOf(st[\region]);
+			seg[\relation] = this.prClass(regions.central, st[\region]);
 			seg[\numerals] = idx.collect { |i| this.prNumeral(st[\scale], read, i) };
 			seg[\word] = idx.drop(1).collect { |i|
 				if(read[\deg][i].notNil and: { read[\deg][i - 1].notNil }) { (read[\deg][i] - read[\deg][i - 1]) % st[\scale].steps }
@@ -630,7 +684,7 @@ RLFit {
 				};
 			};
 			if((si > 0) and: { seg[\kind] == \region } and: { segments[si - 1][\kind] == \region }) {
-				var rel = regions.relation(segments[si - 1][\region], seg[\region]);
+				var rel = this.prClass(segments[si - 1][\region], seg[\region]);
 				if(rel >= 3) { surprises = surprises.add((kind: \far, at: seg[\first], segment: si, relation: rel)) };
 			};
 		};
@@ -638,11 +692,13 @@ RLFit {
 	}
 
 	// whether the fit reads chord i in the key the chord carries (\key); loosely: or in the key it is written
-	// "of" (\applied: V7/vi is in vi for a moment)
+	// "of" (\applied: V7/vi is in vi for a moment). A key written major is met by a region of any mode with a
+	// major third on the same tonic (the analysts write G major for the Mixolydian on G), a minor one likewise.
 	prAgrees { |i, loose = false| ^this.prReadsIn(i, chords[i][\key]) or: { loose and: { this.prReadsIn(i, chords[i][\applied]) } } }
 	prReadsIn { |i, key|
 		var st = states[path[i]];
-		^key.notNil and: { st[\kind] == \region } and: { st[\region][1] == key[1] } and: { regions.tonicOf(st[\region]) == regions.tonicOf(key) }
+		^key.notNil and: { st[\kind] == \region } and: { RLRegions.third(st[\region][1]) == RLRegions.third(key[1]) }
+		and: { regions.tonicOf(st[\region]) == regions.tonicOf(key) }
 	}
 
 	// The same against chords an analyst wrote on their own time line (each with \onset, \dur, \key): how
@@ -760,7 +816,7 @@ RLFit {
 			states: states.collect { |st|
 				if(st[\kind] == \region) {
 					(kind: "region", title: this.regionTitle(st[\region]), region: region.(st[\region]), name: str.(regions.nameOf(st[\region])),
-						relation: regions.classOf(st[\region]), tonic: regions.tonicOf(st[\region]), tones: st[\scale].degrees,
+						relation: this.prClass(regions.central, st[\region]), tonic: regions.tonicOf(st[\region]), tones: st[\scale].degrees,
 						alternates: st[\scale].alternates)
 				} { (kind: "triads", title: "triads") }
 			},
