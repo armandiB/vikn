@@ -1,0 +1,41 @@
+TITLE:: RLRecall
+summary:: What a line has done so far: after the same last values, what it did next
+categories:: Libraries>reLation
+related:: Classes/RLLine, Guides/reLation
+
+DESCRIPTION::
+A memory of one line, kept as it goes: after the same last values (its last steps), what it did next. Orders 0 (how often each value came) to link::#-depth::, each leaning on the one below; with nothing seen, every value alike.
+
+A figure that comes back in a line is one it has already said. link::Classes/RLLine:: draws with an RLRecall of the steps it has drawn, so that a line takes up its own motives, on any pitch. Measured on solos (HomewareSC, code::Math/Category_Theory/fit/jazz_know.py::), this memory of the solo itself saves a tenth of a bit a note over what solos do in general, and lines drawn with it come back to their own figures as often as the players' do (six in ten of a line's three-step figures are different, against eight in ten without it).
+
+code::
+~r = RLRecall(49);                 // 49 values: steps of -24 to 24 semitones, 24 the same pitch
+~r.learn([], 26);                  // a tone up
+~r.learn([26], 26);                // after a tone up, a tone up
+~r.learn([26, 26], 21);            // after two, a minor third down
+~r.chances([26, 26]).maxIndex;     // 21: the likeliest again
+~r.chances([26]).maxIndex;         // 26
+~r.chances([30, 26]).maxIndex;     // 26: a longer memory that never came leans on the shorter one
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: size
+How many values there are.
+argument:: depth
+How many last values it looks at, at the most.
+argument:: lean
+How much each order leans on the one below, in notes: with 1, a figure said twice is nearly a rule.
+
+INSTANCEMETHODS::
+
+METHOD:: chances
+The chances of each value after these last values (the most recent last).
+
+METHOD:: learn
+What came after these last values.
+
+METHOD:: size
+METHOD:: depth
+METHOD:: lean

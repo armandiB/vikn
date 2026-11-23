@@ -1,0 +1,114 @@
+TITLE:: RLLine
+summary:: A line over chords: a rhythm and pitches drawn note by note from what a note knows
+categories:: Libraries>reLation
+related:: Classes/RLRecall, Classes/RLFit, Classes/RLWalker, Guides/reLation
+
+DESCRIPTION::
+The reverse of a reading: where link::Classes/RLFit:: prices the chords a piece has, RLLine draws notes over chords it is given.
+
+A note's pitch is drawn from a product of small counted tables ("experts"), each saying how likely a pitch is from one point of view, each raised to a weight:
+
+table::
+## code::\three:: (or code::\two::, code::\step::) || the step from the note before, given the two steps before that (arpeggios, scales, turns)
+## code::\chord:: || the tone above the chord's root, by the chord's kind, on or off the beat
+## code::\key:: || the tone above the tune's tonic, by its mode
+## code::\place:: || the pitch against the line's median (the register)
+## code::\motive:: || not counted on other solos: what this line has done so far after the same last steps (link::Classes/RLRecall::): a figure that comes back
+## code::\stay:: || whether the note repeats the pitch before, by how many times that pitch has been said already
+::
+
+A note's start is drawn the same way: the gaps before it (code::\two::, code::\last::, code::\gap::), where in the beat it lands (code::\lands::), the tempo (code::\tempo::); then how long it sounds within its gap.
+
+The tables are counted on solos by HomewareSC's code::Math/Category_Theory/fit/jazz_know.py:: and code::jazz_rhythm.py::, which write the two models this class reads. A table is kept there on one of two grounds: solos not counted cost fewer bits with it, or lines drawn with it are nearer the players' in what they are made of (code::jazz_shape.py::: how often a line repeats a pitch, moves by step or by leap, turns, comes back to its own figures). Counted on bebop, hard bop, cool and swing solos of the Weimar Jazz Database, a note's pitch costs 2.98 bits on bebop solos not counted and 2.87 on Charlie Parker's, never counted (5.93 knowing nothing); lines drawn from it come back to their own figures as often as his do.
+
+A model may say other weights for drawing than those that tell real lines best (code::\draw::): the latter flatten each table, and a line drawn with them may stick on a pitch.
+
+Pitches are MIDI notes and pitch classes those of twelve steps; time is in beats. Not modelled: the phrase (when a line breathes, how long it runs: three counts of it gave nothing), dynamics, articulation beyond how long a note sounds.
+
+code::
+~line = RLLine.read(pitchModelPath, rhythmModelPath);
+// twelve bars of a blues in F
+~chords = [5, 10, 5, 5, 10, 10, 5, 5, 0, 10, 5, 0].collect { |r, i| (onset: i * 4, dur: 4, root: r, pcs: [r, r + 4, r + 7, r + 10] % 12) };
+~notes = ~line.draw(~chords, 0, 48, key: [5, \major], median: 65, lowest: 53, highest: 79, tempo: 180, seed: 4);
+~notes.collect(_[\midinote]);
+RLLine.pbind(~notes, 48).play(TempoClock(3));
+
+// in a piece (reCurrent): the line as a beat
+~beat = ~song.layer(\core).addBeat(\line, [instrument: \default, dur_flex: RLLine.deltas(~notes, 48), midinote: Pseq(~notes.collect(_[\midinote]), inf)]);
+
+// pitches for a rhythm of one's own; a rhythm alone
+~line.pitches([[0, 0.5], [0.5, 0.5], [1, 1], [2, 0.5]], ~chords, [5, \major], first: 65);
+~line.rhythm(0, 8, 180);
+::
+
+CLASSMETHODS::
+
+METHOD:: new
+argument:: pitchModel
+A model of the pitches, as read (link::#*readModel::). An expert it does not know is an Error.
+argument:: rhythmModel
+A model of the rhythm, or nil (then link::#-rhythm:: and link::#-draw:: are Errors, and link::#-pitches:: takes a rhythm of one's own).
+
+METHOD:: read
+From the two files.
+
+METHOD:: readModel
+One model from its file.
+
+METHOD:: gapKind
+A gap in twelfths of a beat as the tables see what came before: the common ones each a kind of their own, the others by size.
+
+METHOD:: chordKind
+A chord's kind from its tones above its root: 0 major, 1 dominant (a major third and a minor seventh), 2 minor, 3 diminished.
+
+METHOD:: deltas
+From a line's notes, the time from each note to the next (the last to code::end::): a beat's durations, a Pbind's code::\dur::.
+
+METHOD:: pbind
+The line as a Pbind: code::\midinote::, code::\dur:: (the deltas), code::\sustain:: (how long each note sounds).
+
+METHOD:: common
+The gaps that are kinds of their own, in twelfths of a beat.
+
+INSTANCEMETHODS::
+
+METHOD:: draw
+A line over chords from code::start:: to code::end::, in beats: a rhythm, then pitches on it. Events with code::\onset::, code::\dur:: (how long the note sounds) and code::\midinote::.
+argument:: chords
+Events with code::\onset::, code::\dur::, code::\root:: and code::\pcs:: (pitch classes of twelve steps), in order.
+argument:: start
+argument:: end
+argument:: key
+code::[tonic pitch class, \major or \minor]::, or nil (the key then says nothing).
+argument:: first
+The first pitch; drawn like the others when nil.
+argument:: median
+The pitch the line stays about (the middle of its range when nil).
+argument:: lowest
+argument:: highest
+Its range (the model's when nil).
+argument:: tempo
+In beats a minute; nil: what the tempo says of the rhythm is left out.
+argument:: seed
+The same seed gives the same line.
+argument:: heat
+Under 1 the likelier choices are taken more often. Lines drawn at 1 are the nearest to the players'.
+
+METHOD:: rhythm
+A rhythm alone: code::[[onset, how long it sounds], ...]::. The first note is at code::start::; a gap that would pass code::end:: ends it.
+
+METHOD:: pitches
+Pitches for a rhythm (code::[[onset, how long it sounds], ...]::): the MIDI notes. A rest of a beat or more starts a new phrase.
+
+METHOD:: chances
+The chances of every pitch (link::#-low:: to link::#-high::) for one note, given what it knows: an Event with code::\prev::, code::\before::, code::\before2:: (the pitches before it in its phrase), code::\afterRest::, code::\root:: and code::\kind:: (its chord), code::\beat::, code::\tonic:: and code::\minor::, code::\median::, code::\same:: (how many times the pitch before had been said already), code::\recalled:: (an link::Classes/RLRecall::'s chances).
+
+METHOD:: pitchExperts
+METHOD:: rhythmExperts
+The experts of each model.
+
+METHOD:: pitchModel
+METHOD:: rhythmModel
+METHOD:: low
+METHOD:: high
+The model's range of pitches.
